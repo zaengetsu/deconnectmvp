@@ -5,7 +5,7 @@ export const APP_VERSION = '1.0.0';
 
 // ─── Age Limits ──────────────────────────────────────────────
 export const MIN_CHILD_AGE = 7;
-export const MAX_CHILD_AGE = 15;
+export const MAX_CHILD_AGE = 18;
 
 // ─── Free Plan Limits ────────────────────────────────────────
 export const FREE_PLAN_LIMITS = {
