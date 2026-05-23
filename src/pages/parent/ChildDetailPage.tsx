@@ -1,0 +1,274 @@
+import React, { useEffect, useState } from 'react';
+import { IonContent, IonPage } from '@ionic/react';
+import { useParams, useHistory } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
+import { childrenService } from '../../features/children/children.service';
+import { activitiesService } from '../../features/activities/activities.service';
+import { gamificationService } from '../../features/gamification/gamification.service';
+import { supabase } from '../../lib/supabase';
+import { Smartphone, QrCode, CheckCircle, RefreshCw, Clock, Trophy, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import type { Child, ChildActivity, ChildBadge } from '../../types/database.types';
+
+const ChildDetailPage: React.FC = () => {
+  const { childId } = useParams<{ childId: string }>();
+  const history = useHistory();
+  const [child, setChild] = useState<Child | null>(null);
+  const [activities, setActivities] = useState<ChildActivity[]>([]);
+  const [badges, setBadges] = useState<ChildBadge[]>([]);
+  const [weeklyStats, setWeeklyStats] = useState({ activitiesCompleted: 0, pointsEarned: 0, badgesEarned: 0 });
+
+  // QR Code state
+  const [showQR, setShowQR] = useState(false);
+  const [qrToken, setQrToken] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrExpiry, setQrExpiry] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (childId) {
+      childrenService.getChild(childId).then(setChild);
+      activitiesService.getChildActivities(childId).then(setActivities);
+      gamificationService.getChildBadges(childId).then(setBadges);
+      gamificationService.getWeeklyStats(childId).then(setWeeklyStats);
+    }
+  }, [childId]);
+
+  const generateQR = async () => {
+    if (!childId) return;
+    setQrLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('create_child_link_token', { p_child_id: childId });
+      if (error) throw error;
+      setQrToken(data);
+      setQrExpiry(new Date(Date.now() + 15 * 60 * 1000)); // 15 min
+      setShowQR(true);
+    } catch (e) {
+      console.error('QR generation error:', e);
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  if (!child) return (
+    <IonPage><IonContent>
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--dc-text-light)' }}>Chargement...</div>
+    </IonContent></IonPage>
+  );
+
+  const progress = gamificationService.getLevelProgress(child.total_points);
+  const isLinked = !!(child as any).pin_hash;
+
+  return (
+    <IonPage>
+      {/* QR Modal */}
+      {showQR && qrToken && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.6)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(8px)',
+        }} onClick={() => setShowQR(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'white', borderRadius: 28, padding: '32px 28px',
+            width: '90%', maxWidth: 380, textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
+            <div style={{ width: 64, height: 64, borderRadius: 20, background: 'var(--dc-blue-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+              <Smartphone size={30} color="var(--dc-blue)" strokeWidth={1.5} />
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
+              Lier l'appareil de {child.display_name}
+            </h2>
+            <p style={{ color: 'var(--dc-text-light)', fontSize: 13, marginBottom: 24 }}>
+              Demandez à votre enfant de scanner ce QR code avec l'app Deconnect
+            </p>
+
+            {/* QR Code */}
+            <div style={{
+              background: 'white', padding: 20, borderRadius: 20,
+              display: 'inline-block', border: '3px solid var(--dc-primary)',
+              boxShadow: '0 4px 20px rgba(108,92,231,0.15)',
+            }}>
+              <QRCodeSVG
+                value={JSON.stringify({
+                  type: 'deconnect_link',
+                  token: qrToken,
+                  child: child.display_name,
+                })}
+                size={200}
+                level="M"
+                fgColor="#2D3436"
+                bgColor="white"
+                imageSettings={{
+                  src: '',
+                  height: 0,
+                  width: 0,
+                  excavate: false,
+                }}
+              />
+            </div>
+
+            {/* Timer */}
+            <div style={{ marginTop: 16, padding: '8px 16px', borderRadius: 50, background: 'rgba(21,101,192,0.1)', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--dc-blue)' }}>
+              <Clock size={13} strokeWidth={2} /> Expire dans 15 minutes
+            </div>
+
+            <div style={{ marginTop: 20 }}>
+              <button
+                className="dc-btn dc-btn-outline dc-btn-full"
+                onClick={() => setShowQR(false)}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <IonContent fullscreen>
+        <div style={{ minHeight: '100vh', background: 'var(--dc-bg)', padding: '0 0 100px' }}>
+          {/* Header gradient */}
+          <div style={{
+            background: 'linear-gradient(135deg, #6C5CE7 0%, #A29BFE 100%)',
+            padding: '60px 24px 32px', color: 'white',
+          }}>
+            <button onClick={() => history.goBack()} style={{
+              background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12,
+              padding: '8px 16px', color: 'white', fontSize: 14, cursor: 'pointer', marginBottom: 16,
+            }}>← Retour</button>
+
+            {/* Profile */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: child.avatar_url || 'var(--dc-blue)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, fontSize: 30, fontWeight: 900, color: 'white', border: '3px solid rgba(255,255,255,0.3)' }}>
+                {child.display_name?.[0]?.toUpperCase() || '?'}
+              </div>
+              <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 900 }}>{child.display_name}</h2>
+              <p style={{ opacity: 0.85, margin: '0 0 16px', fontSize: 14 }}>
+                {child.age} ans • Niveau {child.level}
+              </p>
+
+              {/* Progress bar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>Niv. {child.level}</span>
+                <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.2)', borderRadius: 8, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${progress}%`, background: 'white', borderRadius: 8, transition: 'width 0.6s' }} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{child.total_points} pts</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding: '20px 20px 0' }}>
+            {/* QR Link button */}
+            <div className="dc-card" style={{
+              marginBottom: 20, padding: 20, textAlign: 'center',
+              background: isLinked
+                ? 'linear-gradient(135deg, rgba(0,184,148,0.08), rgba(0,184,148,0.02))'
+                : 'linear-gradient(135deg, rgba(108,92,231,0.08), rgba(108,92,231,0.02))',
+              border: isLinked ? '2px solid rgba(0,184,148,0.2)' : '2px dashed rgba(108,92,231,0.3)',
+            }}>
+              {isLinked ? (
+                <>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--dc-green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
+                    <CheckCircle size={22} color="var(--dc-green)" strokeWidth={1.8} />
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--dc-green-dark)' }}>Appareil lié</div>
+                  <p style={{ fontSize: 13, color: 'var(--dc-text-light)', margin: '4px 0 12px' }}>
+                    {child.display_name} peut accéder à son espace depuis son appareil
+                  </p>
+                  <button
+                    className="dc-btn"
+                    style={{ padding: '8px 20px', fontSize: 13, background: 'var(--dc-primary)', color: 'white', borderRadius: 50 }}
+                    onClick={generateQR}
+                    disabled={qrLoading}
+                  >
+                    <RefreshCw size={14} strokeWidth={2} /> {qrLoading ? 'Génération...' : 'Nouveau QR code'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--dc-blue-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
+                    <Smartphone size={24} color="var(--dc-blue)" strokeWidth={1.5} />
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>Lier l'appareil de {child.display_name}</div>
+                  <p style={{ fontSize: 13, color: 'var(--dc-text-light)', margin: '0 0 16px' }}>
+                    Générez un QR code pour que votre enfant puisse accéder à son espace depuis son propre téléphone
+                  </p>
+                  <button
+                    className="dc-btn dc-btn-primary"
+                    style={{ padding: '12px 28px', fontSize: 15, borderRadius: 50 }}
+                    onClick={generateQR}
+                    disabled={qrLoading}
+                  >
+                    <QrCode size={16} strokeWidth={2} /> {qrLoading ? 'Génération...' : 'Générer le QR code'}
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Weekly Stats */}
+            <h3 className="dc-section-title">Cette semaine</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+              <div className="dc-card" style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-success)' }}>{weeklyStats.activitiesCompleted}</div>
+                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Activités</div>
+              </div>
+              <div className="dc-card" style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-primary)' }}>+{weeklyStats.pointsEarned}</div>
+                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Points</div>
+              </div>
+              <div className="dc-card" style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-accent)' }}>{weeklyStats.badgesEarned}</div>
+                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Badges</div>
+              </div>
+            </div>
+
+            {/* Badges */}
+            {badges.length > 0 && (<>
+              <h3 className="dc-section-title">Badges ({badges.length})</h3>
+              <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, marginBottom: 24 }}>
+                {badges.map(cb => (
+                  <div key={cb.id} className="dc-card" style={{ minWidth: 90, textAlign: 'center', padding: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--dc-gold-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 4px' }}>
+                    <Trophy size={18} color="var(--dc-gold-dark)" strokeWidth={1.8} />
+                  </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>{cb.badge?.name}</div>
+                  </div>
+                ))}
+              </div>
+            </>)}
+
+            {/* Recent activities */}
+            <h3 className="dc-section-title">Activités récentes</h3>
+            {activities.length === 0 ? (
+              <div className="dc-card" style={{ textAlign: 'center', padding: 24, color: 'var(--dc-text-light)' }}>
+                Aucune activité pour le moment
+              </div>
+            ) : activities.slice(0, 5).map(ca => (
+              <div key={ca.id} className="dc-card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: ca.status === 'validated' ? 'var(--dc-success)' : ca.status === 'submitted' ? 'var(--dc-warning)' : 'var(--dc-border)' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{ca.activity?.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--dc-text-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {ca.status === 'validated' ? (
+                      <>
+                        <CheckCircle size={12} color="var(--dc-success)" />
+                        +{ca.earned_points} pts
+                      </>
+                    ) : ca.status === 'submitted' ? (
+                      <>
+                        <Clock size={12} />
+                        En attente
+                      </>
+                    ) : ca.status}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </IonContent>
+    </IonPage>
+  );
+};
+
+export default ChildDetailPage;

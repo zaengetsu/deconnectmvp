@@ -1,0 +1,209 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+/* ─── Ionic Core ─── */
+@import '@ionic/react/css/core.css';
+@import '@ionic/react/css/normalize.css';
+@import '@ionic/react/css/structure.css';
+@import '@ionic/react/css/typography.css';
+@import '@ionic/react/css/padding.css';
+@import '@ionic/react/css/float-elements.css';
+@import '@ionic/react/css/text-alignment.css';
+@import '@ionic/react/css/text-transformation.css';
+@import '@ionic/react/css/flex-utils.css';
+@import '@ionic/react/css/display.css';
+
+/* ═══════════════════════════════════════════════════════════════
+   DECONNECT — Design Tokens v2
+   Charte visuelle : /artifacts/visual_charter.md
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* ── CTA Green (espace enfant) ── */
+  --dc-green:        #34C759;
+  --dc-green-dark:   #28A745;
+  --dc-green-light:  #E8F8ED;
+  --dc-green-shadow: rgba(52, 199, 89, 0.35);
+
+  /* ── Blue (navigation, headers enfant) ── */
+  --dc-blue:         #1565C0;
+  --dc-blue-mid:     #1E88E5;
+  --dc-blue-light:   #E3F0FF;
+
+  /* ── Gold (points, XP, récompenses) ── */
+  --dc-gold:         #F59E0B;
+  --dc-gold-dark:    #D97706;
+  --dc-gold-light:   #FEF3C7;
+
+  /* ── Accent parent (violet sobre) ── */
+  --dc-primary:       #6C5CE7;
+  --dc-primary-light: #A29BFE;
+  --dc-primary-dark:  #4834D4;
+
+  /* ── Autres accents ── */
+  --dc-purple:       #8B5CF6;
+  --dc-purple-light: #EDE9FE;
+  --dc-orange:       #F97316;
+  --dc-orange-light: #FFF0E6;
+  --dc-pink:         #EC4899;
+  --dc-pink-light:   #FFF0F7;
+  --dc-teal:         #0EA5E9;
+  --dc-teal-light:   #E0F2FE;
+
+  /* ── Feedback ── */
+  --dc-success:      #34C759;
+  --dc-warning:      #F59E0B;
+  --dc-danger:       #EF4444;
+  --dc-danger-light: #FEF2F2;
+
+  /* ── Neutres ── */
+  --dc-bg:           #F0F4FF;
+  --dc-bg-card:      #FFFFFF;
+  --dc-text:         #1A1D2E;
+  --dc-text-light:   #6B7280;
+  --dc-text-muted:   #9CA3AF;
+  --dc-border:       #E5E7EB;
+
+  /* ── Radius ── */
+  --dc-radius-pill:  50px;
+  --dc-radius-xl:    24px;
+  --dc-radius-lg:    20px;
+  --dc-radius:       16px;
+  --dc-radius-sm:    12px;
+
+  /* ── Shadows ── */
+  --dc-shadow:       0 2px 12px rgba(0, 0, 0, 0.06);
+  --dc-shadow-md:    0 4px 20px rgba(0, 0, 0, 0.08);
+  --dc-shadow-lg:    0 8px 32px rgba(0, 0, 0, 0.10);
+
+  /* ── Catégories ── */
+  --cat-sport-bg:       #FFF0E6; --cat-sport-accent:    #F97316;
+  --cat-nature-bg:      #E8F8ED; --cat-nature-accent:   #34C759;
+  --cat-creative-bg:    #EDE9FE; --cat-creative-accent: #8B5CF6;
+  --cat-family-bg:      #FFF0F7; --cat-family-accent:   #EC4899;
+  --cat-reading-bg:     #E3F0FF; --cat-reading-accent:  #1565C0;
+  --cat-cooking-bg:     #FEF3C7; --cat-cooking-accent:  #F59E0B;
+
+  /* ── Ionic ── */
+  --ion-font-family:        'Nunito', system-ui, -apple-system, sans-serif;
+  --ion-background-color:   var(--dc-bg);
+  --ion-text-color:         var(--dc-text);
+}
+
+ion-content  { --background: var(--dc-bg); }
+ion-toolbar  { --background: #FFFFFF; --border-color: var(--dc-border); }
+ion-tab-bar  { --background: #FFFFFF; --border: 1px solid var(--dc-border); }
+
+/* ═══ Reset & Base ════════════════════════════════════════════ */
+* { font-family: var(--ion-font-family); box-sizing: border-box; }
+body { background: var(--dc-bg); color: var(--dc-text); }
+input, textarea, select { font-size: 16px !important; } /* iOS zoom prevention */
+button { touch-action: manipulation; }
+
+/* ═══ Cards ══════════════════════════════════════════════════ */
+.dc-card {
+  background: var(--dc-bg-card); border-radius: var(--dc-radius-lg);
+  box-shadow: var(--dc-shadow); padding: 16px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.dc-card:active { transform: scale(0.98); }
+
+/* ═══ Buttons ════════════════════════════════════════════════ */
+.dc-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 0 24px; height: 52px; border-radius: var(--dc-radius-pill);
+  font-weight: 800; font-size: 15px; border: none; cursor: pointer;
+  transition: all 0.15s ease; white-space: nowrap;
+}
+.dc-btn:active { transform: scale(0.97); }
+.dc-btn-green  { background: var(--dc-green); color: white; box-shadow: 0 4px 16px var(--dc-green-shadow); }
+.dc-btn-green:active { background: var(--dc-green-dark); }
+.dc-btn-primary { background: var(--dc-primary); color: white; box-shadow: 0 4px 16px rgba(108,92,231,0.25); }
+.dc-btn-primary:active { background: var(--dc-primary-dark); }
+.dc-btn-outline { background: transparent; color: var(--dc-primary); border: 2px solid var(--dc-primary); }
+.dc-btn-ghost   { background: transparent; color: var(--dc-text-light); box-shadow: none; height: auto; padding: 8px 12px; }
+.dc-btn-full    { width: 100%; }
+.dc-btn-lg      { height: 56px; font-size: 16px; }
+
+/* ═══ Category Chips ══════════════════════════════════════════ */
+.dc-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 14px; border-radius: var(--dc-radius-pill);
+  font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  transition: all 0.15s ease; border: 2px solid transparent; flex-shrink: 0;
+}
+.dc-chip:active { transform: scale(0.96); }
+.dc-chip-inactive { background: white; border-color: var(--dc-border); color: var(--dc-text-light); }
+.dc-chip-active   { background: var(--dc-blue-light); border-color: var(--dc-blue); color: var(--dc-blue); }
+
+/* ═══ Points Badge ════════════════════════════════════════════ */
+.dc-points-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--dc-gold-light); color: var(--dc-gold-dark);
+  border-radius: var(--dc-radius-pill); padding: 3px 10px;
+  font-size: 12px; font-weight: 800;
+}
+.dc-badge-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 50px; font-size: 12px; font-weight: 700;
+}
+
+/* ═══ Avatar ══════════════════════════════════════════════════ */
+.dc-avatar {
+  width: 52px; height: 52px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 800; color: white; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--dc-blue) 0%, var(--dc-blue-mid) 100%);
+}
+.dc-avatar-sm { width: 36px; height: 36px; font-size: 15px; }
+.dc-avatar-lg { width: 68px; height: 68px; font-size: 28px; }
+
+/* ═══ XP Bar ═════════════════════════════════════════════════ */
+.dc-xp-bar  { width: 100%; height: 8px; background: rgba(255,255,255,0.25); border-radius: 8px; overflow: hidden; }
+.dc-xp-fill { height: 100%; border-radius: 8px; background: white; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+
+/* ═══ Misc ═══════════════════════════════════════════════════ */
+.dc-section-title { font-size: 18px; font-weight: 800; color: var(--dc-text); margin: 0 0 12px; }
+.dc-page-header { padding: 20px 20px 16px; }
+.dc-page-header h1 { font-size: 24px; font-weight: 900; margin: 0; }
+.dc-page-header p  { font-size: 14px; color: var(--dc-text-light); margin: 4px 0 0; }
+
+.dc-empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 48px 24px; text-align: center; gap: 8px;
+}
+.dc-empty-state h3 { font-size: 18px; font-weight: 700; margin: 0; }
+.dc-empty-state p  { font-size: 14px; color: var(--dc-text-light); margin: 0; }
+
+/* ═══ Animations ══════════════════════════════════════════════ */
+@keyframes dc-fade-in    { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes dc-scale-in   { from { opacity: 0; transform: scale(0.92); }    to { opacity: 1; transform: scale(1); } }
+@keyframes dc-slide-up   { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes dc-slide-down { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: none; } }
+@keyframes dc-spin       { to { transform: rotate(360deg); } }
+@keyframes dc-bounce     { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+.dc-animate-in    { animation: dc-fade-in 0.3s ease-out both; }
+.dc-animate-scale { animation: dc-scale-in 0.3s ease-out both; }
+.dc-animate-in:nth-child(2) { animation-delay: 60ms; }
+.dc-animate-in:nth-child(3) { animation-delay: 120ms; }
+.dc-animate-in:nth-child(4) { animation-delay: 180ms; }
+.dc-animate-in:nth-child(5) { animation-delay: 240ms; }
+.dc-animate-in:nth-child(6) { animation-delay: 300ms; }
+
+/* ═══ Tab Bar — Enfant ═══════════════════════════════════════ */
+.dc-child-tab-bar {
+  --background: #FFFFFF; --border: 1px solid rgba(0,0,0,0.07);
+  box-shadow: 0 -2px 16px rgba(0,0,0,0.06);
+  height: 56px;
+}
+.dc-child-tab-bar ion-tab-button { --color: #9CA3AF; --color-selected: var(--dc-blue); }
+
+/* ═══ Tab Bar — Parent ═══════════════════════════════════════ */
+.dc-tab-bar {
+  --background: #FFFFFF; --border: 1px solid rgba(0,0,0,0.07);
+  box-shadow: 0 -2px 16px rgba(0,0,0,0.06);
+  height: 56px;
+}
+.dc-tab-bar ion-tab-button { --color: #94a3b8; --color-selected: var(--dc-primary); }
+
+
