@@ -12,6 +12,7 @@ interface AppState {
   // Actions
   setMode: (mode: AppMode) => void;
   selectChild: (child: Child) => void;
+  setSelectedChild: (child: Child) => void;
   clearChild: () => void;
   switchToParent: () => void;
   setShowOnboarding: (show: boolean) => void;
@@ -22,13 +23,21 @@ export const useAppStore = create<AppState>((set) => ({
   selectedChild: null,
   showOnboarding: true,
 
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => { console.log('[AppStore] setMode →', mode); set({ mode }); },
 
-  selectChild: (child) => set({ selectedChild: child, mode: 'child' }),
+  selectChild: (child) => {
+    console.log('[AppStore] selectChild →', child.display_name, child.id);
+    set({ selectedChild: child, mode: 'child' });
+  },
 
-  clearChild: () => set({ selectedChild: null, mode: 'parent' }),
+  setSelectedChild: (child) => {
+    console.log('[AppStore] setSelectedChild →', child.display_name);
+    set({ selectedChild: child });
+  },
 
-  switchToParent: () => set({ selectedChild: null, mode: 'parent' }),
+  clearChild: () => { console.log('[AppStore] clearChild → parent mode'); set({ selectedChild: null, mode: 'parent' }); },
+
+  switchToParent: () => { console.log('[AppStore] switchToParent'); set({ selectedChild: null, mode: 'parent' }); },
 
   setShowOnboarding: (show) => set({ showOnboarding: show }),
 }));

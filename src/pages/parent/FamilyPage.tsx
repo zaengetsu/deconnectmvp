@@ -119,12 +119,15 @@ const FamilyPage: React.FC = () => {
     <IonPage>
       <IonContent fullscreen>
         <div style={{ minHeight: '100vh', background: 'var(--dc-bg)', paddingBottom: 100 }}>
-        <div style={{ background: 'linear-gradient(135deg, var(--dc-blue) 0%, var(--dc-blue-mid) 100%)', padding: '56px 24px 28px', color: 'white', borderRadius: '0 0 28px 28px' }}>
-            <button onClick={() => history.goBack()} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 10, padding: '8px 14px', color: 'white', fontSize: 14, cursor: 'pointer', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="dc-standard-header">
+            <button onClick={() => history.goBack()} style={{ background: 'none', border: 'none', color: 'var(--dc-text-muted)', fontSize: 13, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6, padding: 0 }}>
               <ArrowLeft size={14} strokeWidth={2} /> Retour
             </button>
-            <h1 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 4px' }}>Ma famille</h1>
-            <p style={{ opacity: 0.8, fontSize: 13, margin: 0 }}>Gérez les adultes qui ont accès aux profils de vos enfants</p>
+            <div className="dc-header-icon-row">
+              <img src="/images/menu/family.png" alt="famille" style={{ width: 28, height: 28, objectFit: 'contain' }} />
+              <h1>Ma famille</h1>
+            </div>
+            <p className="dc-header-sub">Gérez les adultes qui ont accès aux profils de vos enfants</p>
           </div>
 
           <div style={{ padding: '20px' }}>

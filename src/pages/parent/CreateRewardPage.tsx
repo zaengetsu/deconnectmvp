@@ -4,6 +4,7 @@ import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { childrenService } from '../../features/children/children.service';
 import { rewardsService } from '../../features/rewards/rewards.service';
+
 import { ArrowLeft, Gift, Star, Zap, Gamepad2, Film, Music, Bike, Book, Pizza, AlertCircle } from 'lucide-react';
 import type { Child } from '../../types/database.types';
 
@@ -23,8 +24,8 @@ const ICON_OPTIONS = [
 const QUICK_POINTS = [25, 50, 100, 150, 200, 300];
 
 const CreateRewardPage: React.FC = () => {
-  const { user } = useAuthStore();
   const history = useHistory();
+  const { user } = useAuthStore();
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
@@ -44,14 +45,16 @@ const CreateRewardPage: React.FC = () => {
         .then(c => { if (mounted.current) setChildren(c); })
         .catch(() => {});
     }
-  }, [user]);
+  }, [user?.id]);
+
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) { setError('Non connecté'); return; }
     if (!title.trim()) { setError('Le titre est requis'); return; }
     if (title.trim().length < 3) { setError('Le titre doit contenir au moins 3 caractères'); return; }
     if (points < 10 || points > 1000) { setError('Les points doivent être entre 10 et 1000'); return; }
+
+    if (!user) { setError('Session introuvable — veuillez vous reconnecter'); return; }
 
     setLoading(true);
     setError(null);

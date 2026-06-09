@@ -186,4 +186,52 @@ export const activitiesService = {
     if (error) throw error;
     return (data || []) as Activity[];
   },
+
+  // ─── CRUD Custom Activities ───────────────────────────────
+  async updateActivity(activityId: string, updates: Partial<ActivityFormData>): Promise<Activity> {
+    const { data, error } = await supabase
+      .from('activities')
+      .update(updates)
+      .eq('id', activityId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteActivity(activityId: string): Promise<void> {
+    const { error } = await supabase
+      .from('activities')
+      .update({ is_active: false })
+      .eq('id', activityId);
+
+    if (error) throw error;
+  },
+
+  // ─── Assign activities to a child (parent action) ─────────
+  async assignActivitiesToChild(childId: string, activityIds: string[]): Promise<void> {
+    // Seules les assignations ACTIVES bloquent la ré-assignation
+    // (available, selected, submitted) — les activités validées peuvent être ré-assignées
+    const { data: existing } = await supabase
+      .from('child_activities')
+      .select('activity_id, status')
+      .eq('child_id', childId)
+      .in('activity_id', activityIds)
+      .in('status', ['available', 'selected', 'submitted']);
+
+    const currentlyActive = new Set((existing || []).map((r: any) => r.activity_id));
+    const toInsert = activityIds
+      .filter(id => !currentlyActive.has(id))
+      .map(activity_id => ({
+        child_id: childId,
+        activity_id,
+        status: 'available' as const,
+      }));
+
+    if (toInsert.length === 0) return;
+
+    const { error } = await supabase.from('child_activities').insert(toInsert);
+    if (error) throw error;
+  },
 };

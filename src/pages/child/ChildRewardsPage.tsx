@@ -39,11 +39,14 @@ const ChildRewardsPage: React.FC = () => {
   return (
     <IonPage><IonContent fullscreen scrollY>
       {/* ── Header ── */}
-      <div style={{ background: 'linear-gradient(135deg, var(--dc-blue) 0%, var(--dc-blue-mid) 100%)', padding: '52px 24px 24px', borderRadius: '0 0 28px 28px' }}>
-        <h1 style={{ color: 'white', fontSize: 24, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.3 }}>Récompenses</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Star size={14} color="var(--dc-gold)" fill="var(--dc-gold)" strokeWidth={2} />
-          <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 700 }}>
+      <div className="dc-page-header">
+        <div className="dc-header-row">
+          <img src="/images/menu/trophy.png" alt="récompenses" style={{ width: 26, height: 26, objectFit: 'contain' }} />
+          <h1>Récompenses</h1>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          <img src="/images/menu/star.png" alt="pts" style={{ width: 14, height: 14, objectFit: 'contain' }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--dc-gold-dark)' }}>
             {selectedChild.total_points} points disponibles
           </span>
         </div>

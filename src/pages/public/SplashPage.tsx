@@ -68,7 +68,7 @@ const SplashPage: React.FC = () => (
     }}>
       <span style={{
         fontSize: 36, fontWeight: 900, color: 'white',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontFamily: 'Nunito, -apple-system, sans-serif',
         letterSpacing: -1,
         userSelect: 'none',
       }}>D</span>

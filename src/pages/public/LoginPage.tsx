@@ -133,6 +133,13 @@ const LoginPage: React.FC = () => {
                 S'inscrire
               </button>
             </p>
+            <p style={{ textAlign: 'center', marginTop: 12, fontSize: 14, color: '#6e6e73' }}>
+              Invité(e) par un parent ?{' '}
+              <button onClick={() => history.push('/join-family')}
+                style={{ background: 'none', border: 'none', color: '#6C5CE7', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 14 }}>
+                Entrer mon code
+              </button>
+            </p>
           </div>
         </div>
       </IonContent>

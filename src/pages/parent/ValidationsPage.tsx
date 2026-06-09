@@ -1,28 +1,56 @@
-import React, { useEffect, useState } from 'react';
-import { IonContent, IonPage } from '@ionic/react';
+import React, { useState } from 'react';
+import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useAuthStore } from '../../stores/auth.store';
 import { activitiesService } from '../../features/activities/activities.service';
 import { notificationService } from '../../features/notifications/notification.service';
 import { ImageIcon } from 'lucide-react';
 import type { ChildActivity } from '../../types/database.types';
 
+const isHexColor = (v?: string | null) => !!v && /^#[0-9A-Fa-f]{3,8}$/.test(v);
+
+const MiniAvatar = ({ avatarUrl, displayName }: { avatarUrl?: string | null; displayName?: string | null }) => {
+  const isColor = isHexColor(avatarUrl);
+  return (
+    <div style={{
+      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+      background: isColor ? avatarUrl! : 'var(--dc-primary)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: isColor ? 15 : 16, fontWeight: 900, color: 'white',
+      boxShadow: isColor ? `0 2px 8px ${avatarUrl}60` : undefined,
+    }}>
+      {isColor ? (displayName?.[0]?.toUpperCase() ?? '?') : (displayName?.[0]?.toUpperCase() ?? '?')}
+    </div>
+  );
+};
+
 const ValidationsPage: React.FC = () => {
-  const { user, profile } = useAuthStore();
+  const { user } = useAuthStore();
   const [pending, setPending] = useState<ChildActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<ChildActivity | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  const loadPending = async () => {
-    if (!user) return;
+  const loadPending = async (userId: string) => {
     setLoading(true);
-    const data = await activitiesService.getPendingValidations(user.id);
-    setPending(data);
-    setLoading(false);
+    try {
+      const data = await activitiesService.getPendingValidations(userId);
+      setPending(data);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { loadPending(); }, [user]);
+  const fetchPending = () => {
+    if (!user) { setLoading(false); return; }
+    loadPending(user.id).catch(err => {
+      console.error('[Validations] fetch error:', err);
+      setLoading(false);
+    });
+  };
+
+  // useIonViewWillEnter covers both initial mount AND subsequent returns
+  useIonViewWillEnter(fetchPending);
 
   const handleValidate = async (ca: ChildActivity) => {
     if (!user) return;
@@ -43,12 +71,11 @@ const ValidationsPage: React.FC = () => {
     }
 
     setProcessing(null);
-    loadPending();
+    loadPending(user.id);
   };
 
   const handleReject = async () => {
-    if (!user || !rejectTarget) return;
-    if (!rejectReason.trim()) return;
+    if (!rejectTarget || !rejectReason.trim() || !user) return;
     setProcessing(rejectTarget.id);
     await activitiesService.rejectActivity(rejectTarget.id, user.id, rejectReason);
 
@@ -68,7 +95,7 @@ const ValidationsPage: React.FC = () => {
     setProcessing(null);
     setRejectTarget(null);
     setRejectReason('');
-    loadPending();
+    loadPending(user.id);
   };
 
   return (
@@ -95,11 +122,15 @@ const ValidationsPage: React.FC = () => {
       )}
 
       <IonContent fullscreen>
-        <div style={{ padding: '20px 20px 100px' }}>
-          <div className="dc-page-header">
+        <div className="dc-page-header">
+          <div className="dc-header-row">
+            <img src="/images/menu/stamp.png" alt="validations" style={{ width: 26, height: 26, objectFit: 'contain' }} />
             <h1>Validations</h1>
-            <p>Activités en attente de votre validation</p>
           </div>
+          <p>Activités en attente de votre validation</p>
+        </div>
+
+        <div style={{ padding: '20px 20px 100px' }}>
 
           {loading ? (
             <p style={{ textAlign: 'center', padding: 40, color: 'var(--dc-text-light)' }}>Chargement...</p>
@@ -112,9 +143,7 @@ const ValidationsPage: React.FC = () => {
             <div key={ca.id} className="dc-card dc-animate-in" style={{ marginBottom: 16 }}>
               {/* Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <div className="dc-avatar dc-avatar-sm" style={{ background: 'var(--dc-primary)', color: 'white', fontSize: 16 }}>
-                  {ca.child?.avatar_url || ca.child?.display_name?.[0] || '?'}
-                </div>
+                <MiniAvatar avatarUrl={ca.child?.avatar_url} displayName={ca.child?.display_name} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{ca.activity?.title}</div>
                   <div style={{ fontSize: 13, color: 'var(--dc-text-light)' }}>

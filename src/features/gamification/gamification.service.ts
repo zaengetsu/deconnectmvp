@@ -119,27 +119,32 @@ export const gamificationService = {
     };
   },
 
-  // ─── Weekly Day-by-Day ──────────────────────────────────
   async getWeeklyDayByDay(childId: string): Promise<{
-    day: string;       // 'Lun', 'Mar', etc.
-    date: string;      // ISO date
-    count: number;     // activities validated
-    points: number;    // points earned
+    day: string;
+    date: string;
+    count: number;
+    points: number;
     isToday: boolean;
   }[]> {
     const DAYS_FR = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+
+    // Helper : date locale YYYY-MM-DD (sans conversion UTC)
+    const localDateStr = (d: Date): string => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
     const now = new Date();
     const dayOfWeek = now.getDay(); // 0=Sun
-    // Start from Monday
     const monday = new Date(now);
     monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
     monday.setHours(0, 0, 0, 0);
 
-    const weekStart = monday.toISOString();
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
     sunday.setHours(23, 59, 59, 999);
-    const weekEnd = sunday.toISOString();
 
     // Fetch validated activities for this week
     const { data: activities } = await supabase
@@ -147,19 +152,21 @@ export const gamificationService = {
       .select('validated_at, earned_points')
       .eq('child_id', childId)
       .eq('status', 'validated')
-      .gte('validated_at', weekStart)
-      .lte('validated_at', weekEnd);
+      .gte('validated_at', monday.toISOString())
+      .lte('validated_at', sunday.toISOString());
 
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = localDateStr(now);
 
-    // Build 7-day array
+    // Build 7-day array using LOCAL dates
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      const dateStr = d.toISOString().slice(0, 10);
-      const dayActivities = (activities || []).filter(
-        a => a.validated_at && a.validated_at.slice(0, 10) === dateStr
-      );
+      const dateStr = localDateStr(d);
+      const dayActivities = (activities || []).filter(a => {
+        if (!a.validated_at) return false;
+        // Convert UTC timestamp to local date for comparison
+        return localDateStr(new Date(a.validated_at)) === dateStr;
+      });
       return {
         day: DAYS_FR[d.getDay()],
         date: dateStr,

@@ -1,7 +1,6 @@
 import React from 'react';
 import { IonTabs, IonTabBar, IonTabButton, IonLabel, IonRouterOutlet } from '@ionic/react';
 import { Route, Switch, Redirect } from 'react-router-dom';
-import { Home, Zap, Star, Gift, User } from 'lucide-react';
 
 import ChildHomePage from './ChildHomePage';
 import ChildActivitiesPage from './ChildActivitiesPage';
@@ -9,12 +8,16 @@ import ChildPointsPage from './ChildPointsPage';
 import ChildRewardsPage from './ChildRewardsPage';
 import ChildProfilePage from './ChildProfilePage';
 
+const MenuIcon = ({ src, alt }: { src: string; alt: string }) => (
+  <img src={src} alt={alt} style={{ width: 28, height: 28, objectFit: 'contain' }} />
+);
+
 const TAB_ITEMS = [
-  { tab: 'home',       href: '/child/home',       Icon: Home,  label: 'Accueil' },
-  { tab: 'activities', href: '/child/activities',  Icon: Zap,   label: 'Activités' },
-  { tab: 'points',     href: '/child/points',      Icon: Star,  label: 'Points' },
-  { tab: 'rewards',    href: '/child/rewards',     Icon: Gift,  label: 'Récompenses' },
-  { tab: 'profile',    href: '/child/profile',     Icon: User,  label: 'Profil' },
+  { tab: 'home',       href: '/child/home',       content: <MenuIcon src="/images/menu/home.png" alt="Accueil" />,                    label: 'Accueil' },
+  { tab: 'activities', href: '/child/activities',  content: <MenuIcon src="/images/menu/account-activity.png" alt="Activités" />,  label: 'Activités' },
+  { tab: 'points',     href: '/child/points',      content: <MenuIcon src="/images/menu/star.png" alt="Points" />,                    label: 'Points' },
+  { tab: 'rewards',    href: '/child/rewards',     content: <MenuIcon src="/images/menu/gift.png" alt="Récompenses" />,             label: 'Récompenses' },
+  { tab: 'profile',    href: '/child/profile',     content: <MenuIcon src="/images/menu/profile.png" alt="Profil" />,               label: 'Profil' },
 ];
 
 const ChildTabs: React.FC = () => (
@@ -30,12 +33,11 @@ const ChildTabs: React.FC = () => (
       </Switch>
     </IonRouterOutlet>
 
-    {/* ── Child Tab Bar — blue active + labels ── */}
+    {/* ── Child Tab Bar ── */}
     <IonTabBar slot="bottom" className="dc-child-tab-bar">
-      {TAB_ITEMS.map(({ tab, href, Icon, label }) => (
+      {TAB_ITEMS.map(({ tab, href, content }) => (
         <IonTabButton key={tab} tab={tab} href={href}>
-          <Icon size={22} strokeWidth={1.8} />
-          <IonLabel style={{ fontSize: 10, fontWeight: 700, marginTop: 2 }}>{label}</IonLabel>
+          {content}
         </IonTabButton>
       ))}
     </IonTabBar>

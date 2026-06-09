@@ -30,19 +30,21 @@ const config: CapacitorConfig = {
     },
 
     // ─── Status Bar ─────────────────────────────────────────
+    // overlaysWebView: true → la WebView s'étend SOUS la status bar et le
+    // Dynamic Island, exactement comme les apps natives plein écran.
     StatusBar: {
-      style: 'DARK',           // white icons on dark bg
-      backgroundColor: '#0f0e17',
-      overlaysWebView: false,
+      style: 'DARK',
+      overlaysWebView: true,
     },
   },
 
   // ─── iOS specific ────────────────────────────────────────
   ios: {
-    contentInset: 'always',
+    // contentInset: 'never' → on laisse Ionic/CSS gérer les safe areas
+    // via env(safe-area-inset-*) plutôt que de forcer un inset natif
+    contentInset: 'never',
     allowsLinkPreview: false,
-    scrollEnabled: false,       // Ionic handles its own scroll
-    backgroundColor: '#0f0e17',
+    scrollEnabled: false,
     preferredContentMode: 'mobile',
   },
 

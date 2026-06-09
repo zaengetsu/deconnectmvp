@@ -3,21 +3,23 @@
  * Charte visuelle: /artifacts/visual_charter.md
  */
 import React from 'react';
-import { Star, Zap, Trophy, BookOpen, Bike, Palette, Users, ChefHat, Leaf } from 'lucide-react';
 
 /* ─── Category config ─────────────────────────────────────── */
-export const CATEGORY_STYLE: Record<string, { bg: string; accent: string; Icon: React.FC<{ size?: number; color?: string; strokeWidth?: number }> }> = {
-  sport:     { bg: 'var(--cat-sport-bg)',    accent: 'var(--cat-sport-accent)',    Icon: Bike },
-  nature:    { bg: 'var(--cat-nature-bg)',   accent: 'var(--cat-nature-accent)',   Icon: Leaf },
-  creativite:{ bg: 'var(--cat-creative-bg)', accent: 'var(--cat-creative-accent)', Icon: Palette },
-  famille:   { bg: 'var(--cat-family-bg)',   accent: 'var(--cat-family-accent)',   Icon: Users },
-  lecture:   { bg: 'var(--cat-reading-bg)',  accent: 'var(--cat-reading-accent)',  Icon: BookOpen },
-  cuisine:   { bg: 'var(--cat-cooking-bg)',  accent: 'var(--cat-cooking-accent)',  Icon: ChefHat },
+export const CATEGORY_STYLE: Record<string, { bg: string; accent: string; imgSrc: string }> = {
+  sport:              { bg: 'var(--cat-sport-bg)',    accent: 'var(--cat-sport-accent)',    imgSrc: '/images/categories/track.png' },
+  nature:             { bg: 'var(--cat-nature-bg)',   accent: 'var(--cat-nature-accent)',   imgSrc: '/images/categories/eco.png' },
+  creativite:         { bg: 'var(--cat-creative-bg)', accent: 'var(--cat-creative-accent)', imgSrc: '/images/categories/watercolor.png' },
+  famille:            { bg: 'var(--cat-family-bg)',   accent: 'var(--cat-family-accent)',   imgSrc: '/images/categories/family.png' },
+  lecture:            { bg: 'var(--cat-reading-bg)',  accent: 'var(--cat-reading-accent)',  imgSrc: '/images/categories/books.png' },
+  cuisine:            { bg: 'var(--cat-cooking-bg)',  accent: 'var(--cat-cooking-accent)',  imgSrc: '/images/categories/kung-pao-chicken.png' },
+  'vie-quotidienne':  { bg: 'var(--dc-blue-light)',   accent: 'var(--dc-blue)',             imgSrc: '/images/categories/calendar.png' },
 };
 
+const DEFAULT_CATEGORY = { bg: '#F0F4FF', accent: '#6C5CE7', imgSrc: '/images/categories/emoji.png' };
+
 export function getCategoryStyle(slug?: string | null) {
-  if (!slug) return { bg: '#F0F4FF', accent: '#6C5CE7', Icon: Zap };
-  return CATEGORY_STYLE[slug.toLowerCase()] ?? { bg: '#F0F4FF', accent: '#6C5CE7', Icon: Zap };
+  if (!slug) return DEFAULT_CATEGORY;
+  return CATEGORY_STYLE[slug.toLowerCase()] ?? DEFAULT_CATEGORY;
 }
 
 /* ─── PointsBadge ─────────────────────────────────────────── */
@@ -31,7 +33,7 @@ export const PointsBadge: React.FC<PointsBadgeProps> = ({ points, size = 'md' })
   const padding  = size === 'sm' ? '2px 8px' : size === 'lg' ? '5px 14px' : '3px 10px';
   return (
     <span className="dc-points-badge" style={{ fontSize, padding }}>
-      <Star size={iconSize} color="var(--dc-gold-dark)" strokeWidth={2.5} fill="var(--dc-gold)" />
+      <img src="/images/menu/star.png" alt="pts" style={{ width: iconSize, height: iconSize, objectFit: 'contain', verticalAlign: 'middle' }} />
       {points} pts
     </span>
   );
@@ -65,7 +67,7 @@ interface ActivityCardProps {
 export const ActivityCard: React.FC<ActivityCardProps> = ({
   title, points, difficulty, categorySlug, onPress, actionLabel = 'Choisir',
 }) => {
-  const { bg, accent, Icon } = getCategoryStyle(categorySlug);
+  const { bg, imgSrc } = getCategoryStyle(categorySlug);
   return (
     <div className="dc-activity-card dc-animate-in" onClick={onPress}>
       {/* Icon zone */}
@@ -73,7 +75,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
         width: '100%', height: 72, borderRadius: 14,
         background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <Icon size={32} color={accent} strokeWidth={1.8} />
+        <img src={imgSrc} alt="" style={{ width: 36, height: 36, objectFit: 'contain' }} />
       </div>
       {/* Content */}
       <div>
@@ -113,7 +115,7 @@ interface ActivityListItemProps {
 export const ActivityListItem: React.FC<ActivityListItemProps> = ({
   title, points, categorySlug, status, statusLabel, onAction, actionLabel,
 }) => {
-  const { bg, accent, Icon } = getCategoryStyle(categorySlug);
+  const { bg, imgSrc } = getCategoryStyle(categorySlug);
 
   const statusColor = status === 'validated' ? 'var(--dc-green)'
     : status === 'submitted' ? 'var(--dc-gold)'
@@ -124,7 +126,7 @@ export const ActivityListItem: React.FC<ActivityListItemProps> = ({
     <div className="dc-card dc-animate-in" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
       {/* Icon */}
       <div style={{ width: 44, height: 44, borderRadius: 12, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={22} color={accent} strokeWidth={1.8} />
+        <img src={imgSrc} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
       </div>
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -171,13 +173,14 @@ export const StatCard: React.FC<StatCardProps> = ({ value, label, gradient, icon
 interface HeroHeaderProps {
   name: string;
   initials: string;
+  avatarUrl?: string | null;
   levelName: string;
   levelColor: string;
   totalPoints: number;
-  xpProgress: number; // 0-100
+  xpProgress: number;
 }
 export const HeroHeader: React.FC<HeroHeaderProps> = ({
-  name, initials, levelName, levelColor, totalPoints, xpProgress,
+  name, initials, avatarUrl, levelName, levelColor, totalPoints, xpProgress,
 }) => (
   <div style={{
     background: `linear-gradient(135deg, var(--dc-blue) 0%, var(--dc-blue-mid) 100%)`,
@@ -196,29 +199,39 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
 
     {/* Avatar + Name */}
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
-      <div className="dc-avatar dc-avatar-lg" style={{
-        background: `${levelColor}90`,
-        border: '3px solid rgba(255,255,255,0.4)',
-        fontSize: 26,
-      }}>
-        {initials}
-      </div>
+      {avatarUrl?.startsWith('/images/avatars/') ? (
+        <div style={{
+          width: 68, height: 68, borderRadius: '50%', overflow: 'hidden',
+          border: '3px solid rgba(255,255,255,0.4)', flexShrink: 0, background: '#EDE7FF',
+        }}>
+          <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        </div>
+      ) : (
+        <div className="dc-avatar dc-avatar-lg" style={{
+          background: `${levelColor}90`,
+          border: '3px solid rgba(255,255,255,0.4)',
+          fontSize: 26,
+        }}>
+          {initials}
+        </div>
+      )}
       <div>
         <p style={{ fontSize: 13, opacity: 0.75, margin: 0, fontWeight: 600 }}>Salut !</p>
         <h1 style={{ fontSize: 26, fontWeight: 900, margin: '2px 0 0', letterSpacing: -0.5 }}>{name}</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-          <Trophy size={14} color="var(--dc-gold)" strokeWidth={2} />
+          <img src="/images/menu/trophy.png" alt="niveau" style={{ width: 14, height: 14, objectFit: 'contain' }} />
           <span style={{ fontSize: 13, fontWeight: 700, opacity: 0.9 }}>{levelName}</span>
         </div>
       </div>
     </div>
+
 
     {/* XP bar */}
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
         <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.8 }}>Progression</span>
         <span style={{ fontSize: 12, fontWeight: 800 }}>
-          <Star size={12} strokeWidth={2.5} style={{ verticalAlign: 'middle', marginRight: 3 }} />
+          <img src="/images/menu/star.png" alt="pts" style={{ width: 12, height: 12, objectFit: 'contain', verticalAlign: 'middle', marginRight: 3 }} />
           {totalPoints} pts
         </span>
       </div>
@@ -241,13 +254,12 @@ export const EncouragementCard: React.FC = () => {
   const msg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
   return (
     <div style={{
-      background: 'linear-gradient(135deg, #FFF9E6 0%, #FFF0F7 100%)',
-      borderRadius: 'var(--dc-radius-lg)', padding: '16px 20px',
-      border: '1px solid rgba(245,158,11,0.15)',
-      display: 'flex', alignItems: 'center', gap: 12,
+      background: 'white',
+      borderRadius: 'var(--dc-radius-lg)', padding: '14px 18px',
+      border: '1px solid var(--dc-border)',
+      boxShadow: 'var(--dc-shadow)',
     }}>
-      <Zap size={22} color="var(--dc-gold)" strokeWidth={2} fill="var(--dc-gold-light)" />
-      <p style={{ fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--dc-text)', lineHeight: 1.4 }}>
+      <p style={{ fontSize: 14, fontWeight: 700, margin: 0, color: 'var(--dc-text)', lineHeight: 1.5 }}>
         {msg}
       </p>
     </div>

@@ -19,6 +19,7 @@ import ChildTabs from './pages/child/ChildTabs';
 import ChildSelectorPage from './pages/public/ChildSelectorPage';
 import ChildLinkPage from './pages/child/ChildLinkPage';
 import FamilyPage from './pages/parent/FamilyPage';
+import JoinFamilyPage from './pages/public/JoinFamilyPage';
 
 import './index.css';
 
@@ -29,7 +30,15 @@ const App: React.FC = () => {
   const { mode } = useAppStore();
   const { toast, dismissToast, navigateToNotification } = usePushNotifications();
 
-  useEffect(() => { initialize(); }, [initialize]);
+  // CRITICAL: empty deps [] — initialize must only run ONCE on mount.
+  // If `initialize` is in the deps array, it re-fires on every re-render
+  // because Zustand action references are unstable between renders.
+  // Each re-fire re-calls getSession() and fetchProfile() unnecessarily.
+  useEffect(() => {
+    console.log('[App] Mounting — calling initialize()');
+    initialize();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!isInitialized) {
     return <SplashPage />;
@@ -58,12 +67,17 @@ const App: React.FC = () => {
           <Route exact path="/select-child" component={ChildSelectorPage} />
           <Route exact path="/child-link" component={ChildLinkPage} />
           <Route exact path="/family" component={FamilyPage} />
+          <Route exact path="/join-family" component={JoinFamilyPage} />
 
-          {/* Parent routes */}
-          <Route path="/parent" component={ParentTabs} />
+          {/* Parent routes — protected */}
+          <Route path="/parent">
+            {user ? <ParentTabs /> : <Redirect to="/login" />}
+          </Route>
 
-          {/* Child routes */}
-          <Route path="/child" component={ChildTabs} />
+          {/* Child routes — protected */}
+          <Route path="/child">
+            {user ? <ChildTabs /> : <Redirect to="/login" />}
+          </Route>
 
           {/* Root redirect */}
           <Route exact path="/">

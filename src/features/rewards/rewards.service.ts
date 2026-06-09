@@ -49,11 +49,30 @@ export const rewardsService = {
     return data;
   },
 
+  async updateReward(rewardId: string, updates: Partial<RewardFormData>): Promise<Reward> {
+    const { data, error } = await supabase
+      .from('rewards')
+      .update(updates)
+      .eq('id', rewardId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   async deleteReward(rewardId: string): Promise<void> {
+    // Defense-in-depth: filter by parent_id explicitly, even though RLS
+    // already enforces it. This prevents accidental deletion if RLS is
+    // ever misconfigured.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Non authentifié');
+
     const { error } = await supabase
       .from('rewards')
       .update({ is_active: false })
-      .eq('id', rewardId);
+      .eq('id', rewardId)
+      .eq('parent_id', user.id); // explicit owner check
 
     if (error) throw error;
   },

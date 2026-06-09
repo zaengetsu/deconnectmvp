@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useAppStore } from '../../stores/app.store';
-import { Users, ChevronRight, User, Pencil, Check, LogOut, CreditCard } from 'lucide-react';
+import { Users, ChevronRight, User, Pencil, Check, LogOut, Bell, BellOff, ExternalLink } from 'lucide-react';
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
 
 const SettingsPage: React.FC = () => {
   const { profile, signOut, updateProfile } = useAuthStore();
@@ -15,10 +17,42 @@ const SettingsPage: React.FC = () => {
   const [savingName, setSavingName] = useState(false);
   const [nameSuccess, setNameSuccess] = useState(false);
 
+  // Notification permission state
+  const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'prompt' | 'checking'>('checking');
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) { setNotifPermission('prompt'); return; }
+    PushNotifications.checkPermissions().then(res => {
+      setNotifPermission(res.receive as 'granted' | 'denied' | 'prompt');
+    }).catch(() => setNotifPermission('prompt'));
+  }, []);
+
   const handleLogout = async () => {
     await signOut();
     switchToParent();
     history.replace('/onboarding');
+  };
+
+  const handleEnableNotifications = async () => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (notifPermission === 'denied') {
+      // iOS won't re-show the dialog — must go to Settings
+      // Use Capacitor App to open app settings
+      try {
+        const { App } = await import('@capacitor/app');
+        // On iOS, openUrl with app-settings:// opens the app's notification settings
+        await (App as any).openUrl({ url: 'app-settings:' });
+      } catch {
+        alert('Activez les notifications dans : Réglages iOS → Notifications → [Nom de l\'app]');
+      }
+      return;
+    }
+    // Not yet asked — request now
+    const result = await PushNotifications.requestPermissions();
+    if (result.receive === 'granted') {
+      await PushNotifications.register();
+    }
+    setNotifPermission(result.receive as 'granted' | 'denied' | 'prompt');
   };
 
   const handleSaveName = async () => {
@@ -50,8 +84,13 @@ const SettingsPage: React.FC = () => {
 
   return (
     <IonPage><IonContent fullscreen>
+      <div className="dc-page-header">
+        <div className="dc-header-row">
+          <img src="/images/menu/gear.png" alt="paramètres" style={{ width: 26, height: 26, objectFit: 'contain' }} />
+          <h1>Paramètres</h1>
+        </div>
+      </div>
       <div style={{ padding: '20px 20px 100px' }}>
-        <div className="dc-page-header"><h1>Paramètres</h1></div>
 
         {/* Profile card */}
         <div className="dc-card" style={{ marginBottom: 16 }}>
@@ -136,11 +175,58 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Notifications */}
+        <div className="dc-card" style={{ marginBottom: 10 }}>
+          <h3 style={{ fontSize: 11, fontWeight: 700, marginBottom: 14, color: 'var(--dc-text-muted)', letterSpacing: '0.08em' }}>NOTIFICATIONS</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ ...iconBox, background: notifPermission === 'granted' ? 'rgba(0,184,148,0.1)' : 'rgba(255,107,107,0.1)' }}>
+              {notifPermission === 'granted'
+                ? <Bell size={18} color="var(--dc-success)" strokeWidth={2} />
+                : <BellOff size={18} color="#FF6B6B" strokeWidth={2} />}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>Notifications push</div>
+              <div style={{ fontSize: 12, color: notifPermission === 'granted' ? 'var(--dc-success)' : 'var(--dc-text-muted)' }}>
+                {notifPermission === 'checking' && 'Vérification...'}
+                {notifPermission === 'granted' && '✓ Activées'}
+                {notifPermission === 'denied' && 'Désactivées — touchez pour activer dans les Réglages'}
+                {notifPermission === 'prompt' && 'Touchez pour activer'}
+              </div>
+            </div>
+            {notifPermission !== 'granted' && notifPermission !== 'checking' && (
+              <button
+                onClick={handleEnableNotifications}
+                style={{
+                  background: 'var(--dc-primary)', color: 'white', border: 'none',
+                  borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                {notifPermission === 'denied' ? <><ExternalLink size={13} /> Réglages</> : 'Activer'}
+              </button>
+            )}
+          </div>
+
+          {/* Link to notifications history */}
+          <div
+            onClick={() => history.push('/parent/notifications')}
+            style={{
+              marginTop: 14, paddingTop: 14,
+              borderTop: '1px solid var(--dc-border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Historique des notifications</span>
+            <ChevronRight size={16} color="var(--dc-text-muted)" />
+          </div>
+        </div>
+
         {/* Ma famille */}
         <div className="dc-card" style={{ marginBottom: 10, cursor: 'pointer' }} onClick={() => history.push('/family')}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ ...iconBox, background: 'rgba(108,92,231,0.1)' }}>
-              <Users size={18} color="var(--dc-primary)" strokeWidth={2} />
+              <img src="/images/menu/family.png" alt="famille" style={{ width: 20, height: 20, objectFit: 'contain' }} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 15 }}>Ma famille</div>

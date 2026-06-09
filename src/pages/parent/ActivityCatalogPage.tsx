@@ -35,49 +35,41 @@ const ActivityCatalogPage: React.FC = () => {
       <IonContent fullscreen scrollY>
 
         {/* ── Header ── */}
-        <div style={{
-          background: 'linear-gradient(135deg, var(--dc-blue) 0%, var(--dc-blue-mid) 100%)',
-          padding: '52px 24px 24px', borderRadius: '0 0 28px 28px',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-            <div>
-              <h1 style={{ color: 'white', fontSize: 22, fontWeight: 900, margin: '0 0 2px' }}>Catalogue</h1>
-              <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, margin: 0, fontWeight: 600 }}>
-                {activities.length} activité{activities.length !== 1 ? 's' : ''} disponible{activities.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <button
-              onClick={() => history.push('/parent/create-activity')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: 'rgba(255,255,255,0.2)', border: '1.5px solid rgba(255,255,255,0.35)',
-                borderRadius: 50, padding: '9px 16px', color: 'white',
-                fontSize: 13, fontWeight: 700, cursor: 'pointer', backdropFilter: 'blur(4px)',
-              }}>
-              <PlusCircle size={15} strokeWidth={2.5} /> Créer
-            </button>
+        <div className="dc-page-header">
+          <div className="dc-header-row">
+            <img src="/images/menu/book.png" alt="catalogue" style={{ width: 26, height: 26, objectFit: 'contain' }} />
+            <h1>Catalogue</h1>
           </div>
-
-          {/* Search bar */}
-          <div style={{ position: 'relative' }}>
-            <Search size={15} color="rgba(255,255,255,0.6)" strokeWidth={2}
-              style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-            <input
-              type="text"
-              placeholder="Rechercher une activité..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{
-                width: '100%', padding: '11px 14px 11px 38px', borderRadius: 14,
-                border: 'none', background: 'rgba(255,255,255,0.15)',
-                color: 'white', fontSize: 14, outline: 'none', boxSizing: 'border-box',
-                fontFamily: 'inherit', backdropFilter: 'blur(4px)',
-              }}
-            />
-          </div>
+          <p>{activities.length} activité{activities.length !== 1 ? 's' : ''} disponible{activities.length !== 1 ? 's' : ''}</p>
         </div>
 
         <div style={{ padding: '16px 20px 100px' }}>
+          {/* Search + Create */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <Search size={15} color="var(--dc-text-muted)" strokeWidth={2}
+                style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                placeholder="Rechercher une activité..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{
+                  width: '100%', padding: '11px 14px 11px 38px', borderRadius: 12,
+                  border: '1.5px solid var(--dc-border)', background: 'white',
+                  color: 'var(--dc-text)', fontSize: 14, outline: 'none', boxSizing: 'border-box',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </div>
+            <button
+              onClick={() => history.push('/parent/create-activity')}
+              className="dc-btn-icon"
+              style={{ width: 44, height: 44, borderRadius: 12 }}
+            >
+              <PlusCircle size={18} color="var(--dc-primary)" strokeWidth={2} />
+            </button>
+          </div>
           {/* ── Category chips ── */}
           <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 20, scrollbarWidth: 'none' }}>
             <button
@@ -92,7 +84,7 @@ const ActivityCatalogPage: React.FC = () => {
               Tout
             </button>
             {categories.map(c => {
-              const { bg, accent, Icon } = getCategoryStyle(c.slug);
+              const { imgSrc, accent } = getCategoryStyle(c.slug);
               const isActive = activeCategory === c.id;
               return (
                 <button key={c.id}
@@ -105,7 +97,7 @@ const ActivityCatalogPage: React.FC = () => {
                     color: isActive ? 'white' : 'var(--dc-text)',
                     boxShadow: isActive ? `0 3px 12px ${accent}44` : 'var(--dc-shadow)',
                   }}>
-                  <Icon size={13} strokeWidth={2} color={isActive ? 'white' : accent} />
+                  <img src={imgSrc} alt="" style={{ width: 14, height: 14, objectFit: 'contain', filter: isActive ? 'brightness(10)' : 'none' }} />
                   {c.name}
                 </button>
               );
@@ -150,7 +142,7 @@ const ActivityCatalogPage: React.FC = () => {
               </button>
             </div>
           ) : filtered.map(a => {
-            const { bg, accent, Icon } = getCategoryStyle(a.category?.slug);
+            const { bg, accent, imgSrc } = getCategoryStyle(a.category?.slug);
             return (
               <div key={a.id} className="dc-animate-in" style={{
                 display: 'flex', alignItems: 'stretch', marginBottom: 12,
@@ -166,7 +158,7 @@ const ActivityCatalogPage: React.FC = () => {
                   width: 60, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: bg, flexShrink: 0,
                 }}>
-                  <Icon size={26} color={accent} strokeWidth={1.8} />
+                  <img src={imgSrc} alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} />
                 </div>
 
                 {/* Content */}

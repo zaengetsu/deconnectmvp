@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useHistory } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { pushService } from '../features/notifications/push.service';
@@ -11,6 +11,11 @@ import { useAppStore } from '../stores/app.store';
  * - Registers push tokens (native) and saves to DB
  * - Subscribes to real-time in-app notifications
  * - Provides toast state for in-app notification banners
+ *
+ * IMPORTANT: Uses a ref to track the active Realtime channel unsubscribe
+ * function, ensuring we never accumulate stale channels. Accumulated
+ * channels eventually exhaust the Supabase Realtime connection limit
+ * (~100 channels), after which ALL data fetching stops working.
  */
 export function usePushNotifications() {
   const { user } = useAuthStore();
@@ -18,6 +23,11 @@ export function usePushNotifications() {
   const history = useHistory();
   const [toast, setToast] = useState<AppNotification | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Track the active unsubscribe function so we can clean up properly
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  // Track push init to avoid re-registering
+  const pushInitializedRef = useRef(false);
 
   // Refresh unread count
   const refreshUnread = useCallback(async () => {
@@ -30,59 +40,72 @@ export function usePushNotifications() {
     }
   }, [user, selectedChild, mode]);
 
+  // Push token registration — only once per app lifecycle
   useEffect(() => {
-    if (!user) return;
+    if (!user || pushInitializedRef.current) return;
+    pushInitializedRef.current = true;
 
-    let mounted = true;
-
-    // 1) Register push token on native
     pushService.initialize(
       (notification) => {
-        if (!mounted) return;
         console.info('[Push] Foreground:', notification.title);
       },
       (action) => {
-        if (!mounted) return;
         const data = action.notification.data as Record<string, string>;
         if (data?.route) history.push(data.route);
       }
     ).then((token) => {
-      if (token && mounted) {
+      if (token) {
         const platform = Capacitor.getPlatform() as 'ios' | 'android' | 'web';
         notificationService.savePushToken(user.id, token, platform);
         console.info('[Push] Token saved');
       }
     });
 
-    // 2) Subscribe to real-time notifications
+    return () => {
+      pushService.cleanup();
+      pushInitializedRef.current = false;
+    };
+  }, [user]);
+
+  // Realtime subscription — re-subscribe only when recipient changes
+  useEffect(() => {
+    if (!user) return;
+
     const recipientType = mode === 'child' && selectedChild ? 'child' : 'parent';
     const recipientId = mode === 'child' && selectedChild ? selectedChild.id : user.id;
+
+    // Clean up the PREVIOUS channel BEFORE creating a new one
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
+    let mounted = true;
 
     const unsubscribe = notificationService.subscribeToNotifications(
       recipientType,
       recipientId,
       (notification) => {
         if (!mounted) return;
-        // Show toast
         setToast(notification);
         setUnreadCount(prev => prev + 1);
-
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => {
-          if (mounted) setToast(null);
-        }, 5000);
+        setTimeout(() => { if (mounted) setToast(null); }, 5000);
       }
     );
 
-    // 3) Initial unread count
+    unsubscribeRef.current = unsubscribe;
+
+    // Initial unread count
     refreshUnread();
 
     return () => {
       mounted = false;
-      unsubscribe();
-      pushService.cleanup();
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
     };
-  }, [user, selectedChild, mode]);
+  }, [user?.id, selectedChild?.id, mode]);
 
   const dismissToast = useCallback(() => setToast(null), []);
 
@@ -97,3 +120,4 @@ export function usePushNotifications() {
 
   return { toast, unreadCount, dismissToast, navigateToNotification, refreshUnread };
 }
+

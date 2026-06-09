@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { IonContent, IonPage } from '@ionic/react';
+import React, { useState } from 'react';
+import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { rewardsService } from '../../features/rewards/rewards.service';
 import { notificationService } from '../../features/notifications/notification.service';
 import { REWARD_CATEGORIES } from '../../lib/constants';
-import { Gift, Plus, CheckCircle, Compass, Crown, Shield, Award, Heart } from 'lucide-react';
+import { Gift, Plus, CheckCircle, Compass, Crown, Shield, Award, Heart, Trash2 } from 'lucide-react';
 import type { Reward, RewardRequest } from '../../types/database.types';
 
 // Map category icon names to Lucide components
@@ -16,8 +16,8 @@ const CATEGORY_ICONS: Record<string, React.FC<any>> = {
 type Tab = 'mine' | 'catalog';
 
 const ParentRewardsPage: React.FC = () => {
-  const { user } = useAuthStore();
   const history = useHistory();
+  const { user } = useAuthStore();
   const [tab, setTab] = useState<Tab>('mine');
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [requests, setRequests] = useState<RewardRequest[]>([]);
@@ -25,15 +25,12 @@ const ParentRewardsPage: React.FC = () => {
   const [activating, setActivating] = useState<string | null>(null);
   const [activated, setActivated] = useState<Set<string>>(new Set());
 
-  const load = async () => {
-    if (!user) return;
+  const load = async (userId: string) => {
     const [r, req] = await Promise.all([
-      rewardsService.getRewards(user.id),
-      rewardsService.getPendingRewardRequests(user.id),
+      rewardsService.getRewards(userId),
+      rewardsService.getPendingRewardRequests(userId),
     ]);
     setRewards(r); setRequests(req);
-
-    // Build set of already-activated titles
     setActivated(new Set(r.map(rw => rw.title)));
   };
 
@@ -42,7 +39,13 @@ const ParentRewardsPage: React.FC = () => {
     setCatalog(c);
   };
 
-  useEffect(() => { load(); loadCatalog(); }, [user]);
+  const fetchAll = () => {
+    if (!user) return;
+    load(user.id).catch(() => {});
+    loadCatalog().catch(() => {});
+  };
+
+  useIonViewWillEnter(fetchAll);
 
   const handleApprove = async (req: RewardRequest) => {
     if (!user) return;
@@ -56,7 +59,7 @@ const ParentRewardsPage: React.FC = () => {
         { type: 'reward_approved', reward_id: req.id }
       ).catch(() => {});
     }
-    load();
+    load(user.id);
   };
 
   const handleReject = async (req: RewardRequest) => {
@@ -71,7 +74,7 @@ const ParentRewardsPage: React.FC = () => {
         { type: 'reward_rejected', reward_id: req.id }
       ).catch(() => {});
     }
-    load();
+    load(user.id);
   };
 
   const handleActivate = async (catalogReward: Reward) => {
@@ -80,9 +83,17 @@ const ParentRewardsPage: React.FC = () => {
     try {
       await rewardsService.activateCatalogReward(user.id, catalogReward);
       setActivated(prev => new Set([...prev, catalogReward.title]));
-      load();
+      load(user.id);
     } catch (e) { console.error(e); }
     setActivating(null);
+  };
+
+  const handleDelete = async (rewardId: string) => {
+    if (!user) return;
+    try {
+      await rewardsService.deleteReward(rewardId);
+      load(user.id);
+    } catch (e) { console.error(e); }
   };
 
   const iconBox: React.CSSProperties = {
@@ -100,19 +111,19 @@ const ParentRewardsPage: React.FC = () => {
 
   return (
     <IonPage><IonContent fullscreen>
-      <div style={{ padding: '20px 20px 100px' }}>
-        <div className="dc-page-header"><h1>Récompenses</h1><p>Gérez et choisissez les récompenses</p></div>
+      <div className="dc-page-header">
+        <div className="dc-header-row">
+          <img src="/images/menu/gift.png" alt="récompenses" style={{ width: 26, height: 26, objectFit: 'contain' }} />
+          <h1>Récompenses</h1>
+        </div>
+        <p>Gérez et choisissez les récompenses</p>
+      </div>
 
-        {/* ── Tab switcher ── */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+      <div style={{ padding: '20px 20px 100px' }}>
+
+        <div className="dc-tab-selector">
           {([['mine', 'Mes récompenses'], ['catalog', 'Catalogue']] as const).map(([t, label]) => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              flex: 1, padding: '11px', borderRadius: 12, fontSize: 14, fontWeight: 700,
-              border: `2px solid ${tab === t ? 'var(--dc-primary)' : 'var(--dc-border)'}`,
-              background: tab === t ? 'rgba(108,92,231,0.08)' : 'white',
-              color: tab === t ? 'var(--dc-primary)' : 'var(--dc-text-light)',
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}>
+            <button key={t} onClick={() => setTab(t)} className={tab === t ? 'active' : ''}>
               {label}
             </button>
           ))}
@@ -167,7 +178,7 @@ const ParentRewardsPage: React.FC = () => {
           ) : rewards.map(r => (
             <div key={r.id} className="dc-card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
               <div style={iconBox}>
-                <Gift size={18} color="var(--dc-primary)" strokeWidth={1.8} />
+                <img src="/images/menu/gift.png" alt="récompense" style={{ width: 18, height: 18, objectFit: 'contain' }} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>{r.title}</div>
@@ -176,6 +187,9 @@ const ParentRewardsPage: React.FC = () => {
               <div className="dc-badge-pill" style={{ background: 'rgba(108,92,231,0.1)', color: 'var(--dc-primary)' }}>
                 {r.required_points} pts
               </div>
+              <button className="dc-btn-danger" onClick={() => handleDelete(r.id)}>
+                <Trash2 size={14} strokeWidth={2} />
+              </button>
             </div>
           ))}
         </>)}

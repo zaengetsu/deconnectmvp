@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { IonContent, IonPage } from '@ionic/react';
+import React, { useState } from 'react';
+import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { childrenService } from '../../features/children/children.service';
@@ -7,33 +7,65 @@ import type { Child } from '../../types/database.types';
 
 const LEVEL_NAMES = ['', 'Explorateur', 'Aventurier', 'Champion', 'Héros', 'Légende', 'Super Héros', 'Maître', 'Expert', 'Prodige', 'Légende'];
 
+const isHexColor = (v?: string | null) => !!v && /^#[0-9A-Fa-f]{3,8}$/.test(v);
+const isImageUrl = (v?: string | null) => !!v && v.startsWith('/images/avatars/');
+
+const ChildAvatar = ({ child, size = 60 }: { child: { avatar_url?: string | null; display_name: string }; size?: number }) => {
+  const url = child.avatar_url;
+  if (isImageUrl(url)) {
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: '50%', flexShrink: 0,
+        overflow: 'hidden', background: '#EDE7FF',
+        boxShadow: '0 2px 10px rgba(108,92,231,0.2)',
+      }}>
+        <img src={url!} alt={child.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      </div>
+    );
+  }
+  const isColor = isHexColor(url);
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: isColor ? url! : 'linear-gradient(135deg, rgba(108,92,231,0.15), rgba(0,206,201,0.15))',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.38, fontWeight: 900, color: isColor ? 'white' : undefined,
+      boxShadow: isColor ? `0 2px 10px ${url}60` : undefined,
+    }}>
+      {isColor ? child.display_name[0]?.toUpperCase() ?? '?' : '?'}
+    </div>
+  );
+};
+
+
 const ChildrenListPage: React.FC = () => {
-  const { user } = useAuthStore();
   const history = useHistory();
+  const { user } = useAuthStore();
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!user) return;
+  const fetchChildren = () => {
+    if (!user) { setLoading(false); return; }
     childrenService.getChildren(user.id)
       .then(setChildren)
-      .catch(console.error)
+      .catch(err => console.error('[ChildrenList] fetch error:', err))
       .finally(() => setLoading(false));
-  }, [user]);
+  };
+
+  // useIonViewWillEnter covers both initial mount AND subsequent returns
+  useIonViewWillEnter(fetchChildren);
 
   return (
     <IonPage>
       <IonContent fullscreen>
         <div style={{ background: 'var(--dc-bg)', minHeight: '100vh', padding: '0 0 100px' }}>
           {/* Header */}
-          <div style={{
-            background: 'linear-gradient(135deg, #6C5CE7 0%, #A29BFE 100%)',
-            padding: '60px 24px 28px', color: 'white',
-          }}>
-            <h1 style={{ fontSize: 28, fontWeight: 900, margin: '0 0 4px' }}>Mes enfants</h1>
-            <p style={{ opacity: 0.85, fontSize: 14, margin: 0 }}>
-              {loading ? '...' : `${children.length} profil${children.length > 1 ? 's' : ''}`}
-            </p>
+          <div className="dc-page-header">
+            <div className="dc-header-row">
+              <img src="/images/menu/team-management.png" alt="enfants" style={{ width: 26, height: 26, objectFit: 'contain' }} />
+              <h1>Mes enfants</h1>
+            </div>
+            <p>{loading ? '...' : `${children.length} profil${children.length > 1 ? 's' : ''}`}</p>
           </div>
 
           <div style={{ padding: '20px 20px 0' }}>
@@ -56,7 +88,9 @@ const ChildrenListPage: React.FC = () => {
             {/* Empty state */}
             {!loading && children.length === 0 && (
               <div className="dc-empty-state">
-                <div className="emoji">👨‍👩‍👧‍👦</div>
+                <div style={{ width: 56, height: 56, borderRadius: 18, background: 'rgba(108,92,231,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                  <img src="/images/menu/team-management.png" alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} />
+                </div>
                 <h3>Aucun profil enfant</h3>
                 <p>Créez le premier profil pour commencer l'aventure !</p>
               </div>
@@ -71,14 +105,7 @@ const ChildrenListPage: React.FC = () => {
                   onClick={() => history.push(`/parent/children/${child.id}`)}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     {/* Avatar */}
-                    <div style={{
-                      width: 60, height: 60, borderRadius: '50%', fontSize: 32,
-                      background: 'linear-gradient(135deg, rgba(108,92,231,0.15), rgba(0,206,201,0.15))',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      {child.avatar_url || '🦊'}
-                    </div>
+                    <ChildAvatar child={child} size={60} />
 
                     {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>

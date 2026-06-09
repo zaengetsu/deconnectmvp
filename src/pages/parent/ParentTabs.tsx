@@ -1,7 +1,10 @@
 import React from 'react';
 import { IonTabs, IonTabBar, IonTabButton, IonLabel, IonRouterOutlet } from '@ionic/react';
 import { Route, Redirect } from 'react-router-dom';
-import { Home, Users, CheckSquare, Gift, Settings } from 'lucide-react';
+
+const MenuIcon = ({ src, alt }: { src: string; alt: string }) => (
+  <img src={src} alt={alt} style={{ width: 28, height: 28, objectFit: 'contain' }} />
+);
 
 import ParentDashboard from './ParentDashboard';
 import ChildrenListPage from './ChildrenListPage';
@@ -13,6 +16,8 @@ import ActivityCatalogPage from './ActivityCatalogPage';
 import CreateActivityPage from './CreateActivityPage';
 import CreateRewardPage from './CreateRewardPage';
 import ChildDetailPage from './ChildDetailPage';
+import AssignActivitiesPage from './AssignActivitiesPage';
+import NotificationsPage from './NotificationsPage';
 
 const ParentTabs: React.FC = () => (
   <IonTabs>
@@ -21,30 +26,32 @@ const ParentTabs: React.FC = () => (
       <Route exact path="/parent/children" component={ChildrenListPage} />
       <Route exact path="/parent/create-child" component={CreateChildPage} />
       <Route exact path="/parent/children/:childId" component={ChildDetailPage} />
+      <Route exact path="/parent/children/:childId/assign" component={AssignActivitiesPage} />
       <Route exact path="/parent/activities" component={ActivityCatalogPage} />
       <Route exact path="/parent/create-activity" component={CreateActivityPage} />
       <Route exact path="/parent/rewards" component={RewardsPage} />
       <Route exact path="/parent/create-reward" component={CreateRewardPage} />
       <Route exact path="/parent/validations" component={ValidationsPage} />
       <Route exact path="/parent/settings" component={SettingsPage} />
+      <Route exact path="/parent/notifications" component={NotificationsPage} />
       <Route exact path="/parent"><Redirect to="/parent/dashboard" /></Route>
     </IonRouterOutlet>
 
     <IonTabBar slot="bottom" className="dc-tab-bar">
       <IonTabButton tab="dashboard" href="/parent/dashboard">
-        <Home size={22} strokeWidth={1.8} />
+        <MenuIcon src="/images/menu/home.png" alt="Accueil" />
       </IonTabButton>
       <IonTabButton tab="children" href="/parent/children">
-        <Users size={22} strokeWidth={1.8} />
+        <MenuIcon src="/images/menu/team-management.png" alt="Enfants" />
       </IonTabButton>
       <IonTabButton tab="validations" href="/parent/validations">
-        <CheckSquare size={22} strokeWidth={1.8} />
+        <MenuIcon src="/images/menu/stamp.png" alt="Validations" />
       </IonTabButton>
       <IonTabButton tab="rewards" href="/parent/rewards">
-        <Gift size={22} strokeWidth={1.8} />
+        <MenuIcon src="/images/menu/gift.png" alt="Récompenses" />
       </IonTabButton>
       <IonTabButton tab="settings" href="/parent/settings">
-        <Settings size={22} strokeWidth={1.8} />
+        <MenuIcon src="/images/menu/gear.png" alt="Paramètres" />
       </IonTabButton>
     </IonTabBar>
   </IonTabs>

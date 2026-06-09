@@ -5,7 +5,7 @@ import { useAppStore } from '../../stores/app.store';
 import { gamificationService } from '../../features/gamification/gamification.service';
 import { activitiesService } from '../../features/activities/activities.service';
 import { LEVEL_NAMES, getStreakMessage } from '../../lib/constants';
-import { Zap, Flame, ArrowRight } from 'lucide-react';
+import { Flame, ArrowRight } from 'lucide-react';
 import { HeroHeader, WeeklyTracker, EncouragementCard, ActivityListItem } from '../../components/ui/ChildUIKit';
 import type { Activity, ChildActivity } from '../../types/database.types';
 
@@ -19,10 +19,10 @@ const ChildHomePage: React.FC = () => {
   useEffect(() => {
     if (selectedChild) {
       gamificationService.getWeeklyDayByDay(selectedChild.id).then(setWeeklyDays).catch(() => {});
-      activitiesService.getChildActivities(selectedChild.id).then(a => setRecentActivities(a.slice(0, 3)));
+      activitiesService.getChildActivities(selectedChild.id).then(a => setRecentActivities(a.slice(0, 3))).catch(() => {});
       activitiesService.getDailyChallenges(selectedChild.id).then(setDailyChallenges).catch(() => {});
     }
-  }, [selectedChild]);
+  }, [selectedChild?.id]);
 
   if (!selectedChild) return (
     <IonPage><IonContent>
@@ -50,6 +50,7 @@ const ChildHomePage: React.FC = () => {
       <HeroHeader
         name={selectedChild.display_name}
         initials={initials}
+        avatarUrl={selectedChild.avatar_url}
         levelName={levelInfo.name}
         levelColor={levelInfo.color}
         totalPoints={selectedChild.total_points}
@@ -101,10 +102,7 @@ const ChildHomePage: React.FC = () => {
         {/* ── Défis du jour ── */}
         {dailyChallenges.length > 0 && (
           <>
-            <h2 className="dc-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Zap size={16} color="var(--dc-gold)" strokeWidth={2.5} />
-              Défis du jour
-            </h2>
+            <h2 className="dc-section-title">Défis du jour</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
               {dailyChallenges.map((act, i) => (
                 <button
@@ -120,11 +118,10 @@ const ChildHomePage: React.FC = () => {
                 >
                   <div style={{
                     width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                    background: `linear-gradient(135deg, var(--dc-blue), var(--dc-blue-mid))`,
+                    background: '#FEF3C7',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'white', fontSize: 14, fontWeight: 900,
                   }}>
-                    {i + 1}
+                    <img src="/images/menu/star.png" alt="défi" style={{ width: 20, height: 20, objectFit: 'contain' }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--dc-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

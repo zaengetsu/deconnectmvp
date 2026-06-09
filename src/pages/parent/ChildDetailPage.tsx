@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { IonContent, IonPage } from '@ionic/react';
+import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useParams, useHistory } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { childrenService } from '../../features/children/children.service';
 import { activitiesService } from '../../features/activities/activities.service';
 import { gamificationService } from '../../features/gamification/gamification.service';
 import { supabase } from '../../lib/supabase';
-import { Smartphone, QrCode, CheckCircle, RefreshCw, Clock, Trophy, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Smartphone, QrCode, CheckCircle, RefreshCw, Clock, Trophy, ArrowLeft, CheckCircle2, BookPlus, Pencil, Trash2, X } from 'lucide-react';
 import type { Child, ChildActivity, ChildBadge } from '../../types/database.types';
 
 const ChildDetailPage: React.FC = () => {
@@ -23,14 +23,46 @@ const ChildDetailPage: React.FC = () => {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrExpiry, setQrExpiry] = useState<Date | null>(null);
 
-  useEffect(() => {
-    if (childId) {
-      childrenService.getChild(childId).then(setChild);
-      activitiesService.getChildActivities(childId).then(setActivities);
-      gamificationService.getChildBadges(childId).then(setBadges);
-      gamificationService.getWeeklyStats(childId).then(setWeeklyStats);
-    }
-  }, [childId]);
+  // Edit child state
+  const [showEdit, setShowEdit] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editAge, setEditAge] = useState<number>(10);
+  const [editAvatar, setEditAvatar] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  const fetchAll = () => {
+    if (!childId) return;
+    setLoading(true);
+    setLoadError(false);
+    const timer = setTimeout(() => { setLoading(false); setLoadError(true); }, 8000);
+
+    Promise.all([
+      childrenService.getChild(childId),
+      activitiesService.getChildActivities(childId),
+      gamificationService.getChildBadges(childId),
+      gamificationService.getWeeklyStats(childId),
+    ])
+      .then(([c, acts, bdgs, stats]) => {
+        setChild(c);
+        setEditName(c.display_name);
+        setEditAge(c.age);
+        setEditAvatar(c.avatar_url || '');
+        setActivities(acts);
+        setBadges(bdgs);
+        setWeeklyStats(stats);
+      })
+      .catch(err => { console.error('[ChildDetail] fetch error:', err); setLoadError(true); })
+      .finally(() => { clearTimeout(timer); setLoading(false); });
+  };
+
+  // useEffect for param changes (navigating between child profiles)
+  // useIonViewWillEnter for returning to the page from deeper navigation
+  useEffect(fetchAll, [childId]);
+  useIonViewWillEnter(fetchAll);
 
   const generateQR = async () => {
     if (!childId) return;
@@ -39,7 +71,7 @@ const ChildDetailPage: React.FC = () => {
       const { data, error } = await supabase.rpc('create_child_link_token', { p_child_id: childId });
       if (error) throw error;
       setQrToken(data);
-      setQrExpiry(new Date(Date.now() + 15 * 60 * 1000)); // 15 min
+      setQrExpiry(new Date(Date.now() + 15 * 60 * 1000));
       setShowQR(true);
     } catch (e) {
       console.error('QR generation error:', e);
@@ -48,17 +80,98 @@ const ChildDetailPage: React.FC = () => {
     }
   };
 
-  if (!child) return (
+  const handleSaveEdit = async () => {
+    if (!child || !editName.trim()) return;
+    setEditSaving(true);
+    try {
+      const updated = await childrenService.updateChild(child.id, {
+        display_name: editName.trim(),
+        age: editAge,
+        avatar_url: editAvatar || null,
+      });
+      setChild(updated);
+      setShowEdit(false);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!child) return;
+    await childrenService.deactivateChild(child.id);
+    history.replace('/parent/children');
+  };
+
+  if (loading || !child) return (
     <IonPage><IonContent>
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--dc-text-light)' }}>Chargement...</div>
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--dc-text-light)' }}>
+        {loadError
+          ? <>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>Impossible de charger le profil</div>
+              <button className="dc-btn dc-btn-primary" onClick={fetchAll}>Réessayer</button>
+            </>
+          : 'Chargement...'}
+      </div>
     </IonContent></IonPage>
   );
 
   const progress = gamificationService.getLevelProgress(child.total_points);
   const isLinked = !!(child as any).pin_hash;
 
+  const COLOR_OPTIONS = ['#6C5CE7', '#00B894', '#E17055', '#0984E3', '#FDCB6E', '#A29BFE', '#FD79A8', '#2D3436'];
+
   return (
     <IonPage>
+      {/* ── Edit Modal ── */}
+      {showEdit && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', backdropFilter: 'blur(6px)' }}
+          onClick={() => setShowEdit(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '24px 24px 0 0', padding: '28px 24px 40px', width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>Modifier {child?.display_name}</h2>
+              <button onClick={() => setShowEdit(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={22} color="var(--dc-text-muted)" /></button>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Prénom</label>
+              <input className="dc-input" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Prénom de l'enfant" />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Âge</label>
+              <input className="dc-input" type="number" min={4} max={18} value={editAge} onChange={e => setEditAge(Number(e.target.value))} />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 10 }}>Couleur de l'avatar</label>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {COLOR_OPTIONS.map(c => (
+                  <button key={c} onClick={() => setEditAvatar(c)} style={{
+                    width: 36, height: 36, borderRadius: '50%', background: c, border: editAvatar === c ? '3px solid #2D3436' : '3px solid transparent', cursor: 'pointer',
+                  }} />
+                ))}
+              </div>
+            </div>
+            <button className="dc-btn dc-btn-primary dc-btn-full" disabled={editSaving || !editName.trim()} onClick={handleSaveEdit}>
+              {editSaving ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirm ── */}
+      {showDeleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={() => setShowDeleteConfirm(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 24, padding: 28, width: '100%', maxWidth: 360, textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+            <h3 style={{ margin: '0 0 8px', fontWeight: 900 }}>Supprimer {child?.display_name} ?</h3>
+            <p style={{ color: 'var(--dc-text-light)', fontSize: 14, marginBottom: 24 }}>Cette action est irréversible. Toutes les activités et données associées seront archivées.</p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="dc-btn dc-btn-outline" style={{ flex: 1 }} onClick={() => setShowDeleteConfirm(false)}>Annuler</button>
+              <button className="dc-btn" style={{ flex: 1, background: '#EF4444', color: 'white' }} onClick={handleDelete}>Supprimer</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* QR Modal */}
       {showQR && qrToken && (
         <div style={{
@@ -138,9 +251,15 @@ const ChildDetailPage: React.FC = () => {
 
             {/* Profile */}
             <div style={{ textAlign: 'center' }}>
-              <div style={{ width: 72, height: 72, borderRadius: '50%', background: child.avatar_url || 'var(--dc-blue)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, fontSize: 30, fontWeight: 900, color: 'white', border: '3px solid rgba(255,255,255,0.3)' }}>
-                {child.display_name?.[0]?.toUpperCase() || '?'}
-              </div>
+              {child.avatar_url?.startsWith('/images/avatars/') ? (
+                <div style={{ width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', background: '#EDE7FF', display: 'inline-block', marginBottom: 12, border: '3px solid rgba(255,255,255,0.3)', boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
+                  <img src={child.avatar_url} alt={child.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                </div>
+              ) : (
+                <div style={{ width: 72, height: 72, borderRadius: '50%', background: child.avatar_url || 'var(--dc-blue)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, fontSize: 30, fontWeight: 900, color: 'white', border: '3px solid rgba(255,255,255,0.3)' }}>
+                  {child.display_name?.[0]?.toUpperCase() || '?'}
+                </div>
+              )}
               <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 900 }}>{child.display_name}</h2>
               <p style={{ opacity: 0.85, margin: '0 0 16px', fontSize: 14 }}>
                 {child.age} ans • Niveau {child.level}
@@ -153,6 +272,28 @@ const ChildDetailPage: React.FC = () => {
                   <div style={{ height: '100%', width: `${progress}%`, background: 'white', borderRadius: 8, transition: 'width 0.6s' }} />
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 700 }}>{child.total_points} pts</span>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'center' }}>
+                <button
+                  onClick={() => history.push(`/parent/children/${childId}/assign`)}
+                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12, padding: '9px 14px', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <BookPlus size={15} strokeWidth={2} /> Assigner activités
+                </button>
+                <button
+                  onClick={() => setShowEdit(true)}
+                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12, padding: '9px 14px', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Pencil size={15} strokeWidth={2} /> Modifier
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  style={{ background: 'rgba(239,68,68,0.25)', border: 'none', borderRadius: 12, padding: '9px 14px', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Trash2 size={15} strokeWidth={2} />
+                </button>
               </div>
             </div>
           </div>

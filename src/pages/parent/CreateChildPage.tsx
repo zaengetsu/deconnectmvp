@@ -1,61 +1,69 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { childSchema, type ChildFormData } from '../../lib/validations';
 import { useAuthStore } from '../../stores/auth.store';
 import { childrenService } from '../../features/children/children.service';
 
-// Avatar colors — child picks a color, their initials will show in it
-const AVATAR_COLORS = [
+const AVATAR_COLORS: string[] = [
   '#1565C0', '#34C759', '#F59E0B', '#8B5CF6',
   '#EC4899', '#F97316', '#0EA5E9', '#EF4444',
-] as const;
-type AvatarColor = typeof AVATAR_COLORS[number];
-
+];
 
 const CreateChildPage: React.FC = () => {
-  const { user } = useAuthStore();
   const history = useHistory();
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<AvatarColor>(AVATAR_COLORS[0]);
+  const { user } = useAuthStore();
   const mounted = useRef(true);
-
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  const { register, handleSubmit, control, formState: { errors } } = useForm<ChildFormData>({
-    resolver: zodResolver(childSchema),
-    defaultValues: { age: 10 },
-  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState('');
+  const [age, setAge] = useState(10);
+  const [selectedColor, setSelectedColor] = useState(AVATAR_COLORS[0]);
 
-  const onSubmit = async (data: ChildFormData) => {
-    if (!user) { setError('Non connecté'); return; }
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validation front-end
+    if (!displayName.trim()) { setError('Le prénom est requis'); return; }
+    if (displayName.trim().length < 2) { setError('Le prénom doit contenir au moins 2 caractères'); return; }
+
+    if (!user) {
+      const msg = 'Session introuvable — veuillez vous reconnecter';
+      setError(msg);
+      alert(msg);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
       await childrenService.createChild({
         parent_id: user.id,
-        display_name: data.display_name,
-        age: data.age,
-        avatar_url: selectedColor, // store the color hex; initials rendered in UI
+        display_name: displayName.trim(),
+        age,
+        avatar_url: selectedColor,
       });
       if (mounted.current) history.replace('/parent/children');
-    } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : 'Erreur de création');
+    } catch (e: any) {
+      const msg = e?.message || 'Erreur inconnue';
+      const code = e?.code ? ` [${e.code}]` : '';
+      const detail = e?.details ? ` — ${e.details}` : '';
+      const hint = e?.hint ? ` (${e.hint})` : '';
+      const fullMsg = `ERREUR: ${msg}${code}${detail}${hint}`;
+      alert(fullMsg); // Alert natif iOS — toujours visible
+      if (mounted.current) setError(fullMsg);
     } finally {
       if (mounted.current) setLoading(false);
     }
   };
 
-  const inp = (err: boolean) => ({
+  const inp: React.CSSProperties = {
     width: '100%', padding: '14px 16px', borderRadius: 12,
-    border: `2px solid ${err ? 'var(--dc-danger)' : 'var(--dc-border)'}`,
-    fontSize: 15, background: 'white', outline: 'none', boxSizing: 'border-box' as const,
+    border: '2px solid var(--dc-border)', fontSize: 15,
+    background: 'white', outline: 'none', boxSizing: 'border-box',
     fontFamily: 'var(--dc-font)', color: 'var(--dc-text)',
-    transition: 'border-color 0.2s',
-  });
+  };
 
   return (
     <IonPage>
@@ -75,72 +83,81 @@ const CreateChildPage: React.FC = () => {
           </div>
 
           <div style={{ padding: '0 24px' }}>
-            {/* Avatar selector */}
+            {/* Avatar preview */}
             <div style={{ marginBottom: 28 }}>
               <label style={{ display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--dc-text)' }}>
-                Avatar de votre enfant
+                Couleur du profil
               </label>
-              {/* Color picker */}
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <div style={{ width: 80, height: 80, borderRadius: '50%', background: selectedColor, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: 32, fontWeight: 900, color: 'white' }}>
-                  ?
+                <div style={{
+                  width: 80, height: 80, borderRadius: '50%', background: selectedColor,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: 28, fontWeight: 900, color: 'white',
+                }}>
+                  {displayName.trim() ? displayName.trim()[0].toUpperCase() : '?'}
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--dc-text-muted)', marginTop: 8 }}>Couleur du profil</p>
               </div>
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                 {AVATAR_COLORS.map(color => (
-                  <button key={color} type="button" onClick={() => setSelectedColor(color)} style={{ width: 44, height: 44, borderRadius: '50%', background: color, border: `3px solid ${selectedColor === color ? 'var(--dc-text)' : 'transparent'}`, cursor: 'pointer', boxShadow: selectedColor === color ? `0 2px 12px ${color}60` : 'none', transform: selectedColor === color ? 'scale(1.15)' : 'scale(1)', transition: 'all 0.2s' }} />
+                  <button key={color} type="button" onClick={() => setSelectedColor(color)} style={{
+                    width: 44, height: 44, borderRadius: '50%', background: color,
+                    border: `3px solid ${selectedColor === color ? '#111' : 'transparent'}`,
+                    cursor: 'pointer', transform: selectedColor === color ? 'scale(1.15)' : 'scale(1)',
+                    transition: 'all 0.2s',
+                  }} />
                 ))}
               </div>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit(onSubmit)}>
+            <form onSubmit={onSubmit}>
+              {/* Name */}
               <div style={{ marginBottom: 20 }}>
                 <label style={{ display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 8, color: 'var(--dc-text)' }}>
-                  Prénom ou pseudo
+                  Prénom ou pseudo *
                 </label>
                 <input
-                  {...register('display_name')}
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
                   placeholder="Ex : Lucas, Zoé..."
-                  style={inp(!!errors.display_name)}
-                  autoFocus
+                  style={inp}
                 />
-                {errors.display_name && <p style={{ color: 'var(--dc-danger)', fontSize: 12, marginTop: 4 }}>{errors.display_name.message}</p>}
               </div>
 
+              {/* Age */}
               <div style={{ marginBottom: 28 }}>
                 <label style={{ display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 8, color: 'var(--dc-text)' }}>
-                  Âge <span style={{ color: 'var(--dc-text-muted)', fontWeight: 400 }}>(9–14 ans)</span>
+                  Âge <span style={{ color: 'var(--dc-text-muted)', fontWeight: 400 }}>(7–18 ans)</span>
                 </label>
-                <Controller name="age" control={control} render={({ field }) => (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {[9, 10, 11, 12, 13, 14].map(a => (
-                      <button key={a} type="button"
-                        onClick={() => field.onChange(a)}
-                        style={{
-                          flex: 1, padding: '12px 0', borderRadius: 12, fontSize: 15, fontWeight: 700,
-                          border: `2px solid ${field.value === a ? 'var(--dc-primary)' : 'var(--dc-border)'}`,
-                          background: field.value === a ? 'var(--dc-primary)' : 'white',
-                          color: field.value === a ? 'white' : 'var(--dc-text)',
-                          cursor: 'pointer', transition: 'all 0.2s',
-                        }}>
-                        {a}
-                      </button>
-                    ))}
-                  </div>
-                )} />
-                {errors.age && <p style={{ color: 'var(--dc-danger)', fontSize: 12, marginTop: 4 }}>{errors.age.message}</p>}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+                  {[7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map(a => (
+                    <button key={a} type="button" onClick={() => setAge(a)} style={{
+                      padding: '11px 0', borderRadius: 12, fontSize: 15, fontWeight: 700,
+                      border: `2px solid ${age === a ? 'var(--dc-primary)' : 'var(--dc-border)'}`,
+                      background: age === a ? 'var(--dc-primary)' : 'white',
+                      color: age === a ? 'white' : 'var(--dc-text)',
+                      cursor: 'pointer', transition: 'all 0.2s',
+                    }}>
+                      {a}
+                    </button>
+                  ))}
+                </div>
               </div>
 
+              {/* Error */}
               {error && (
-                <div style={{ background: '#FEE2E2', color: '#DC2626', padding: '12px 16px', borderRadius: 12, marginBottom: 16, fontSize: 14 }}>
+                <div style={{
+                  background: '#FEE2E2', color: '#DC2626', padding: '12px 16px',
+                  borderRadius: 12, marginBottom: 16, fontSize: 13, wordBreak: 'break-all',
+                }}>
                   {error}
                 </div>
               )}
 
-              <button type="submit" className="dc-btn dc-btn-primary dc-btn-full" disabled={loading}
-                style={{ opacity: loading ? 0.7 : 1, fontSize: 16 }}>
+              <button type="submit" disabled={loading} style={{
+                width: '100%', padding: '16px', borderRadius: 16, fontSize: 16, fontWeight: 800,
+                background: loading ? '#ccc' : 'linear-gradient(135deg, var(--dc-primary), var(--dc-primary-light))',
+                color: 'white', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+              }}>
                 {loading ? 'Création...' : 'Créer le profil'}
               </button>
             </form>

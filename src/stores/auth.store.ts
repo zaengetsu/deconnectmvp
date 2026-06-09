@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { emailService } from '../features/notifications/email.service';
+import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import type { Profile } from '../types/database.types';
 import type { Session, User } from '@supabase/supabase-js';
 
@@ -24,6 +26,16 @@ interface AuthState {
   clearError: () => void;
 }
 
+// ── Singleton flags: ensure auth listeners are registered ONLY ONCE ──
+// Without this, every call to initialize() stacks a new onAuthStateChange
+// listener.  After N calls, a single TOKEN_REFRESHED event fires N
+// fetchProfile() requests in parallel, saturating the Supabase client and
+// making the entire app stop loading data.
+let _authListenerRegistered = false;
+let _appStateListenerRegistered = false;
+let _networkListenerRegistered = false;
+let _heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
@@ -33,9 +45,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
 
   initialize: async () => {
+    // If already initialized and listeners are active, skip entirely.
+    // This prevents duplicate work on React re-renders / HMR.
+    if (_authListenerRegistered && get().isInitialized) {
+      return;
+    }
+
     try {
       set({ isLoading: true });
-      const { data: { session } } = await supabase.auth.getSession();
+
+      // Tente de lire la session (refresh automatique si token expiré)
+      let { data: { session } } = await supabase.auth.getSession();
+
+      // Si getSession retourne null, le réseau était peut-être pas prêt (app restart)
+      // → on attend 1s et on réessaie UNE fois avant de conclure
+      if (!session) {
+        await new Promise(res => setTimeout(res, 1000));
+        const retry = await supabase.auth.getSession();
+        session = retry.data.session;
+      }
 
       if (session?.user) {
         const profile = await get().fetchProfile(session.user.id);
@@ -44,15 +72,116 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isInitialized: true, isLoading: false });
       }
 
-      // Listen for auth changes
-      supabase.auth.onAuthStateChange(async (event, session) => {
-        if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
-          const profile = await get().fetchProfile(session.user.id);
-          set({ user: session.user, session, profile });
-        } else if (event === 'SIGNED_OUT') {
-          set({ user: null, session: null, profile: null });
-        }
-      });
+      // Mise à jour du store sur tout changement d'auth (login, logout, refresh)
+      // CRITICAL: register ONLY ONCE — otherwise listeners pile up and
+      // each TOKEN_REFRESHED fires N parallel fetchProfile() calls
+      if (!_authListenerRegistered) {
+        _authListenerRegistered = true;
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+            if (session?.user) {
+              const profile = await get().fetchProfile(session.user.id);
+              set({ user: session.user, session, profile });
+            }
+          } else if (event === 'SIGNED_OUT') {
+            set({ user: null, session: null, profile: null });
+          }
+        });
+      }
+
+      // ── Session heartbeat ─────────────────────────────────────────
+      // The Supabase JWT expires after ~1 hour. On iOS, the auto-refresh
+      // mechanism can fail silently (WebSocket dies in background, network
+      // changes). This heartbeat proactively refreshes the session every
+      // 4 minutes, keeping the JWT alive and preventing the "dead app" state.
+      if (!_heartbeatTimer) {
+        _heartbeatTimer = setInterval(async () => {
+          const currentUser = get().user;
+          if (!currentUser) return; // not logged in
+
+          try {
+            const { data, error } = await supabase.auth.getSession();
+            if (error || !data.session) {
+              // Session lost — try to recover
+              console.warn('[AuthStore] Heartbeat: session lost, attempting refresh...');
+              const refresh = await supabase.auth.refreshSession();
+              if (refresh.error || !refresh.data.session) {
+                console.error('[AuthStore] Heartbeat: refresh failed — user will need to re-login');
+              } else {
+                set({ user: refresh.data.session.user, session: refresh.data.session });
+                console.info('[AuthStore] Heartbeat: session recovered');
+              }
+            }
+          } catch {
+            // Network error — ignore, will retry in 4 minutes
+          }
+        }, 2 * 60 * 1000); // every 2 minutes
+      }
+
+      // Sur mobile : rafraîchit silencieusement au retour en premier plan
+      // NE déconnecte JAMAIS — le refresh token est valide 7 jours
+      // Une app mobile doit se comporter comme Instagram : pas de déco intempestive
+      // ── Network recovery listener ─────────────────────────────────
+      // iOS WKWebView bug: when the network drops (even briefly), ALL
+      // subsequent fetch() calls fail with "La connexion réseau a été perdue"
+      // until reconnected. We use the standard browser 'online' event (works
+      // on iOS 13+ WKWebView) to detect recovery and force re-init.
+      // No native plugin needed — window.addEventListener is sufficient.
+      if (!_networkListenerRegistered) {
+        _networkListenerRegistered = true;
+        window.addEventListener('online', async () => {
+          console.log('[AuthStore] Network came back online — reconnecting...');
+          // Wait for the connection to stabilize
+          await new Promise(res => setTimeout(res, 800));
+          try {
+            const { data, error } = await supabase.auth.refreshSession();
+            if (!error && data.session?.user) {
+              set({ user: data.session.user, session: data.session });
+              console.info('[AuthStore] Session refreshed after network restore');
+            }
+            supabase.realtime.disconnect();
+            supabase.realtime.connect();
+            console.info('[AuthStore] Realtime reconnected after network restore');
+          } catch (e) {
+            console.warn('[AuthStore] Network restore recovery failed:', e);
+          }
+        });
+        window.addEventListener('offline', () => {
+          console.warn('[AuthStore] Network went offline');
+        });
+      }
+
+      if (Capacitor.isNativePlatform() && !_appStateListenerRegistered) {
+        _appStateListenerRegistered = true;
+        App.addListener('appStateChange', async ({ isActive }) => {
+          if (!isActive) return;
+
+          // Délai pour laisser iOS établir la connexion réseau
+          await new Promise(res => setTimeout(res, 500));
+
+          try {
+            // 1) Refresh the auth session (JWT may have expired in background)
+            const { data, error } = await supabase.auth.refreshSession();
+            if (!error && data.session?.user) {
+              set({ user: data.session.user, session: data.session });
+            }
+
+            // 2) Reconnect Realtime — iOS kills WebSocket connections after
+            //    ~30 seconds in background. Without this, the Realtime channels
+            //    go dead and any postgres_changes subscriptions stop working,
+            //    which also clogs the Supabase client over time.
+            try {
+              supabase.realtime.disconnect();
+              supabase.realtime.connect();
+              console.info('[AuthStore] Realtime reconnected after foreground resume');
+            } catch {
+              // Realtime reconnect failed — non-fatal
+            }
+          } catch {
+            // Ignorer les erreurs réseau temporaires — l'app continue à fonctionner
+          }
+        });
+      }
     } catch (error) {
       set({ isInitialized: true, isLoading: false, error: 'Erreur d\'initialisation' });
     }
