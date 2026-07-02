@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Child } from '../types/database.types';
+import { childrenService } from '../features/children/children.service';
 
 type AppMode = 'parent' | 'child' | null;
 
@@ -15,6 +16,7 @@ interface AppState {
   setSelectedChild: (child: Child) => void;
   clearChild: () => void;
   switchToParent: () => void;
+  refreshSelectedChild: () => Promise<void>;
   setShowOnboarding: (show: boolean) => void;
 }
 
@@ -38,6 +40,18 @@ export const useAppStore = create<AppState>((set) => ({
   clearChild: () => { console.log('[AppStore] clearChild → parent mode'); set({ selectedChild: null, mode: 'parent' }); },
 
   switchToParent: () => { console.log('[AppStore] switchToParent'); set({ selectedChild: null, mode: 'parent' }); },
+
+  refreshSelectedChild: async () => {
+    const current = useAppStore.getState().selectedChild;
+    if (!current) return;
+    try {
+      const fresh = await childrenService.getChild(current.id);
+      console.log('[AppStore] refreshSelectedChild →', fresh.display_name, 'pts:', fresh.total_points);
+      set({ selectedChild: fresh });
+    } catch (e) {
+      console.error('[AppStore] refreshSelectedChild error:', e);
+    }
+  },
 
   setShowOnboarding: (show) => set({ showOnboarding: show }),
 }));

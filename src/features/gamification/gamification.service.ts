@@ -2,6 +2,31 @@ import { supabase } from '../../lib/supabase';
 import type { Badge, ChildBadge, PointsLedgerEntry } from '../../types/database.types';
 import { POINTS_CONFIG } from '../../lib/constants';
 
+/**
+ * Compute the real streak value by checking if last_activity_date is stale.
+ * If the child hasn't done anything yesterday or today, the streak is 0.
+ */
+export function getRealStreak(streakDays: number, lastActivityDate: string | null): number {
+  if (!lastActivityDate || streakDays === 0) return 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  // Parse the date string (YYYY-MM-DD) as local date
+  const [y, m, d] = lastActivityDate.split('-').map(Number);
+  const lastDate = new Date(y, m - 1, d);
+  lastDate.setHours(0, 0, 0, 0);
+
+  // If last activity was today or yesterday, streak is valid
+  if (lastDate.getTime() >= yesterday.getTime()) return streakDays;
+
+  // Otherwise streak is broken → 0
+  return 0;
+}
+
 export const gamificationService = {
   // ─── Badges ──────────────────────────────────────────────
   async getAllBadges(): Promise<Badge[]> {
@@ -78,6 +103,40 @@ export const gamificationService = {
     const range = nextThreshold - currentThreshold;
     const progress = totalPoints - currentThreshold;
     return Math.round((progress / range) * 100);
+  },
+
+  // ─── All-Time Stats ─────────────────────────────────────
+  async getAllTimeStats(childId: string): Promise<{
+    totalEarned: number;
+    totalSpent: number;
+    activitiesValidated: number;
+  }> {
+    const [earnedRes, spentRes, activitiesRes] = await Promise.all([
+      supabase
+        .from('points_ledger')
+        .select('points')
+        .eq('child_id', childId)
+        .gt('points', 0),
+      supabase
+        .from('points_ledger')
+        .select('points')
+        .eq('child_id', childId)
+        .lt('points', 0),
+      supabase
+        .from('child_activities')
+        .select('id', { count: 'exact' })
+        .eq('child_id', childId)
+        .eq('status', 'validated'),
+    ]);
+
+    const totalEarned = (earnedRes.data || []).reduce((sum, e) => sum + e.points, 0);
+    const totalSpent = Math.abs((spentRes.data || []).reduce((sum, e) => sum + e.points, 0));
+
+    return {
+      totalEarned,
+      totalSpent,
+      activitiesValidated: activitiesRes.count || 0,
+    };
   },
 
   // ─── Weekly Stats ────────────────────────────────────────

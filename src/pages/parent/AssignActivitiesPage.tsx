@@ -5,7 +5,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { supabase } from '../../lib/supabase';
 import { activitiesService } from '../../features/activities/activities.service';
 import { childrenService } from '../../features/children/children.service';
-import { CheckCircle, Circle, ArrowLeft, BookOpen, Zap } from 'lucide-react';
+import { CheckCircle, Circle, ArrowLeft } from 'lucide-react';
 import type { Activity, Child } from '../../types/database.types';
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -29,6 +29,7 @@ const AssignActivitiesPage: React.FC = () => {
   const [customActivities, setCustomActivities] = useState<Activity[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [activeAssigned, setActiveAssigned] = useState<Set<string>>(new Set());   // en cours → bloqué
+  const [activeStatuses, setActiveStatuses] = useState<Map<string, string>>(new Map()); // status par activité active
   const [completedCount, setCompletedCount] = useState<Map<string, number>>(new Map()); // historique
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -57,12 +58,14 @@ const AssignActivitiesPage: React.FC = () => {
       const rows = (assignedData.data || []) as { activity_id: string; status: string }[];
 
       // Activités EN COURS → bloquées (ne peut pas ré-assigner)
-      const active = new Set(
-        rows
-          .filter(r => ['available', 'selected', 'submitted'].includes(r.status))
-          .map(r => r.activity_id)
-      );
+      const activeRows = rows.filter(r => ['available', 'selected', 'submitted'].includes(r.status));
+      const active = new Set(activeRows.map(r => r.activity_id));
       setActiveAssigned(active);
+
+      // Map status détaillé pour chaque activité active
+      const statuses = new Map<string, string>();
+      activeRows.forEach(r => statuses.set(r.activity_id, r.status));
+      setActiveStatuses(statuses);
 
       // Historique : nombre de fois validées par activité
       const counts = new Map<string, number>();
@@ -134,15 +137,15 @@ const AssignActivitiesPage: React.FC = () => {
           <div style={{ padding: '20px 20px 0' }}>
             {/* Tab switcher */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-              {([['catalog', 'Catalogue', BookOpen], ['custom', 'Mes activités', Zap]] as const).map(([t, label, Icon]) => (
+              {([['catalog', 'Catalogue'], ['custom', 'Mes activités']] as const).map(([t, label]) => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   flex: 1, padding: '11px', borderRadius: 12, fontSize: 14, fontWeight: 700,
                   border: `2px solid ${tab === t ? 'var(--dc-primary)' : 'var(--dc-border)'}`,
                   background: tab === t ? 'rgba(108,92,231,0.08)' : 'white',
                   color: tab === t ? 'var(--dc-primary)' : 'var(--dc-text-light)',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <Icon size={15} strokeWidth={2.5} />{label}
+                  {label}
                 </button>
               ))}
             </div>
@@ -201,7 +204,9 @@ const AssignActivitiesPage: React.FC = () => {
                           )}
                           {isActive && (
                             <span style={{ fontSize: 12, fontWeight: 600, color: '#F59E0B', background: 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: 20 }}>
-                              ⏳ En cours
+                              ⏳ {activeStatuses.get(activity.id) === 'available' ? 'Assignée (pas commencée)'
+                                : activeStatuses.get(activity.id) === 'selected' ? 'En cours'
+                                : 'Soumise (en attente)'}
                             </span>
                           )}
                           {timesCompleted > 0 && (

@@ -1,12 +1,12 @@
 // Edge Function: send-push-notification
-// Sends a push notification to a user's registered device(s) via APNS (iOS) or FCM (Android).
+// Sends a push notification to a user's registered device(s) via APNS (iOS) or FCM v1 (Android).
 //
 // Required Supabase secrets:
-//   APNS_KEY_ID         — Apple APNs key ID (from developer.apple.com)
-//   APNS_TEAM_ID        — Apple Team ID
-//   APNS_PRIVATE_KEY    — APNs .p8 key content (base64 or raw PEM)
-//   APNS_BUNDLE_ID      — App bundle ID (e.g. com.deconnect.app)
-//   FCM_SERVER_KEY      — Firebase Cloud Messaging server key (for Android)
+//   APNS_KEY_ID              — Apple APNs key ID (from developer.apple.com)
+//   APNS_TEAM_ID             — Apple Team ID
+//   APNS_PRIVATE_KEY         — APNs .p8 key content (base64 or raw PEM)
+//   APNS_BUNDLE_ID           — App bundle ID (e.g. app.deconnect.mvp)
+//   FCM_SERVICE_ACCOUNT_JSON — Firebase Service Account JSON (from Firebase Console → Service Accounts)
 //
 // Deploy: npx supabase functions deploy send-push-notification --no-verify-jwt
 
@@ -17,8 +17,8 @@ const SUPABASE_SERVICE_ROLE   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const APNS_KEY_ID             = Deno.env.get('APNS_KEY_ID') || ''
 const APNS_TEAM_ID            = Deno.env.get('APNS_TEAM_ID') || ''
 const APNS_PRIVATE_KEY        = Deno.env.get('APNS_PRIVATE_KEY') || ''
-const APNS_BUNDLE_ID          = Deno.env.get('APNS_BUNDLE_ID') || 'com.deconnect.app'
-const FCM_SERVER_KEY          = Deno.env.get('FCM_SERVER_KEY') || ''
+const APNS_BUNDLE_ID          = Deno.env.get('APNS_BUNDLE_ID') || 'app.deconnect.mvp'
+const FCM_SERVICE_ACCOUNT_JSON = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON') || ''
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,17 +26,12 @@ const corsHeaders = {
 }
 
 // ── APNs JWT generation ──────────────────────────────────────────────────────
-// APNs requires a JWT signed with the .p8 key every hour.
-// We generate it on each request (simple for low-volume MVP).
 async function generateApnsJwt(): Promise<string> {
-  // Decode base64 key if needed
   let keyPem = APNS_PRIVATE_KEY
   if (!keyPem.includes('-----BEGIN')) {
-    // Assume base64 encoded
     keyPem = atob(keyPem)
   }
 
-  // Extract raw key bytes from PEM
   const pemContents = keyPem
     .replace('-----BEGIN PRIVATE KEY-----', '')
     .replace('-----END PRIVATE KEY-----', '')
@@ -72,10 +67,7 @@ async function sendApns(token: string, title: string, body: string, data: Record
   }
 
   const jwt = await generateApnsJwt()
-  const isProduction = true // Set to false for sandbox testing
-  const apnsHost = isProduction
-    ? 'https://api.push.apple.com'
-    : 'https://api.sandbox.push.apple.com'
+  const apnsHost = 'https://api.push.apple.com'
 
   const res = await fetch(`${apnsHost}/3/device/${token}`, {
     method: 'POST',
@@ -104,29 +96,113 @@ async function sendApns(token: string, title: string, body: string, data: Record
   return true
 }
 
-// ── Send to a single Android device (FCM Legacy API) ──────────────────────────
+// ── FCM v1: Get OAuth2 access token from Service Account ─────────────────────
+async function getFcmAccessToken(serviceAccount: Record<string, string>): Promise<string> {
+  const now = Math.floor(Date.now() / 1000)
+  const claim = {
+    iss: serviceAccount.client_email,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  }
+
+  // Build JWT header + payload
+  const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const payload = btoa(JSON.stringify(claim))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+
+  // Import the RSA private key
+  const pemContents = serviceAccount.private_key
+    .replace('-----BEGIN RSA PRIVATE KEY-----', '')
+    .replace('-----END RSA PRIVATE KEY-----', '')
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\s/g, '')
+  const keyBytes = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0))
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    keyBytes.buffer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+
+  // Sign the JWT
+  const toSign = new TextEncoder().encode(`${header}.${payload}`)
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, toSign)
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+
+  const jwt = `${header}.${payload}.${sigB64}`
+
+  // Exchange JWT for access token
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+  })
+
+  const tokenJson = await tokenRes.json()
+  if (!tokenJson.access_token) throw new Error(`FCM token error: ${JSON.stringify(tokenJson)}`)
+  return tokenJson.access_token
+}
+
+// ── Send to a single Android device (FCM v1 API) ──────────────────────────────
 async function sendFcm(token: string, title: string, body: string, data: Record<string, unknown> = {}): Promise<boolean> {
-  if (!FCM_SERVER_KEY) {
-    console.warn('[FCM] Missing server key — skipping Android push')
+  if (!FCM_SERVICE_ACCOUNT_JSON) {
+    console.warn('[FCM] Missing service account — skipping Android push')
     return false
   }
 
-  const res = await fetch('https://fcm.googleapis.com/fcm/send', {
+  let serviceAccount: Record<string, string>
+  try {
+    serviceAccount = JSON.parse(FCM_SERVICE_ACCOUNT_JSON)
+  } catch {
+    console.error('[FCM] Invalid service account JSON')
+    return false
+  }
+
+  const projectId = serviceAccount.project_id
+  if (!projectId) {
+    console.error('[FCM] Missing project_id in service account')
+    return false
+  }
+
+  const accessToken = await getFcmAccessToken(serviceAccount)
+
+  // Convert data values to strings (FCM v1 requirement)
+  const stringData: Record<string, string> = {}
+  for (const [k, v] of Object.entries(data)) {
+    stringData[k] = String(v)
+  }
+
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: 'POST',
     headers: {
-      'Authorization': `key=${FCM_SERVER_KEY}`,
+      'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      to: token,
-      notification: { title, body, sound: 'default' },
-      data,
+      message: {
+        token,
+        notification: { title, body },
+        android: {
+          notification: {
+            sound: 'default',
+            channel_id: 'default',
+          },
+        },
+        data: stringData,
+      },
     }),
   })
 
-  const json = await res.json()
-  if (json.failure > 0) {
-    console.error('[FCM] Error:', json)
+  if (!res.ok) {
+    const errBody = await res.text()
+    console.error('[FCM] Error:', res.status, errBody)
     return false
   }
   return true
@@ -140,7 +216,6 @@ Deno.serve(async (req) => {
     const { user_id, title, body, data = {} } = await req.json()
     if (!user_id || !title || !body) throw new Error('user_id, title et body sont requis')
 
-    // Use service role to read push tokens (bypasses RLS)
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
     const { data: tokens, error: tokErr } = await admin
       .from('push_tokens')

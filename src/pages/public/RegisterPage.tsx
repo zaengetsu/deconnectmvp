@@ -14,27 +14,6 @@ const PARENT_ROLES = [
 
 type ParentRole = typeof PARENT_ROLES[number]['value'];
 
-const sharedStyles = `
-  @keyframes rp-in { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-  .rp-card { animation: rp-in 0.4s ease both; }
-  .rp-input { width:100%; padding:14px 16px; border-radius:12px; font-size:15px;
-    border:1.5px solid #e5e5e7; background:#fafafa; outline:none;
-    box-sizing:border-box; font-family:inherit; color:#1d1d1f;
-    transition:border-color 0.15s; }
-  .rp-input:focus { border-color:#6C5CE7 !important; background:white !important; }
-  .rp-btn-primary { width:100%; padding:15px; border-radius:12px; border:none;
-    font-size:16px; font-weight:700; cursor:pointer; letter-spacing:-0.2px;
-    background:linear-gradient(135deg,#6C5CE7,#A29BFE); color:white;
-    transition:opacity 0.15s,transform 0.15s; }
-  .rp-btn-primary:active { transform:scale(0.98); }
-  .rp-btn-primary:disabled { opacity:0.55; cursor:not-allowed; }
-  .rp-btn-ghost { width:100%; padding:13px; border-radius:12px;
-    font-size:15px; font-weight:500; cursor:pointer;
-    background:none; border:1.5px solid #e5e5e7; color:#6e6e73;
-    transition:border-color 0.15s; }
-  .rp-step-dot { width:8px; height:8px; border-radius:50%; transition:all 0.3s ease; }
-`;
-
 const RegisterPage: React.FC = () => {
   const history = useHistory();
   const { signUp, isLoading, error, clearError, user } = useAuthStore();
@@ -53,8 +32,6 @@ const RegisterPage: React.FC = () => {
   const [postalCode, setPostalCode] = useState('');
   const [savingLocation, setSavingLocation] = useState(false);
 
-  // Redirect already-logged-in users away from register
-  // Only on 'role' step — avoids fighting with the post-signup location step
   useEffect(() => {
     if (user && step === 'role') {
       history.replace('/parent');
@@ -69,31 +46,41 @@ const RegisterPage: React.FC = () => {
   if (error === 'CONFIRM_EMAIL') {
     return (
       <IonPage><IonContent fullscreen>
-        <style>{sharedStyles}</style>
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0f0e17' }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: 18, background: 'rgba(108,92,231,0.15)', border: '1px solid rgba(108,92,231,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-              <Mail size={28} color="#A29BFE" strokeWidth={1.5} />
-            </div>
-            <h2 style={{ color: 'white', fontSize: 22, fontWeight: 800, margin: '0 0 12px' }}>Vérifiez votre email</h2>
-            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, lineHeight: 1.6, maxWidth: 280 }}>
-              Un lien de confirmation a été envoyé à <strong style={{ color: 'rgba(255,255,255,0.8)' }}>{email}</strong>
-            </p>
-            <button className="rp-btn-primary" style={{ marginTop: 36, maxWidth: 280 }}
-              onClick={() => { clearError(); history.replace('/login'); }}>
-              Retour à la connexion
-            </button>
+        <div style={{
+          height: '100%', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '40px 32px', background: 'var(--dc-bg)', textAlign: 'center',
+        }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: 22,
+            background: 'rgba(108,92,231,0.1)',
+            border: '1.5px solid rgba(108,92,231,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24,
+          }}>
+            <Mail size={32} color="var(--dc-primary)" strokeWidth={1.5} />
           </div>
+          <h2 style={{ color: 'var(--dc-text)', fontSize: 24, fontWeight: 900, margin: '0 0 12px' }}>
+            Vérifiez votre email
+          </h2>
+          <p style={{ color: 'var(--dc-text-light)', fontSize: 15, lineHeight: 1.6, maxWidth: 280 }}>
+            Un lien de confirmation a été envoyé à <strong style={{ color: 'var(--dc-text)' }}>{email}</strong>
+          </p>
+          <button className="dc-btn dc-btn-primary dc-btn-full dc-btn-lg"
+            style={{ marginTop: 36, maxWidth: 300 }}
+            onClick={() => { clearError(); history.replace('/login'); }}>
+            Retour à la connexion
+          </button>
         </div>
       </IonContent></IonPage>
     );
   }
 
-  const inp = (hasError = false): React.CSSProperties => ({
-    width: '100%', padding: '14px 16px', borderRadius: 12, fontSize: 15,
-    border: `1.5px solid ${hasError ? '#DC2626' : '#e5e5e7'}`,
-    background: '#fafafa', outline: 'none', boxSizing: 'border-box',
-    fontFamily: 'inherit', color: '#1d1d1f',
+  const inputStyle = (hasError = false): React.CSSProperties => ({
+    width: '100%', padding: '14px 16px', borderRadius: 14, fontSize: 15,
+    border: `2px solid ${hasError ? 'var(--dc-danger)' : 'var(--dc-border)'}`,
+    background: 'var(--dc-bg)', outline: 'none', boxSizing: 'border-box',
+    fontFamily: 'inherit', color: 'var(--dc-text)',
+    transition: 'border-color 0.15s',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,76 +105,88 @@ const RegisterPage: React.FC = () => {
 
   return (
     <IonPage>
-      <IonContent fullscreen scrollY={false}>
-        <style>{sharedStyles}</style>
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+      <IonContent fullscreen scrollY>
+        <style>{`
+          .rp-input:focus { border-color: var(--dc-primary) !important; background: white !important; }
+        `}</style>
 
-          {/* Dark header — consistent across steps */}
+        <div style={{
+          minHeight: '100vh', display: 'flex', flexDirection: 'column',
+          background: 'var(--dc-bg)',
+        }}>
+          {/* ── Header ── */}
           <div style={{
-            background: '#0f0e17', padding: '52px 24px 36px',
+            padding: 'calc(env(safe-area-inset-top) + 20px) 24px 28px',
             display: 'flex', flexDirection: 'column', alignItems: 'center',
             position: 'relative', overflow: 'hidden',
           }}>
+            {/* Decorative orb */}
             <div style={{
               position: 'absolute', top: -40, left: '50%', transform: 'translateX(-50%)',
-              width: 200, height: 200, borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(108,92,231,0.2) 0%, transparent 65%)',
+              width: 220, height: 220, borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(108,92,231,0.1) 0%, transparent 60%)',
               pointerEvents: 'none',
             }} />
+
             {/* Logo */}
             <div style={{
-              width: 48, height: 48, borderRadius: 14,
+              width: 52, height: 52, borderRadius: 16,
               background: 'linear-gradient(135deg, #6C5CE7, #A29BFE)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 24px rgba(108,92,231,0.35)',
+              boxShadow: '0 6px 24px rgba(108,92,231,0.25)',
               marginBottom: 14, zIndex: 1,
             }}>
-              <span style={{ fontSize: 22, fontWeight: 900, color: 'white', letterSpacing: -1 }}>D</span>
+              <span style={{ fontSize: 24, fontWeight: 900, color: 'white', letterSpacing: -1 }}>D</span>
             </div>
-            <h1 style={{ color: 'white', fontSize: 20, fontWeight: 800, margin: '0 0 16px', zIndex: 1 }}>
+            <h1 style={{ color: 'var(--dc-text)', fontSize: 22, fontWeight: 900, margin: '0 0 16px', zIndex: 1 }}>
               {step === 'role' ? 'Créer un compte' : step === 'form' ? 'Vos informations' : 'Votre localisation'}
             </h1>
+
             {/* Step dots */}
-            <div style={{ display: 'flex', gap: 6, zIndex: 1 }}>
+            <div style={{ display: 'flex', gap: 5, zIndex: 1 }}>
               {steps.map((s, i) => (
-                <div key={s} className="rp-step-dot" style={{
-                  width: i === stepIndex ? 20 : 8,
-                  background: i <= stepIndex ? 'white' : 'rgba(255,255,255,0.2)',
+                <div key={s} style={{
+                  height: 4, borderRadius: 2, transition: 'all 0.3s ease',
+                  width: i === stepIndex ? 28 : 8,
+                  background: i <= stepIndex
+                    ? 'linear-gradient(90deg, #6C5CE7, #A29BFE)'
+                    : 'var(--dc-border)',
                 }} />
               ))}
             </div>
           </div>
 
-          {/* White card */}
-          <div className="rp-card" key={step} style={{
-            flex: 1, background: 'white', borderRadius: '24px 24px 0 0',
-            padding: '28px 24px 48px', marginTop: -16, overflow: 'auto',
+          {/* ── White card ── */}
+          <div className="dc-animate-in" key={step} style={{
+            flex: 1, background: 'white', borderRadius: '28px 28px 0 0',
+            padding: '24px 24px 48px',
+            boxShadow: '0 -4px 20px rgba(0,0,0,0.04)',
           }}>
 
             {/* ── STEP 1: Role ── */}
             {step === 'role' && (
               <>
-                <p style={{ fontSize: 13, color: '#6e6e73', marginBottom: 20 }}>Vous êtes...</p>
+                <p style={{ fontSize: 14, color: 'var(--dc-text-light)', marginBottom: 20 }}>Vous êtes...</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 28 }}>
                   {PARENT_ROLES.map(({ value, label, Icon, color }) => {
                     const active = selectedRole === value;
                     return (
                       <button key={value} onClick={() => setSelectedRole(value)} style={{
-                        padding: '24px 12px', borderRadius: 16, cursor: 'pointer',
-                        border: `2px solid ${active ? color : '#e5e5e7'}`,
+                        padding: '24px 12px', borderRadius: 20, cursor: 'pointer',
+                        border: `2px solid ${active ? color : 'var(--dc-border)'}`,
                         background: active ? `${color}10` : 'white',
                         textAlign: 'center', transition: 'all 0.2s',
-                        transform: active ? 'scale(1.03)' : 'scale(1)',
-                        boxShadow: active ? `0 4px 16px ${color}25` : '0 1px 4px rgba(0,0,0,0.05)',
+                        transform: active ? 'scale(1.02)' : 'scale(1)',
+                        boxShadow: active ? `0 4px 16px ${color}20` : 'var(--dc-shadow)',
                       }}>
                         <div style={{
-                          width: 44, height: 44, borderRadius: 12, margin: '0 auto 10px',
-                          background: active ? `${color}18` : '#f5f5f7',
+                          width: 48, height: 48, borderRadius: 14, margin: '0 auto 10px',
+                          background: active ? `${color}15` : 'var(--dc-bg)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
-                          <Icon size={20} color={active ? color : '#94a3b8'} strokeWidth={1.8} />
+                          <Icon size={22} color={active ? color : 'var(--dc-text-muted)'} strokeWidth={1.8} />
                         </div>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: active ? color : '#1d1d1f' }}>
+                        <div style={{ fontWeight: 800, fontSize: 14, color: active ? color : 'var(--dc-text)' }}>
                           {label}
                         </div>
                       </button>
@@ -195,15 +194,16 @@ const RegisterPage: React.FC = () => {
                   })}
                 </div>
 
-                <button className="rp-btn-primary" disabled={!selectedRole}
+                <button className="dc-btn dc-btn-primary dc-btn-full dc-btn-lg"
+                  disabled={!selectedRole}
                   style={{ opacity: selectedRole ? 1 : 0.4 }}
                   onClick={() => setStep('form')}>
                   Continuer
                 </button>
-                <p style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: '#6e6e73' }}>
+                <p style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: 'var(--dc-text-light)' }}>
                   Déjà un compte ?{' '}
                   <button onClick={() => history.push('/login')}
-                    style={{ background: 'none', border: 'none', color: '#6C5CE7', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                    style={{ background: 'none', border: 'none', color: 'var(--dc-primary)', fontWeight: 800, cursor: 'pointer', padding: 0 }}>
                     Se connecter
                   </button>
                 </p>
@@ -216,8 +216,8 @@ const RegisterPage: React.FC = () => {
                 {/* Role badge + back */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
                   <button onClick={() => setStep('role')} style={{
-                    background: 'none', border: 'none', color: '#6C5CE7',
-                    fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: 0,
+                    background: 'none', border: 'none', color: 'var(--dc-primary)',
+                    fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: 0,
                   }}>← Retour</button>
                   {roleData && (
                     <div style={{
@@ -233,9 +233,10 @@ const RegisterPage: React.FC = () => {
 
                 {(error || formError) && (
                   <div onClick={clearError} style={{
-                    background: '#FEF2F2', color: '#DC2626', padding: '12px 16px',
-                    borderRadius: 10, marginBottom: 16, fontSize: 14, cursor: 'pointer',
-                    borderLeft: '3px solid #DC2626',
+                    background: 'var(--dc-danger-light)', color: 'var(--dc-danger)',
+                    padding: '12px 16px', borderRadius: 14, marginBottom: 16,
+                    fontSize: 14, cursor: 'pointer', fontWeight: 600,
+                    borderLeft: '3px solid var(--dc-danger)',
                   }}>
                     {formError || error}
                   </div>
@@ -243,33 +244,33 @@ const RegisterPage: React.FC = () => {
 
                 <form onSubmit={handleSubmit}>
                   {[
-                    { label: 'Votre prénom', type: 'text', value: fullName, onChange: setFullName, placeholder: 'Marie Dupont', hasError: false },
-                    { label: 'Email', type: 'email', value: email, onChange: setEmail, placeholder: 'parent@email.com', hasError: false },
+                    { label: 'Votre prénom', type: 'text', value: fullName, onChange: setFullName, placeholder: 'Marie Dupont' },
+                    { label: 'Email', type: 'email', value: email, onChange: setEmail, placeholder: 'parent@email.com' },
                   ].map(f => (
                     <div key={f.label} style={{ marginBottom: 16 }}>
-                      <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#3d3d3f' }}>{f.label}</label>
+                      <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6, color: 'var(--dc-text)' }}>{f.label}</label>
                       <input className="rp-input" type={f.type} value={f.value}
-                        onChange={e => f.onChange(e.target.value)} placeholder={f.placeholder} style={inp()} />
+                        onChange={e => f.onChange(e.target.value)} placeholder={f.placeholder} style={inputStyle()} />
                     </div>
                   ))}
 
                   <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#3d3d3f' }}>Mot de passe</label>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6, color: 'var(--dc-text)' }}>Mot de passe</label>
                     <input className="rp-input" type="password" value={password}
-                      onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={inp()} />
+                      onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={inputStyle()} />
                   </div>
 
                   <div style={{ marginBottom: 28 }}>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#3d3d3f' }}>Confirmer</label>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6, color: 'var(--dc-text)' }}>Confirmer</label>
                     <input className="rp-input" type="password" value={confirmPassword}
                       onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••"
-                      style={inp(!!confirmPassword && confirmPassword !== password)} />
+                      style={inputStyle(!!confirmPassword && confirmPassword !== password)} />
                     {confirmPassword && confirmPassword !== password && (
-                      <p style={{ color: '#DC2626', fontSize: 12, marginTop: 4 }}>Les mots de passe ne correspondent pas</p>
+                      <p style={{ color: 'var(--dc-danger)', fontSize: 12, marginTop: 4, fontWeight: 600 }}>Les mots de passe ne correspondent pas</p>
                     )}
                   </div>
 
-                  <button type="submit" className="rp-btn-primary" disabled={isLoading}>
+                  <button type="submit" className="dc-btn dc-btn-primary dc-btn-full dc-btn-lg" disabled={isLoading}>
                     {isLoading ? 'Création...' : 'Créer mon compte'}
                   </button>
                 </form>
@@ -280,19 +281,23 @@ const RegisterPage: React.FC = () => {
             {step === 'location' && (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(108,92,231,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <MapPin size={18} color="#6C5CE7" strokeWidth={1.8} />
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 14,
+                    background: 'rgba(108,92,231,0.08)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <MapPin size={20} color="var(--dc-primary)" strokeWidth={1.8} />
                   </div>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>Votre localisation</div>
-                    <div style={{ fontSize: 12, color: '#6e6e73' }}>Pour des activités et partenaires près de chez vous</div>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--dc-text)' }}>Votre localisation</div>
+                    <div style={{ fontSize: 12, color: 'var(--dc-text-light)' }}>Pour des activités et partenaires près de chez vous</div>
                   </div>
                 </div>
 
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#3d3d3f' }}>Pays</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6, color: 'var(--dc-text)' }}>Pays</label>
                   <select value={country} onChange={e => setCountry(e.target.value)} style={{
-                    ...inp(), appearance: 'none', backgroundImage: 'none',
+                    ...inputStyle(), appearance: 'none', backgroundImage: 'none',
                   } as React.CSSProperties}>
                     <option value="FR">France</option>
                     <option value="BE">Belgique</option>
@@ -309,21 +314,22 @@ const RegisterPage: React.FC = () => {
                 </div>
 
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#3d3d3f' }}>Ville</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6, color: 'var(--dc-text)' }}>Ville</label>
                   <input className="rp-input" value={city} onChange={e => setCity(e.target.value)}
-                    placeholder="Paris, Lyon, Bruxelles..." style={inp()} />
+                    placeholder="Paris, Lyon, Bruxelles..." style={inputStyle()} />
                 </div>
 
                 <div style={{ marginBottom: 32 }}>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#3d3d3f' }}>
-                    Code postal <span style={{ fontWeight: 400, color: '#aeaeb2' }}>(optionnel)</span>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6, color: 'var(--dc-text)' }}>
+                    Code postal <span style={{ fontWeight: 400, color: 'var(--dc-text-muted)' }}>(optionnel)</span>
                   </label>
                   <input className="rp-input" value={postalCode} onChange={e => setPostalCode(e.target.value)}
-                    placeholder="75001" inputMode="numeric" style={inp()} />
+                    placeholder="75001" inputMode="numeric" style={inputStyle()} />
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <button className="rp-btn-primary" disabled={savingLocation}
+                  <button className="dc-btn dc-btn-primary dc-btn-full dc-btn-lg"
+                    disabled={savingLocation}
                     onClick={async () => {
                       setSavingLocation(true);
                       try {
@@ -339,7 +345,9 @@ const RegisterPage: React.FC = () => {
                     }}>
                     {savingLocation ? 'Sauvegarde...' : 'Enregistrer'}
                   </button>
-                  <button className="rp-btn-ghost" onClick={() => history.replace('/parent')}>
+                  <button className="dc-btn dc-btn-outline dc-btn-full"
+                    style={{ height: 52, borderRadius: 50 }}
+                    onClick={() => history.replace('/parent')}>
                     Passer pour l'instant
                   </button>
                 </div>

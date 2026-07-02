@@ -19,38 +19,47 @@ export const pushService = {
       return null;
     }
 
-    // Request permission
-    const permResult = await PushNotifications.requestPermissions();
-    if (permResult.receive !== 'granted') {
-      console.warn('[PushService] Push permission denied');
+    try {
+      // Request permission
+      const permResult = await PushNotifications.requestPermissions();
+      if (permResult.receive !== 'granted') {
+        console.warn('[PushService] Push permission denied');
+        return null;
+      }
+
+      // Register with FCM (Android) or APNs (iOS).
+      // On Android this requires google-services.json + Firebase configured.
+      // If Firebase is not initialized, this throws — caught gracefully below.
+      await PushNotifications.register();
+
+      return new Promise((resolve) => {
+        PushNotifications.addListener('registration', (token: Token) => {
+          console.info('[PushService] Device token:', token.value);
+          resolve(token.value);
+        });
+
+        PushNotifications.addListener('registrationError', (err) => {
+          console.error('[PushService] Registration error:', err);
+          resolve(null);
+        });
+
+        if (onNotification) {
+          PushNotifications.addListener('pushNotificationReceived', onNotification);
+        }
+
+        if (onAction) {
+          PushNotifications.addListener('pushNotificationActionPerformed', onAction);
+        }
+      });
+
+    } catch (err) {
+      // Firebase not configured (missing google-services.json on Android).
+      // App continues to work — push notifications simply unavailable.
+      console.warn('[PushService] Push unavailable — Firebase not configured:', err);
       return null;
     }
-
-    await PushNotifications.register();
-
-    // Get device token
-    return new Promise((resolve) => {
-      PushNotifications.addListener('registration', (token: Token) => {
-        console.info('[PushService] Device token:', token.value);
-        resolve(token.value);
-      });
-
-      PushNotifications.addListener('registrationError', (err) => {
-        console.error('[PushService] Registration error:', err);
-        resolve(null);
-      });
-
-      // Foreground notifications
-      if (onNotification) {
-        PushNotifications.addListener('pushNotificationReceived', onNotification);
-      }
-
-      // Background/tapped notifications
-      if (onAction) {
-        PushNotifications.addListener('pushNotificationActionPerformed', onAction);
-      }
-    });
   },
+
 
   /**
    * Remove all push notification listeners.

@@ -8,7 +8,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import ProofUpload from '../../components/ui/ProofUpload';
 import { getCategoryStyle, PointsBadge, DifficultyBadge } from '../../components/ui/ChildUIKit';
 import type { Activity, ActivityCategory, ChildActivity } from '../../types/database.types';
-import { Search, ChevronDown, ChevronUp, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, CheckCircle, Clock, XCircle, ArrowDownCircle } from 'lucide-react';
 
 /* ─── Submit Modal ────────────────────────────────────────── */
 interface SubmitModalProps {
@@ -121,9 +121,18 @@ const ChildActivitiesPage: React.FC = () => {
 
   if (!selectedChild) return null;
 
-  // Séparer : en cours vs terminées
+  // Séparer : assignées, en cours, terminées
+  const assignedList = myActivities.filter(ca => ca.status === 'available');
   const activeList = myActivities.filter(ca => ca.status === 'selected' || ca.status === 'submitted');
   const doneList   = myActivities.filter(ca => ca.status === 'validated' || ca.status === 'rejected');
+
+  const handleStart = async (ca: ChildActivity) => {
+    if (!selectedChild) return;
+    try {
+      await activitiesService.startAssignedActivity(ca.id);
+      loadMyActivities();
+    } catch (e) { console.error(e); }
+  };
 
   return (
     <IonPage>
@@ -143,7 +152,7 @@ const ChildActivitiesPage: React.FC = () => {
           </div>
           <p>
             {tab === 'mine'
-              ? `${activeList.length} défi${activeList.length !== 1 ? 's' : ''} en cours`
+              ? `${activeList.length + assignedList.length} défi${(activeList.length + assignedList.length) !== 1 ? 's' : ''} en cours`
               : 'Choisis ton prochain défi !'}
           </p>
         </div>
@@ -222,6 +231,47 @@ const ChildActivitiesPage: React.FC = () => {
 
           {/* ══════════════ MES DÉFIS ══════════════ */}
           {tab === 'mine' && (<>
+
+            {/* ── Assignées par le parent ── */}
+            {assignedList.length > 0 && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <ArrowDownCircle size={16} color="var(--dc-blue)" strokeWidth={2} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--dc-blue)', letterSpacing: '0.06em' }}>
+                    ASSIGNÉES PAR TON PARENT ({assignedList.length})
+                  </span>
+                </div>
+                {assignedList.map(ca => {
+                  const { bg, imgSrc } = getCategoryStyle(ca.activity?.category?.slug);
+                  return (
+                    <div key={ca.id} className="dc-animate-in" style={{
+                      display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10,
+                      background: 'linear-gradient(135deg, rgba(21,101,192,0.04), rgba(21,101,192,0.01))',
+                      borderRadius: 16, padding: '12px 14px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      border: '1.5px solid rgba(21,101,192,0.15)',
+                    }}>
+                      <div style={{ width: 48, height: 48, borderRadius: 14, flexShrink: 0, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <img src={imgSrc} alt="" style={{ width: 26, height: 26, objectFit: 'contain' }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {ca.activity?.title || ''}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <PointsBadge points={ca.activity?.points || 0} size="sm" />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--dc-blue)', background: 'rgba(21,101,192,0.1)', borderRadius: 50, padding: '1px 8px' }}>Assignée</span>
+                        </div>
+                      </div>
+                      <button onClick={() => handleStart(ca)} style={{ background: 'var(--dc-blue)', color: 'white', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                        Commencer
+                      </button>
+                    </div>
+                  );
+                })}
+                <div style={{ height: 16 }} />
+              </>
+            )}
 
             {/* En cours */}
             {activeList.length === 0 ? (

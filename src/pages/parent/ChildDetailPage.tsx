@@ -16,6 +16,7 @@ const ChildDetailPage: React.FC = () => {
   const [activities, setActivities] = useState<ChildActivity[]>([]);
   const [badges, setBadges] = useState<ChildBadge[]>([]);
   const [weeklyStats, setWeeklyStats] = useState({ activitiesCompleted: 0, pointsEarned: 0, badgesEarned: 0 });
+  const [allTimeStats, setAllTimeStats] = useState({ totalEarned: 0, totalSpent: 0, activitiesValidated: 0 });
 
   // QR Code state
   const [showQR, setShowQR] = useState(false);
@@ -45,8 +46,9 @@ const ChildDetailPage: React.FC = () => {
       activitiesService.getChildActivities(childId),
       gamificationService.getChildBadges(childId),
       gamificationService.getWeeklyStats(childId),
+      gamificationService.getAllTimeStats(childId),
     ])
-      .then(([c, acts, bdgs, stats]) => {
+      .then(([c, acts, bdgs, stats, allTime]) => {
         setChild(c);
         setEditName(c.display_name);
         setEditAge(c.age);
@@ -54,6 +56,7 @@ const ChildDetailPage: React.FC = () => {
         setActivities(acts);
         setBadges(bdgs);
         setWeeklyStats(stats);
+        setAllTimeStats(allTime);
       })
       .catch(err => { console.error('[ChildDetail] fetch error:', err); setLoadError(true); })
       .finally(() => { clearTimeout(timer); setLoading(false); });
@@ -344,6 +347,23 @@ const ChildDetailPage: React.FC = () => {
                   </button>
                 </>
               )}
+            </div>
+
+            {/* All-time Stats */}
+            <h3 className="dc-section-title">Total all-time</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+              <div className="dc-card" style={{ textAlign: 'center', background: 'linear-gradient(135deg, rgba(0,184,148,0.08), rgba(0,184,148,0.02))', border: '1.5px solid rgba(0,184,148,0.15)' }}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-success)' }}>+{allTimeStats.totalEarned}</div>
+                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Points gagnés</div>
+              </div>
+              <div className="dc-card" style={{ textAlign: 'center', background: 'linear-gradient(135deg, rgba(239,68,68,0.06), rgba(239,68,68,0.02))', border: '1.5px solid rgba(239,68,68,0.12)' }}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-danger)' }}>-{allTimeStats.totalSpent}</div>
+                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Points utilisés</div>
+              </div>
+              <div className="dc-card" style={{ textAlign: 'center', background: 'linear-gradient(135deg, rgba(108,92,231,0.08), rgba(108,92,231,0.02))', border: '1.5px solid rgba(108,92,231,0.12)' }}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-primary)' }}>{allTimeStats.activitiesValidated}</div>
+                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Validées</div>
+              </div>
             </div>
 
             {/* Weekly Stats */}

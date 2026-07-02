@@ -260,24 +260,56 @@ button { touch-action: manipulation; }
 .dc-child-tab-bar {
   --background: #FFFFFF; --border: 1px solid rgba(0,0,0,0.07);
   box-shadow: 0 -2px 16px rgba(0,0,0,0.06);
-  height: 56px;
-  padding-bottom: 17px;
+  height: 60px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-.dc-child-tab-bar ion-tab-button { --color: #9CA3AF; --color-selected: var(--dc-blue); }
+.dc-child-tab-bar ion-tab-button {
+  --color: #9CA3AF;
+  --color-selected: var(--dc-blue);
+  position: relative;
+  --background: transparent;
+  --background-focused: transparent;
+}
 .dc-child-tab-bar ion-tab-button.tab-selected {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 14px;
+  background: transparent;
+}
+.dc-child-tab-bar ion-tab-button.tab-selected::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dc-blue);
 }
 
 /* ═══ Tab Bar — Parent ═══════════════════════════════════════ */
 .dc-tab-bar {
   --background: #FFFFFF; --border: 1px solid rgba(0,0,0,0.07);
   box-shadow: 0 -2px 16px rgba(0,0,0,0.06);
-  height: 56px;
-  padding-bottom: 17px;
+  height: 60px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-.dc-tab-bar ion-tab-button { --color: #94a3b8; --color-selected: var(--dc-primary); }
+.dc-tab-bar ion-tab-button {
+  --color: #94a3b8;
+  --color-selected: var(--dc-primary);
+  position: relative;
+  --background: transparent;
+  --background-focused: transparent;
+}
 .dc-tab-bar ion-tab-button.tab-selected {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 14px;
+  background: transparent;
+}
+.dc-tab-bar ion-tab-button.tab-selected::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dc-primary);
 }

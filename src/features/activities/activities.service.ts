@@ -117,6 +117,20 @@ export const activitiesService = {
     return data;
   },
 
+  /** Start an already-assigned activity (available → selected) */
+  async startAssignedActivity(childActivityId: string): Promise<ChildActivity> {
+    const { data, error } = await supabase
+      .from('child_activities')
+      .update({ status: 'selected' })
+      .eq('id', childActivityId)
+      .eq('status', 'available')
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   async submitActivity(
     childActivityId: string,
     childNote?: string,

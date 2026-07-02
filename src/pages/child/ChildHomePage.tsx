@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAppStore } from '../../stores/app.store';
-import { gamificationService } from '../../features/gamification/gamification.service';
+import { gamificationService, getRealStreak } from '../../features/gamification/gamification.service';
 import { activitiesService } from '../../features/activities/activities.service';
 import { LEVEL_NAMES, getStreakMessage } from '../../lib/constants';
-import { Flame, ArrowRight } from 'lucide-react';
+import { Flame, ArrowRight, User, Trophy, Star, Zap } from 'lucide-react';
 import { HeroHeader, WeeklyTracker, EncouragementCard, ActivityListItem } from '../../components/ui/ChildUIKit';
 import type { Activity, ChildActivity } from '../../types/database.types';
 
@@ -15,12 +15,17 @@ const ChildHomePage: React.FC = () => {
   const [weeklyDays, setWeeklyDays] = useState<{ day: string; date: string; count: number; points: number; isToday: boolean }[]>([]);
   const [recentActivities, setRecentActivities] = useState<ChildActivity[]>([]);
   const [dailyChallenges, setDailyChallenges] = useState<Activity[]>([]);
+  const [allTimeStats, setAllTimeStats] = useState<{ totalEarned: number; totalSpent: number; activitiesValidated: number } | null>(null);
 
   useEffect(() => {
     if (selectedChild) {
       gamificationService.getWeeklyDayByDay(selectedChild.id).then(setWeeklyDays).catch(() => {});
-      activitiesService.getChildActivities(selectedChild.id).then(a => setRecentActivities(a.slice(0, 3))).catch(() => {});
+      activitiesService.getChildActivities(selectedChild.id).then(a => {
+        const completed = a.filter(ca => ca.status === 'validated' || ca.status === 'rejected');
+        setRecentActivities(completed.slice(0, 5));
+      }).catch(() => {});
       activitiesService.getDailyChallenges(selectedChild.id).then(setDailyChallenges).catch(() => {});
+      gamificationService.getAllTimeStats(selectedChild.id).then(setAllTimeStats).catch(() => {});
     }
   }, [selectedChild?.id]);
 
@@ -36,10 +41,11 @@ const ChildHomePage: React.FC = () => {
   const progress = gamificationService.getLevelProgress(selectedChild.total_points);
   const levelInfo = LEVEL_NAMES[level - 1] || LEVEL_NAMES[0];
   const initials  = selectedChild.display_name?.[0]?.toUpperCase() || '?';
-  const streak    = selectedChild.streak_days || 0;
+  const streak    = getRealStreak(selectedChild.streak_days || 0, selectedChild.last_activity_date);
 
   const statusLabel = (ca: ChildActivity) => {
     if (ca.status === 'validated') return `+${ca.earned_points} pts gagnés !`;
+    if (ca.status === 'rejected') return 'Non validée';
     if (ca.status === 'submitted') return 'En attente de validation';
     return 'En cours';
   };
@@ -58,6 +64,29 @@ const ChildHomePage: React.FC = () => {
       />
 
       <div style={{ padding: '20px 20px 100px' }}>
+        {/* ── Profile shortcut ── */}
+        <button
+          onClick={() => history.push('/child/profile')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'white', border: '1.5px solid var(--dc-border)',
+            borderRadius: 14, padding: '12px 16px', width: '100%',
+            cursor: 'pointer', marginBottom: 16,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: 'rgba(108,92,231,0.1)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <User size={18} color="var(--dc-primary)" strokeWidth={2} />
+          </div>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--dc-text)', textAlign: 'left' }}>
+            Mon profil & avatar
+          </span>
+          <ArrowRight size={16} color="var(--dc-text-muted)" strokeWidth={2} />
+        </button>
         {/* ── Streak ── */}
         <div style={{
           background: streak > 0
@@ -93,6 +122,51 @@ const ChildHomePage: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* ── Points overview ── */}
+        {allTimeStats && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 20 }}>
+            <div style={{
+              background: 'white', borderRadius: 14, padding: '14px 10px',
+              textAlign: 'center', border: '1.5px solid var(--dc-border)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            }}>
+              <Star size={18} color="var(--dc-gold-dark)" strokeWidth={2} style={{ marginBottom: 4 }} />
+              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--dc-gold-dark)' }}>
+                {allTimeStats.totalEarned}
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dc-text-muted)', marginTop: 2 }}>
+                TOTAL GAGNÉ
+              </div>
+            </div>
+            <div style={{
+              background: 'white', borderRadius: 14, padding: '14px 10px',
+              textAlign: 'center', border: '1.5px solid var(--dc-border)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            }}>
+              <Zap size={18} color="var(--dc-primary)" strokeWidth={2} style={{ marginBottom: 4 }} />
+              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--dc-primary)' }}>
+                {selectedChild.total_points}
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dc-text-muted)', marginTop: 2 }}>
+                DISPONIBLES
+              </div>
+            </div>
+            <div style={{
+              background: 'white', borderRadius: 14, padding: '14px 10px',
+              textAlign: 'center', border: '1.5px solid var(--dc-border)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            }}>
+              <Trophy size={18} color="var(--dc-green)" strokeWidth={2} style={{ marginBottom: 4 }} />
+              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--dc-green)' }}>
+                {allTimeStats.activitiesValidated}
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dc-text-muted)', marginTop: 2 }}>
+                RÉUSSIES
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Encouragement ── */}
         <div style={{ marginBottom: 20 }}>
@@ -157,7 +231,7 @@ const ChildHomePage: React.FC = () => {
 
         {/* ── Activités récentes ── */}
         {recentActivities.length > 0 && (<>
-          <h2 className="dc-section-title">Récemment</h2>
+          <h2 className="dc-section-title">Dernières activités terminées</h2>
           {recentActivities.map(ca => (
             <ActivityListItem
               key={ca.id}

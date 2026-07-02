@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { IonContent, IonPage } from '@ionic/react';
+import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useAppStore } from '../../stores/app.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { rewardsService } from '../../features/rewards/rewards.service';
@@ -8,24 +8,28 @@ import { PointsBadge } from '../../components/ui/ChildUIKit';
 import type { Reward, RewardRequest } from '../../types/database.types';
 
 const ChildRewardsPage: React.FC = () => {
-  const { selectedChild } = useAppStore();
+  const { selectedChild, refreshSelectedChild } = useAppStore();
   const { user } = useAuthStore();
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [requests, setRequests] = useState<RewardRequest[]>([]);
   const [requesting, setRequesting] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadData = () => {
     if (selectedChild && user) {
       rewardsService.getChildRewards(user.id, selectedChild.id).then(setRewards);
       rewardsService.getChildRewardRequests(selectedChild.id).then(setRequests);
     }
-  }, [selectedChild, user]);
+  };
+
+  useEffect(loadData, [selectedChild, user]);
+  useIonViewWillEnter(() => { refreshSelectedChild(); loadData(); });
 
   const handleRequest = async (reward: Reward) => {
     if (!selectedChild) return;
     setRequesting(reward.id);
     try {
       await rewardsService.requestReward(selectedChild.id, reward.id);
+      await refreshSelectedChild();
       rewardsService.getChildRewardRequests(selectedChild.id).then(setRequests);
     } catch (e) { console.error(e); }
     setRequesting(null);
