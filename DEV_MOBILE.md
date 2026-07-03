@@ -1,5 +1,32 @@
 # Deconnect — Guide de développement mobile
 
+## 🚀 Scripts racine (démarrage rapide)
+
+```bash
+./install.sh              # installe tout le nécessaire iOS (idempotent) :
+                          # Xcode check, deps JS, CocoaPods, cap add ios, pod install
+
+./build.sh                # = ./build.sh ios → archive Release + export IPA
+                          #   → build/ios/Rekonect-<date>.ipa
+./build.sh ios --open     # build + sync + ouvre Xcode (archivage manuel)
+./build.sh ios --upload   # archive + upload direct sur App Store Connect (TestFlight)
+./build.sh ios --method debugging   # IPA de dev (devices provisionnés)
+./build.sh android        # délègue à scripts/build-android.sh
+
+./run.sh                  # = ./run.sh ios → install si besoin + build +
+                          #   lance sur un simulateur dispo (réutilise un simu démarré)
+./run.sh ios --device     # lance sur le premier iPhone/iPad branché en USB
+./run.sh ios --target <UDID>        # cible précise
+./run.sh android          # délègue à scripts/build-android.sh
+```
+
+`build.sh` et `run.sh` lancent automatiquement `./install.sh` si `ios/` ou
+`node_modules/` manquent. Team ID surchargeable : `TEAM_ID=XXXX ./build.sh`.
+
+⚠️ **Signature** : l'archive IPA exige que xcodebuild accède à un compte Apple
+(Xcode → Settings → Accounts, ou clé API App Store Connect via
+`ASC_KEY_PATH`/`ASC_KEY_ID`/`ASC_ISSUER_ID`). Le run simulateur n'exige rien.
+
 ## Prérequis
 
 | Outil | Version | Notes |
@@ -88,7 +115,7 @@ xcodebuild \
   -archivePath /tmp/Deconnect.xcarchive \
   archive \
   -allowProvisioningUpdates \
-  DEVELOPMENT_TEAM=86ZFKH98ZB
+  DEVELOPMENT_TEAM=D72UK7R5RE
 
 # Export + upload
 xcodebuild -exportArchive \

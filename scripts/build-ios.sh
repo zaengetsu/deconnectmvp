@@ -11,7 +11,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-TEAM_ID="86ZFKH98ZB"
+TEAM_ID="${TEAM_ID:-D72UK7R5RE}"
 SCHEME="App"
 WORKSPACE="$PROJECT_DIR/ios/App/App.xcworkspace"
 ARCHIVE_PATH="/tmp/Deconnect.xcarchive"

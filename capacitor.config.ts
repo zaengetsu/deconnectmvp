@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'app.deconnect.mvp',
-  appName: 'Deconnect',
+  appName: 'Rekonect',
   webDir: 'dist',
 
   // ─── Server (dev only — comment out for production builds) ──

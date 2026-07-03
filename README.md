@@ -75,7 +75,59 @@ L'app est accessible sur `http://localhost:5173`.
 
 ---
 
-## 📱 Build & lancement sur iOS (Capacitor)
+## ⚡ Scripts tout-en-un (`install.sh` / `build.sh` / `run.sh`)
+
+Trois scripts à la racine automatisent toute la chaîne iOS (et délèguent à
+`scripts/build-android.sh` pour Android). C'est la méthode recommandée.
+
+### `./install.sh` — préparer l'environnement iOS
+
+Idempotent, relançable sans risque. Vérifie Xcode et sa licence, Node ≥ 20,
+installe les dépendances JS (pnpm ou npm), répare/installe CocoaPods via
+Homebrew si besoin, build le web, génère le projet natif `ios/` (`cap add ios`)
+et exécute `pod install`.
+
+```bash
+./install.sh
+```
+
+### `./build.sh` — produire l'IPA
+
+```bash
+./build.sh                        # = ./build.sh ios → IPA dans build/ios/Rekonect-<date>.ipa
+./build.sh ios --open             # build + sync + ouvre Xcode (archivage manuel)
+./build.sh ios --method debugging # IPA de dev (devices provisionnés)
+                                  # methods : app-store-connect (défaut),
+                                  #           release-testing, debugging
+./build.sh ios --upload           # archive + upload direct sur App Store Connect (TestFlight)
+./build.sh android [...]          # délègue à scripts/build-android.sh
+```
+
+Variables utiles : `TEAM_ID` (team Apple, défaut `D72UK7R5RE`), `SCHEME`,
+et pour la CI sans session Xcode : `ASC_KEY_PATH` / `ASC_KEY_ID` / `ASC_ISSUER_ID`
+(clé API App Store Connect `.p8`).
+
+> ⚠️ L'archive IPA nécessite un compte Apple accessible par `xcodebuild` :
+> Xcode → Settings → Accounts (ou la clé API ci-dessus). Le run simulateur, lui,
+> ne demande aucune signature.
+
+### `./run.sh` — lancer l'app
+
+```bash
+./run.sh                     # = ./run.sh ios → installe si besoin, build,
+                             #   et lance sur un simulateur disponible
+                             #   (réutilise un simulateur déjà démarré)
+./run.sh ios --device        # lance sur le premier iPhone/iPad branché (USB/WiFi)
+./run.sh ios --target <UDID> # cible précise (simulateur ou device)
+./run.sh android [...]       # délègue à scripts/build-android.sh
+```
+
+`build.sh` et `run.sh` lancent automatiquement `./install.sh` si `ios/` ou
+`node_modules/` manquent. Détails et dépannage : voir [DEV_MOBILE.md](DEV_MOBILE.md).
+
+---
+
+## 📱 Build & lancement sur iOS (Capacitor) — méthode manuelle
 
 > **Prérequis :** macOS + Xcode installé + compte Apple Developer (pour device réel)
 
@@ -135,6 +187,10 @@ npm run test           # Tests unitaires (vitest run)
 npm run test:watch     # Tests en mode watch
 npm run test:coverage  # Rapport de couverture
 npm run cap:sync       # Synchronisation Capacitor (web → natif)
+
+./install.sh           # Prérequis iOS (deps, CocoaPods, projet natif)
+./build.sh             # Build iOS → IPA (défaut) | ./build.sh android
+./run.sh               # Run sur simulateur iOS | --device pour iPhone réel
 ```
 
 ---
