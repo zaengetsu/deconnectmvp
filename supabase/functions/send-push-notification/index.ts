@@ -5,7 +5,7 @@
 //   APNS_KEY_ID              — Apple APNs key ID (from developer.apple.com)
 //   APNS_TEAM_ID             — Apple Team ID
 //   APNS_PRIVATE_KEY         — APNs .p8 key content (base64 or raw PEM)
-//   APNS_BUNDLE_ID           — App bundle ID (e.g. app.deconnect.mvp)
+//   APNS_BUNDLE_ID           — App bundle ID (e.g. ceo.services.rekonect)
 //   FCM_SERVICE_ACCOUNT_JSON — Firebase Service Account JSON (from Firebase Console → Service Accounts)
 //
 // Deploy: npx supabase functions deploy send-push-notification --no-verify-jwt
@@ -17,7 +17,7 @@ const SUPABASE_SERVICE_ROLE   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const APNS_KEY_ID             = Deno.env.get('APNS_KEY_ID') || ''
 const APNS_TEAM_ID            = Deno.env.get('APNS_TEAM_ID') || ''
 const APNS_PRIVATE_KEY        = Deno.env.get('APNS_PRIVATE_KEY') || ''
-const APNS_BUNDLE_ID          = Deno.env.get('APNS_BUNDLE_ID') || 'app.deconnect.mvp'
+const APNS_BUNDLE_ID          = Deno.env.get('APNS_BUNDLE_ID') || 'ceo.services.rekonect'
 const FCM_SERVICE_ACCOUNT_JSON = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON') || ''
 
 const corsHeaders = {

@@ -59,7 +59,7 @@ fi
 if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then PM="pnpm"; else PM="npm"; fi
 
 APP_ID="$(grep -Eo "appId: *'[^']+'" capacitor.config.ts 2>/dev/null | sed "s/.*'\(.*\)'/\1/")"
-APP_ID="${APP_ID:-app.deconnect.mvp}"
+APP_ID="${APP_ID:-ceo.services.rekonect}"
 
 # ─── Choix de la cible ────────────────────────────────────────
 UUID_RE='[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}'

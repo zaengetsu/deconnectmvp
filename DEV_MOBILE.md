@@ -181,7 +181,7 @@ emulator -avd Pixel8_API34 &
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 # Lancer l'app
-adb shell am start -n app.deconnect.mvp/.MainActivity
+adb shell am start -n ceo.services.rekonect/.MainActivity
 ```
 
 ### Commande tout-en-un (Capacitor)

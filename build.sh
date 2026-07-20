@@ -112,7 +112,7 @@ fi
 signing_help() {
   echo "" >&2
   echo "💡 xcodebuild n'a pas accès à un compte Apple pour générer le profil" >&2
-  echo "   de provisioning de 'app.deconnect.mvp'. Deux solutions :" >&2
+  echo "   de provisioning de 'ceo.services.rekonect'. Deux solutions :" >&2
   echo "   1. Ouvrir Xcode → Settings → Accounts → se (re)connecter avec" >&2
   echo "      votre Apple ID, puis relancer ./build.sh" >&2
   echo "   2. Utiliser une clé API App Store Connect (sans Xcode ouvert) :" >&2

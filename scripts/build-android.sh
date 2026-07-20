@@ -46,7 +46,7 @@ else
   if adb devices 2>/dev/null | grep -q "device$"; then
     echo "📲 Installing on connected device/emulator..."
     adb install -r "$APK_PATH"
-    adb shell am start -n app.deconnect.mvp/.MainActivity
+    adb shell am start -n ceo.services.rekonect/.MainActivity
     echo "✅ App installée et lancée"
   else
     echo "ℹ️  Aucun device/émulateur connecté."
