@@ -9,12 +9,17 @@
 #  3. Installe les dépendances JS
 #  4. Vérifie/répare CocoaPods (via Homebrew si le gem système est cassé)
 #  5. Build web + génère le projet natif ios/ (cap add) + pod install (cap sync)
+#  6. Applique la team Apple (TEAM_ID) au projet Xcode
+#
+# Variables : TEAM_ID (défaut D72UK7R5RE)
 # ──────────────────────────────────────────────────────────────
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
+
+TEAM_ID="${TEAM_ID:-D72UK7R5RE}"
 
 # Homebrew (Apple Silicon ou Intel) en tête de PATH pour que le pod
 # de brew prenne le pas sur un éventuel gem système cassé
@@ -88,11 +93,32 @@ else
   info "Projet ios/ déjà présent"
 fi
 
-# Xcode 26 refuse de nettoyer un dossier Build/ sans cet attribut,
-# ce qui fait échouer le pod install lancé par cap sync
-if [ -d ios/App/Build ]; then
-  xattr -w com.apple.xcode.CreatedByBuildSystem true ios/App/Build 2>/dev/null || true
+# ─── Team Apple dans le projet Xcode ──────────────────────────
+# ios/ est gitignoré : sans ce patch, un projet régénéré par
+# `cap add ios` repart sans DEVELOPMENT_TEAM et la signature échoue.
+PBXPROJ="ios/App/App.xcodeproj/project.pbxproj"
+if [ -f "$PBXPROJ" ]; then
+  if grep -q "DEVELOPMENT_TEAM = $TEAM_ID;" "$PBXPROJ"; then
+    ok "Team Apple $TEAM_ID déjà configurée dans Xcode"
+  else
+    # remplace une team différente, sinon insère après CODE_SIGN_STYLE
+    if grep -q "DEVELOPMENT_TEAM = " "$PBXPROJ"; then
+      sed -i '' "s/DEVELOPMENT_TEAM = [^;]*;/DEVELOPMENT_TEAM = $TEAM_ID;/g" "$PBXPROJ"
+    else
+      sed -i '' "s/\(CODE_SIGN_STYLE = Automatic;\)/\1\\
+				DEVELOPMENT_TEAM = $TEAM_ID;/g" "$PBXPROJ"
+    fi
+    ok "Team Apple $TEAM_ID appliquée au projet Xcode"
+  fi
 fi
+
+# Préférence Xcode "legacy build location" : les produits vont dans
+# ios/App/build. Xcode 26 refuse de nettoyer ce dossier s'il ne l'a pas
+# créé lui-même, ce qui fait échouer le pod install lancé par cap sync.
+# On le recrée nous-mêmes avec l'attribut qui l'autorise à le supprimer.
+rm -rf ios/App/Build ios/App/build
+mkdir -p ios/App/build
+xattr -w com.apple.xcode.CreatedByBuildSystem true ios/App/build 2>/dev/null || true
 
 echo "🔄 Sync Capacitor iOS (copie dist/ + pod install)..."
 npx cap sync ios

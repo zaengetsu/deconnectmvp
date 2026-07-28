@@ -99,17 +99,25 @@ et exécute `pod install`.
 ./build.sh ios --method debugging # IPA de dev (devices provisionnés)
                                   # methods : app-store-connect (défaut),
                                   #           release-testing, debugging
-./build.sh ios --upload           # archive + upload direct sur App Store Connect (TestFlight)
+ASC_KEY_ID=<id> ASC_ISSUER_ID=<uuid> ./build.sh ios --upload
+                                  # archive + valide + uploade sur App Store Connect
 ./build.sh android [...]          # délègue à scripts/build-android.sh
 ```
 
 Variables utiles : `TEAM_ID` (team Apple, défaut `D72UK7R5RE`), `SCHEME`,
-et pour la CI sans session Xcode : `ASC_KEY_PATH` / `ASC_KEY_ID` / `ASC_ISSUER_ID`
-(clé API App Store Connect `.p8`).
+`PROFILE` (profil App Store installé, défaut `Rekonect_AppStore`), et
+`ASC_KEY_PATH` / `ASC_KEY_ID` / `ASC_ISSUER_ID` (clé API App Store Connect
+`.p8` ; le fichier est retrouvé automatiquement dans `~/.private_keys` ou
+`~/.appstoreconnect/private_keys` à partir du seul `ASC_KEY_ID`).
 
-> ⚠️ L'archive IPA nécessite un compte Apple accessible par `xcodebuild` :
-> Xcode → Settings → Accounts (ou la clé API ci-dessus). Le run simulateur, lui,
-> ne demande aucune signature.
+> ⚠️ Sans compte Apple connecté dans Xcode (Settings → Accounts), la signature
+> « cloud » échoue. `build.sh` bascule alors sur une **signature manuelle** avec
+> le profil `$PROFILE` installé localement, et l'upload passe par `altool` +
+> clé API. Le run simulateur, lui, ne demande aucune signature.
+>
+> Pensez à incrémenter `CURRENT_PROJECT_VERSION` (build number) dans
+> `ios/App/App.xcodeproj/project.pbxproj` avant chaque upload : App Store
+> Connect refuse deux builds portant le même numéro pour une même version.
 
 ### `./run.sh` — lancer l'app
 

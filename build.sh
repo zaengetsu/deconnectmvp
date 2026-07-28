@@ -16,10 +16,14 @@
 # Variables :
 #   TEAM_ID   (défaut D72UK7R5RE)
 #   SCHEME    (défaut App)
+#   PROFILE   nom du profil de provisioning App Store installé
+#             (défaut Rekonect_AppStore) — utilisé pour l'export en
+#             signature manuelle quand aucun compte Apple n'est
+#             connecté dans Xcode (la signature cloud échoue alors)
 #   ASC_KEY_PATH / ASC_KEY_ID / ASC_ISSUER_ID
-#             clé API App Store Connect (.p8) — permet la signature
-#             automatique sans compte Apple connecté dans Xcode (CI)
-# Sortie    : build/ios/Deconnect-<date>.ipa
+#             clé API App Store Connect (.p8) — signature et upload
+#             sans compte Apple connecté dans Xcode (CI)
+# Sortie    : build/ios/Rekonect-<date>.ipa
 # ──────────────────────────────────────────────────────────────
 
 set -e
@@ -33,6 +37,8 @@ fi
 
 TEAM_ID="${TEAM_ID:-D72UK7R5RE}"
 SCHEME="${SCHEME:-App}"
+PROFILE="${PROFILE:-Rekonect_AppStore}"
+BUNDLE_ID="${BUNDLE_ID:-ceo.services.rekonect}"
 WORKSPACE="ios/App/App.xcworkspace"
 OUT_DIR="build/ios"
 ARCHIVE_PATH="$OUT_DIR/App.xcarchive"
@@ -83,10 +89,13 @@ if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then PM="pnpm"; els
 echo "🔨 Build des assets web ($PM run build)..."
 $PM run build
 
-# Xcode 26 refuse de nettoyer un dossier Build/ sans cet attribut
-if [ -d ios/App/Build ]; then
-  xattr -w com.apple.xcode.CreatedByBuildSystem true ios/App/Build 2>/dev/null || true
-fi
+# Préférence Xcode "legacy build location" : les produits vont dans
+# ios/App/build. Xcode 26 refuse de nettoyer ce dossier s'il ne l'a pas
+# créé lui-même, ce qui fait échouer le clean lancé par cap sync. On le
+# recrée nous-mêmes avec l'attribut qui l'autorise à le supprimer.
+rm -rf ios/App/Build ios/App/build
+mkdir -p ios/App/build
+xattr -w com.apple.xcode.CreatedByBuildSystem true ios/App/build 2>/dev/null || true
 
 echo "🔄 Sync Capacitor iOS..."
 npx cap sync ios
@@ -102,11 +111,23 @@ fi
 mkdir -p "$OUT_DIR"
 rm -rf "$ARCHIVE_PATH" "$OUT_DIR/export"
 
-# Clé API App Store Connect (signature sans session Xcode, utile en CI)
+# Clé API App Store Connect (signature + upload sans session Xcode)
+# Le .p8 peut être trouvé automatiquement dans les emplacements standards
+# à partir du seul ASC_KEY_ID.
 AUTH_FLAGS=""
+if [ -z "${ASC_KEY_PATH:-}" ] && [ -n "${ASC_KEY_ID:-}" ]; then
+  for d in "$HOME/.private_keys" "$HOME/.appstoreconnect/private_keys" "$HOME/private_keys"; do
+    if [ -f "$d/AuthKey_$ASC_KEY_ID.p8" ]; then ASC_KEY_PATH="$d/AuthKey_$ASC_KEY_ID.p8"; break; fi
+  done
+fi
 if [ -n "${ASC_KEY_PATH:-}" ] && [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ]; then
   AUTH_FLAGS="-authenticationKeyPath $ASC_KEY_PATH -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
   echo "🔑 Authentification via clé API App Store Connect ($ASC_KEY_ID)"
+elif [ "$DESTINATION" = "upload" ]; then
+  echo "❌ --upload nécessite une clé API App Store Connect." >&2
+  echo "   ASC_KEY_ID=<id> ASC_ISSUER_ID=<uuid> ./build.sh ios --upload" >&2
+  echo "   (le .p8 est cherché dans ~/.private_keys, ~/.appstoreconnect/private_keys)" >&2
+  exit 1
 fi
 
 signing_help() {
@@ -144,25 +165,48 @@ fi
 echo "✅ Archive : $ARCHIVE_PATH"
 
 # ─── Export IPA ───────────────────────────────────────────────
-EXPORT_PLIST="$OUT_DIR/ExportOptions.plist"
-cat > "$EXPORT_PLIST" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key>
-  <string>$METHOD</string>
-  <key>teamID</key>
-  <string>$TEAM_ID</string>
-  <key>signingStyle</key>
-  <string>automatic</string>
-  <key>destination</key>
-  <string>$DESTINATION</string>
-</dict>
-PLIST
-echo "</plist>" >> "$EXPORT_PLIST"
+# Sans compte Apple connecté dans Xcode, la signature automatique à
+# l'export échoue ("Cloud signing permission error"). Si le profil
+# App Store est installé localement, on signe manuellement avec lui :
+# l'export re-signe l'app entière en Apple Distribution.
+PROFILE_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+HAS_PROFILE=0
+if [ "$METHOD" = "app-store-connect" ]; then
+  for p in "$PROFILE_DIR"/*.mobileprovision; do
+    [ -f "$p" ] || continue
+    if security cms -D -i "$p" 2>/dev/null | grep -q "<string>$PROFILE</string>"; then
+      HAS_PROFILE=1; break
+    fi
+  done
+fi
 
-echo "📤 Export IPA (method: $METHOD, destination: $DESTINATION)..."
+EXPORT_PLIST="$OUT_DIR/ExportOptions.plist"
+{
+  echo '<?xml version="1.0" encoding="UTF-8"?>'
+  echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+  echo '<plist version="1.0">'
+  echo '<dict>'
+  echo "  <key>method</key><string>$METHOD</string>"
+  echo "  <key>teamID</key><string>$TEAM_ID</string>"
+  echo '  <key>destination</key><string>export</string>'
+  if [ "$HAS_PROFILE" = 1 ]; then
+    echo '  <key>signingStyle</key><string>manual</string>'
+    echo '  <key>signingCertificate</key><string>Apple Distribution</string>'
+    echo '  <key>provisioningProfiles</key><dict>'
+    echo "    <key>$BUNDLE_ID</key><string>$PROFILE</string>"
+    echo '  </dict>'
+  else
+    echo '  <key>signingStyle</key><string>automatic</string>'
+  fi
+  echo '</dict>'
+  echo '</plist>'
+} > "$EXPORT_PLIST"
+
+if [ "$HAS_PROFILE" = 1 ]; then
+  echo "📤 Export IPA (method: $METHOD, signature manuelle via '$PROFILE')..."
+else
+  echo "📤 Export IPA (method: $METHOD, signature automatique)..."
+fi
 EXPORT_LOG="$OUT_DIR/xcodebuild-export.log"
 # shellcheck disable=SC2086
 if ! xcodebuild -exportArchive \
@@ -178,12 +222,6 @@ if ! xcodebuild -exportArchive \
   exit 1
 fi
 
-if [ "$DESTINATION" = "upload" ]; then
-  echo ""
-  echo "✅ Build uploadé sur App Store Connect (TestFlight)"
-  exit 0
-fi
-
 RAW_IPA="$(ls "$OUT_DIR"/export/*.ipa 2>/dev/null | head -1)"
 [ -n "$RAW_IPA" ] || { echo "❌ Aucun IPA trouvé dans $OUT_DIR/export" >&2; exit 1; }
 IPA_PATH="$OUT_DIR/Rekonect-$(date +%Y%m%d-%H%M).ipa"
@@ -192,7 +230,29 @@ mv "$RAW_IPA" "$IPA_PATH"
 echo ""
 echo "✅ Build iOS terminé"
 echo "📁 IPA : $IPA_PATH"
+
+# ─── Upload App Store Connect ─────────────────────────────────
+# altool + clé API : ne dépend pas du cloud signing, contrairement
+# à l'export avec destination=upload.
+if [ "$DESTINATION" = "upload" ]; then
+  echo ""
+  echo "🚀 Validation puis upload sur App Store Connect..."
+  if ! xcrun altool --validate-app -f "$IPA_PATH" -t ios \
+        --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"; then
+    echo "❌ Validation refusée par App Store Connect — upload annulé." >&2
+    exit 1
+  fi
+  if ! xcrun altool --upload-app -f "$IPA_PATH" -t ios \
+        --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"; then
+    echo "❌ Échec de l'upload." >&2
+    exit 1
+  fi
+  echo ""
+  echo "✅ Build uploadé sur App Store Connect (traitement TestFlight en cours)"
+  exit 0
+fi
+
 echo ""
 echo "Pour uploader sur TestFlight :"
-echo "  ./build.sh ios --upload        # ré-archive et uploade directement"
+echo "  ASC_KEY_ID=<id> ASC_ISSUER_ID=<uuid> ./build.sh ios --upload"
 echo "  (ou glisser l'IPA dans l'app Transporter)"

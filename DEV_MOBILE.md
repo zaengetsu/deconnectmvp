@@ -9,7 +9,8 @@
 ./build.sh                # = ./build.sh ios → archive Release + export IPA
                           #   → build/ios/Rekonect-<date>.ipa
 ./build.sh ios --open     # build + sync + ouvre Xcode (archivage manuel)
-./build.sh ios --upload   # archive + upload direct sur App Store Connect (TestFlight)
+ASC_KEY_ID=<id> ASC_ISSUER_ID=<uuid> ./build.sh ios --upload
+                          # archive + valide + uploade sur App Store Connect
 ./build.sh ios --method debugging   # IPA de dev (devices provisionnés)
 ./build.sh android        # délègue à scripts/build-android.sh
 
@@ -23,9 +24,24 @@
 `build.sh` et `run.sh` lancent automatiquement `./install.sh` si `ios/` ou
 `node_modules/` manquent. Team ID surchargeable : `TEAM_ID=XXXX ./build.sh`.
 
-⚠️ **Signature** : l'archive IPA exige que xcodebuild accède à un compte Apple
-(Xcode → Settings → Accounts, ou clé API App Store Connect via
-`ASC_KEY_PATH`/`ASC_KEY_ID`/`ASC_ISSUER_ID`). Le run simulateur n'exige rien.
+### Signature et upload
+
+L'app est signée avec la team **`D72UK7R5RE`** (Jacques Charles NDJANDA MBIADA),
+bundle id `ceo.services.rekonect`. `install.sh` inscrit cette team dans
+`project.pbxproj` — nécessaire car `ios/` est gitignoré et donc régénérable.
+
+Sans compte Apple connecté dans Xcode, la signature « cloud » à l'export échoue
+(`Cloud signing permission error`). `build.sh` bascule alors automatiquement sur
+une **signature manuelle** avec le profil App Store installé localement
+(`PROFILE`, défaut `Rekonect_AppStore`), et l'upload passe par
+`xcrun altool` + clé API (`ASC_KEY_ID` / `ASC_ISSUER_ID`, le `.p8` étant
+retrouvé dans `~/.private_keys` ou `~/.appstoreconnect/private_keys`).
+
+⚠️ **Build number** : incrémenter `CURRENT_PROJECT_VERSION` dans
+`ios/App/App.xcodeproj/project.pbxproj` avant chaque upload — App Store Connect
+rejette deux builds portant le même numéro pour une même version marketing.
+
+Le run simulateur, lui, n'exige aucune signature.
 
 ## Prérequis
 
