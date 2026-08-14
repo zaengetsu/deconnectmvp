@@ -1,13 +1,43 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Html5Qrcode } from 'html5-qrcode';
+import jsQR from 'jsqr';
 import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../stores/app.store';
-import { Smartphone, QrCode, Lock, AlertCircle, CheckCircle, Zap, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Smartphone, QrCode, Lock, AlertCircle, CheckCircle, Zap, ArrowRight, ArrowLeft, RefreshCw } from 'lucide-react';
 import type { Child } from '../../types/database.types';
 
 type Step = 'intro' | 'scan' | 'pin' | 'success';
+
+// ─── QR decode helpers ───────────────────────────────────────────────────────
+
+/**
+ * Decode a QR code from a base64 data URI using jsQR.
+ * Draws the image to an off-screen canvas, extracts pixel data, passes to jsQR.
+ */
+function decodeQrFromDataUrl(dataUrl: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(null); return; }
+      ctx.drawImage(img, 0, 0);
+      const { data, width, height } = ctx.getImageData(0, 0, img.width, img.height);
+      const code = jsQR(data, width, height, { inversionAttempts: 'dontInvert' });
+      resolve(code ? code.data : null);
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 const ChildLinkPage: React.FC = () => {
   const history = useHistory();
@@ -26,15 +56,97 @@ const ChildLinkPage: React.FC = () => {
   const confirmPinRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const [linkedChild, setLinkedChild] = useState<Child | null>(null);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  const startScanner = async () => {
+  // Web scanner ref (html5-qrcode — only used outside Capacitor)
+  const webScannerRef = useRef<Html5Qrcode | null>(null);
+
+  const isNative = Capacitor.isNativePlatform();
+
+  // ── QR result handler ─────────────────────────────────────────────────
+  const handleScanResult = (text: string) => {
+    try {
+      const data = JSON.parse(text);
+      if (data.type !== 'deconnect_link' || !data.token) {
+        setError("QR code non reconnu. Vérifiez que c'est le bon code."); return;
+      }
+      setLinkToken(data.token);
+      setChildName(data.child || '');
+      setStep('pin');
+      stopWebScanner();
+    } catch {
+      setError("QR code invalide. Scannez le code depuis l'app du parent.");
+    }
+  };
+
+  // ── Stop web scanner ──────────────────────────────────────────────────
+  const stopWebScanner = () => {
+    if (webScannerRef.current) {
+      webScannerRef.current.stop().catch(() => {});
+      webScannerRef.current = null;
+    }
+  };
+
+  useEffect(() => () => { stopWebScanner(); }, []);
+
+  // ── NATIVE scan: capture photo → jsQR decode ──────────────────────────
+  const startNativeScan = async () => {
+    setStep('scan');
+    setError(null);
+    await doNativeScan();
+  };
+
+  const doNativeScan = async () => {
+    setError(null);
+    try {
+      const permissions = await Camera.requestPermissions({ permissions: ['camera'] });
+      if (permissions.camera === 'denied') {
+        setError("Accès à la caméra refusé. Active-le dans les réglages de l'app.");
+        return;
+      }
+
+      const photo = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        saveToGallery: false,
+        correctOrientation: true,
+        presentationStyle: 'fullscreen',
+      });
+
+      if (!photo.dataUrl) {
+        setError("Impossible de lire la photo. Réessaie.");
+        return;
+      }
+
+      const decoded = await decodeQrFromDataUrl(photo.dataUrl);
+      if (!decoded) {
+        setError("Aucun QR code détecté. Réessaie en te rapprochant.");
+        return;
+      }
+
+      handleScanResult(decoded);
+    } catch (err: unknown) {
+      // User pressed cancel → go back to intro
+      if (
+        (err instanceof Error && (err.message?.includes('cancel') || err.message?.includes('Cancel'))) ||
+        (typeof err === 'string' && err.toLowerCase().includes('cancel'))
+      ) {
+        setStep('intro');
+        return;
+      }
+      setError("Impossible d'accéder à la caméra. Vérifie les permissions dans les réglages.");
+    }
+  };
+
+  // ── WEB scan: html5-qrcode (works in browser, not in WKWebView) ───────
+  const startWebScan = async () => {
     setStep('scan');
     setError(null);
     await new Promise(r => setTimeout(r, 300));
     try {
       const scanner = new Html5Qrcode('qr-reader');
-      scannerRef.current = scanner;
+      webScannerRef.current = scanner;
       await scanner.start(
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1 },
@@ -42,28 +154,20 @@ const ChildLinkPage: React.FC = () => {
         () => {}
       );
     } catch {
-      setError("Impossible d'accéder à la caméra. Vérifiez les permissions.");
+      setError("Impossible d'accéder à la caméra. Vérifiez les permissions du navigateur.");
     }
   };
 
-  const stopScanner = () => {
-    if (scannerRef.current) { scannerRef.current.stop().catch(() => {}); scannerRef.current = null; }
-  };
-
-  useEffect(() => { return () => { stopScanner(); }; }, []);
-
-  const handleScanResult = (text: string) => {
-    try {
-      const data = JSON.parse(text);
-      if (data.type !== 'deconnect_link' || !data.token) {
-        setError("QR code non reconnu. Vérifiez que c'est le bon code."); return;
-      }
-      setLinkToken(data.token); setChildName(data.child || ''); setStep('pin'); stopScanner();
-    } catch {
-      setError("QR code invalide. Scannez le code depuis l'app du parent.");
+  // ── Unified start ─────────────────────────────────────────────────────
+  const startScanner = () => {
+    if (isNative) {
+      startNativeScan();
+    } else {
+      startWebScan();
     }
   };
 
+  // ── PIN logic ─────────────────────────────────────────────────────────
   const handlePinInput = (index: number, value: string, isPrimary: boolean) => {
     const digit = value.replace(/\D/g, '').slice(-1);
     if (isPrimary) {
@@ -119,7 +223,7 @@ const ChildLinkPage: React.FC = () => {
     if (linkedChild) { selectChild(linkedChild); history.replace('/child/home'); }
   };
 
-  // ── PIN Input ──
+  // ── PIN Input ────────────────────────────────────────────────────────
   const PinInput = ({ isPrimary, label }: { isPrimary: boolean; label: string }) => {
     const arr  = isPrimary ? pin : confirmPin;
     const refs = isPrimary ? pinRefs : confirmPinRefs;
@@ -186,23 +290,78 @@ const ChildLinkPage: React.FC = () => {
         {step === 'scan' && (
           <div style={{ minHeight: '100vh', background: '#0a0a0a' }}>
             <div style={{ padding: '56px 20px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button onClick={() => { stopScanner(); setStep('intro'); }}
+              <button
+                onClick={() => { stopWebScanner(); setStep('intro'); setError(null); }}
                 style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 12, padding: '8px 14px', color: 'white', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <ArrowLeft size={14} strokeWidth={2} /> Retour
               </button>
               <h2 style={{ color: 'white', fontSize: 17, fontWeight: 800, margin: 0 }}>Scanner le QR code</h2>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
-              <div id="qr-reader" style={{ width: '100%', maxWidth: 350 }} />
-            </div>
-            {error && (
-              <div style={{ margin: '0 20px', padding: '12px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.15)', color: '#FF6B6B', fontSize: 14, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <AlertCircle size={16} strokeWidth={2} /> {error}
+
+            {/* Native mode: no live viewfinder — show tap-to-capture UI */}
+            {isNative ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 32px', gap: 24 }}>
+                {/* Viewfinder placeholder */}
+                <div style={{
+                  width: 260, height: 260, borderRadius: 24,
+                  border: '3px solid rgba(255,255,255,0.3)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.05)', position: 'relative',
+                }}>
+                  {/* Corner decorations */}
+                  {[
+                    { top: -3, left: -3, borderTop: '4px solid #4CAF50', borderLeft: '4px solid #4CAF50' },
+                    { top: -3, right: -3, borderTop: '4px solid #4CAF50', borderRight: '4px solid #4CAF50' },
+                    { bottom: -3, left: -3, borderBottom: '4px solid #4CAF50', borderLeft: '4px solid #4CAF50' },
+                    { bottom: -3, right: -3, borderBottom: '4px solid #4CAF50', borderRight: '4px solid #4CAF50' },
+                  ].map((s, i) => (
+                    <div key={i} style={{ position: 'absolute', width: 28, height: 28, borderRadius: 4, ...s }} />
+                  ))}
+                  <QrCode size={72} color="rgba(255,255,255,0.25)" strokeWidth={1} />
+                </div>
+
+                {error && (
+                  <div style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.15)', color: '#FF6B6B', fontSize: 14, textAlign: 'center', display: 'flex', alignItems: 'center', gap: 8, width: '100%', maxWidth: 320 }}>
+                    <AlertCircle size={16} strokeWidth={2} /> {error}
+                  </div>
+                )}
+
+                <p style={{ color: 'rgba(255,255,255,0.6)', textAlign: 'center', fontSize: 14, lineHeight: 1.6, maxWidth: 280 }}>
+                  Appuie sur le bouton ci-dessous pour ouvrir la caméra et photographier le QR code
+                </p>
+
+                <button
+                  onClick={doNativeScan}
+                  className="dc-btn dc-btn-green dc-btn-lg"
+                  style={{ width: '100%', maxWidth: 300, borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                  <QrCode size={20} strokeWidth={2} />
+                  Prendre une photo du QR code
+                </button>
+
+                {error && (
+                  <button
+                    onClick={doNativeScan}
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', borderRadius: 12, padding: '10px 20px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <RefreshCw size={14} strokeWidth={2} /> Réessayer
+                  </button>
+                )}
               </div>
+            ) : (
+              /* Web mode: html5-qrcode live viewfinder */
+              <>
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
+                  <div id="qr-reader" style={{ width: '100%', maxWidth: 350 }} />
+                </div>
+                {error && (
+                  <div style={{ margin: '0 20px', padding: '12px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.15)', color: '#FF6B6B', fontSize: 14, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <AlertCircle size={16} strokeWidth={2} /> {error}
+                  </div>
+                )}
+                <p style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', fontSize: 13, padding: '16px 32px' }}>
+                  Pointe la caméra vers le QR code affiché sur le téléphone de ton parent
+                </p>
+              </>
             )}
-            <p style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', fontSize: 13, padding: '16px 32px' }}>
-              Pointe la caméra vers le QR code affiché sur le téléphone de ton parent
-            </p>
           </div>
         )}
 

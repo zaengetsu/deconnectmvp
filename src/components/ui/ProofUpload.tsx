@@ -1,4 +1,6 @@
 import React, { useRef, useState } from 'react';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 import { storageService, type UploadedProof } from '../../features/storage/storage.service';
 
 interface ProofUploadProps {
@@ -10,6 +12,20 @@ interface ProofUploadProps {
   disabled?: boolean;
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** Convert a base64 data-URI to a File object for upload. */
+function dataUriToFile(dataUri: string, filename: string): File {
+  const [header, data] = dataUri.split(',');
+  const mime = header.match(/:(.*?);/)?.[1] ?? 'image/jpeg';
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], filename, { type: mime });
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
 const ProofUpload: React.FC<ProofUploadProps> = ({
   childId,
   childActivityId,
@@ -18,12 +34,14 @@ const ProofUpload: React.FC<ProofUploadProps> = ({
   currentProof,
   disabled = false,
 }) => {
-  // Two separate inputs: one for camera, one for gallery
-  const cameraRef = useRef<HTMLInputElement>(null);
+  // Web fallback: separate inputs for camera vs gallery
   const galleryRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isNative = Capacitor.isNativePlatform();
+
+  // ── Core upload logic ──────────────────────────────────────────────────
   const handleFile = async (file: File) => {
     setUploading(true);
     setError(null);
@@ -34,16 +52,95 @@ const ProofUpload: React.FC<ProofUploadProps> = ({
       setError(err instanceof Error ? err.message : "Erreur lors de l'upload");
     } finally {
       setUploading(false);
-      if (cameraRef.current) cameraRef.current.value = '';
       if (galleryRef.current) galleryRef.current.value = '';
     }
   };
 
-  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ── Native camera (iOS & Android via @capacitor/camera) ───────────────
+  const handleNativeCamera = async () => {
+    if (disabled || uploading) return;
+    try {
+      // Request permission explicitly before opening camera
+      const permissions = await Camera.requestPermissions({ permissions: ['camera', 'photos'] });
+      if (permissions.camera === 'denied' || permissions.camera === 'prompt-with-rationale') {
+        setError('Autorisation caméra refusée. Activez-la dans les réglages de l\'application.');
+        return;
+      }
+
+      const photo = await Camera.getPhoto({
+        quality: 85,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        saveToGallery: false,
+      });
+
+      if (photo.dataUrl) {
+        const file = dataUriToFile(photo.dataUrl, `proof_${Date.now()}.jpg`);
+        await handleFile(file);
+      }
+    } catch (err: unknown) {
+      // User cancelled — not an error
+      if (err instanceof Error && err.message?.includes('cancelled')) return;
+      if (typeof err === 'string' && err.includes('cancelled')) return;
+      setError('Impossible d\'ouvrir la caméra. Vérifiez les autorisations dans les réglages.');
+    }
+  };
+
+  // ── Native gallery (iOS & Android via @capacitor/camera) ──────────────
+  const handleNativeGallery = async () => {
+    if (disabled || uploading) return;
+    try {
+      const permissions = await Camera.requestPermissions({ permissions: ['photos'] });
+      if (permissions.photos === 'denied') {
+        setError('Accès à la galerie refusé. Activez-le dans les réglages de l\'application.');
+        return;
+      }
+
+      const photo = await Camera.getPhoto({
+        quality: 85,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Photos,
+        saveToGallery: false,
+      });
+
+      if (photo.dataUrl) {
+        const file = dataUriToFile(photo.dataUrl, `proof_${Date.now()}.jpg`);
+        await handleFile(file);
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message?.includes('cancelled')) return;
+      if (typeof err === 'string' && err.includes('cancelled')) return;
+      setError('Impossible d\'ouvrir la galerie. Vérifiez les autorisations dans les réglages.');
+    }
+  };
+
+  // ── Web fallback: standard file input ─────────────────────────────────
+  const handleWebChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) await handleFile(file);
   };
 
+  // ── Dispatchers (native vs web) ───────────────────────────────────────
+  const onCameraClick = isNative
+    ? handleNativeCamera
+    : () => {
+        // Web: create a temporary input with capture to open camera
+        const tmp = document.createElement('input');
+        tmp.type = 'file';
+        tmp.accept = 'image/jpeg,image/png,image/webp,video/mp4,video/quicktime';
+        tmp.capture = 'environment';
+        tmp.onchange = (ev) => {
+          const f = (ev.target as HTMLInputElement).files?.[0];
+          if (f) handleFile(f);
+        };
+        tmp.click();
+      };
+
+  const onGalleryClick = isNative ? handleNativeGallery : () => galleryRef.current?.click();
+
+  // ── Styles ────────────────────────────────────────────────────────────
   const btn = (primary: boolean) => ({
     flex: 1,
     padding: '16px 12px',
@@ -112,8 +209,8 @@ const ProofUpload: React.FC<ProofUploadProps> = ({
           {/* Camera button */}
           <button
             type="button"
-            disabled={disabled}
-            onClick={() => cameraRef.current?.click()}
+            disabled={disabled || uploading}
+            onClick={onCameraClick}
             style={btn(true)}
           >
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--dc-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -126,8 +223,8 @@ const ProofUpload: React.FC<ProofUploadProps> = ({
           {/* Gallery button */}
           <button
             type="button"
-            disabled={disabled}
-            onClick={() => galleryRef.current?.click()}
+            disabled={disabled || uploading}
+            onClick={onGalleryClick}
             style={btn(false)}
           >
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--dc-text-light)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -143,24 +240,16 @@ const ProofUpload: React.FC<ProofUploadProps> = ({
         <p style={{ color: 'var(--dc-danger)', fontSize: 12, marginTop: 8, fontWeight: 600 }}>{error}</p>
       )}
 
-      {/* Hidden input — opens camera directly */}
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
-        capture="environment"
-        style={{ display: 'none' }}
-        onChange={handleChange}
-      />
-
-      {/* Hidden input — opens file picker / gallery */}
-      <input
-        ref={galleryRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
-        style={{ display: 'none' }}
-        onChange={handleChange}
-      />
+      {/* Web-only fallback: gallery picker (camera handled via tmp input above) */}
+      {!isNative && (
+        <input
+          ref={galleryRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+          style={{ display: 'none' }}
+          onChange={handleWebChange}
+        />
+      )}
     </div>
   );
 };
