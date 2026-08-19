@@ -35,6 +35,10 @@ if command -v brew >/dev/null 2>&1; then
   export PATH="$(brew --prefix)/bin:$PATH"
 fi
 
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/scripts/lib-release.sh"
+use_project_node   # Node de .nvmrc (rolldown exige ^20.19 || >=22.12)
+
 TEAM_ID="${TEAM_ID:-D72UK7R5RE}"
 SCHEME="${SCHEME:-App}"
 PROFILE="${PROFILE:-Rekonect_AppStore}"
@@ -83,6 +87,12 @@ if [ ! -d ios ] || [ ! -d node_modules ]; then
   "$SCRIPT_DIR/install.sh"
 fi
 
+if ! node_version_ok; then
+  echo "❌ Node ^20.19 ou >=22.12 requis pour le build web (trouvé : $(node --version))." >&2
+  echo "   nvm install $(cat .nvmrc 2>/dev/null || echo 22)" >&2
+  exit 1
+fi
+
 if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then PM="pnpm"; else PM="npm"; fi
 
 # ─── Build web + sync ─────────────────────────────────────────
@@ -99,6 +109,9 @@ xattr -w com.apple.xcode.CreatedByBuildSystem true ios/App/build 2>/dev/null || 
 
 echo "🔄 Sync Capacitor iOS..."
 npx cap sync ios
+
+# Version + build number : version.json fait foi (ios/ est gitignoré)
+apply_ios_version
 
 if [ "$OPEN_XCODE" = 1 ]; then
   echo "🚀 Ouverture de Xcode..."

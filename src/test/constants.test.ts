@@ -10,9 +10,9 @@ describe('constants', () => {
     expect(APP_NAME).toBe('Deconnect');
   });
 
-  it('has valid age limits (brief: 7–15 ans)', () => {
+  it('has valid age limits (7–18 ans)', () => {
     expect(MIN_CHILD_AGE).toBe(7);
-    expect(MAX_CHILD_AGE).toBe(15);
+    expect(MAX_CHILD_AGE).toBe(18);
     expect(MIN_CHILD_AGE).toBeLessThan(MAX_CHILD_AGE);
   });
 

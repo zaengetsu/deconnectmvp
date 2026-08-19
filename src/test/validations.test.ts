@@ -50,14 +50,14 @@ describe('childSchema', () => {
   it('accepts minimum age (7 — brief target)', () => {
     expect(childSchema.safeParse({ display_name: 'Lucas', age: 7 }).success).toBe(true);
   });
-  it('accepts maximum age (15 — brief target)', () => {
-    expect(childSchema.safeParse({ display_name: 'Lucas', age: 15 }).success).toBe(true);
+  it('accepts maximum age (18)', () => {
+    expect(childSchema.safeParse({ display_name: 'Lucas', age: 18 }).success).toBe(true);
   });
   it('rejects age below 7', () => {
     expect(childSchema.safeParse({ display_name: 'Lucas', age: 6 }).success).toBe(false);
   });
-  it('rejects age above 15', () => {
-    expect(childSchema.safeParse({ display_name: 'Lucas', age: 16 }).success).toBe(false);
+  it('rejects age above 18', () => {
+    expect(childSchema.safeParse({ display_name: 'Lucas', age: 19 }).success).toBe(false);
   });
   it('rejects short name', () => {
     expect(childSchema.safeParse({ display_name: 'L', age: 10 }).success).toBe(false);

@@ -21,6 +21,9 @@ cd "$SCRIPT_DIR"
 
 TEAM_ID="${TEAM_ID:-D72UK7R5RE}"
 
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/scripts/lib-release.sh"
+
 # Homebrew (Apple Silicon ou Intel) en tête de PATH pour que le pod
 # de brew prenne le pas sur un éventuel gem système cassé
 if command -v brew >/dev/null 2>&1; then
@@ -53,10 +56,12 @@ fi
 ok "Xcode $(xcodebuild -version | head -1 | awk '{print $2}') opérationnel"
 
 # ─── 2. Node + gestionnaire de paquets ────────────────────────
-command -v node >/dev/null 2>&1 || fail "Node.js introuvable. Installez Node 20+ (nvm ou brew install node)."
-NODE_MAJOR="$(node --version | sed 's/v\([0-9]*\).*/\1/')"
-[ "$NODE_MAJOR" -ge 20 ] && ok "Node $(node --version)" \
-  || fail "Node 20+ requis (trouvé : $(node --version)). Mettez à jour Node puis relancez."
+use_project_node   # bascule sur la version de .nvmrc si nvm est installé
+command -v node >/dev/null 2>&1 || fail "Node.js introuvable. Installez Node 22.12+ (nvm ou brew install node)."
+node_version_ok && ok "Node $(node --version)" \
+  || fail "Node ^20.19 ou >=22.12 requis (trouvé : $(node --version)) — en deçà, npm
+   n'installe pas le binaire natif de rolldown et le build web échoue.
+   Avec nvm :  nvm install $(cat .nvmrc 2>/dev/null || echo 22)"
 
 if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
   PM="pnpm"
@@ -111,6 +116,9 @@ if [ -f "$PBXPROJ" ]; then
     ok "Team Apple $TEAM_ID appliquée au projet Xcode"
   fi
 fi
+
+# ─── Version / build number depuis version.json ───────────────
+apply_ios_version
 
 # Préférence Xcode "legacy build location" : les produits vont dans
 # ios/App/build. Xcode 26 refuse de nettoyer ce dossier s'il ne l'a pas
