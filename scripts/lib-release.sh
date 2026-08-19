@@ -38,3 +38,12 @@ apply_ios_version() {
   sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*;/CURRENT_PROJECT_VERSION = $B;/g" "$PBX"
   echo "🏷️  Version $V (build $B) appliquée au projet Xcode"
 }
+
+apply_android_version() {
+  GRADLE="android/app/build.gradle"
+  V="$(read_version)"; B="$(read_build)"
+  [ -f "$GRADLE" ] && [ -n "$V" ] && [ -n "$B" ] || return 0
+  sed -i '' "s/versionName \".*\"/versionName \"$V\"/" "$GRADLE"
+  sed -i '' "s/versionCode [0-9][0-9]*/versionCode $B/" "$GRADLE"
+  echo "🏷️  Version $V (versionCode $B) appliquée au projet Gradle"
+}

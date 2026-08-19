@@ -12,7 +12,8 @@
 ASC_KEY_ID=<id> ASC_ISSUER_ID=<uuid> ./build.sh ios --upload
                           # archive + valide + uploade sur App Store Connect
 ./build.sh ios --method debugging   # IPA de dev (devices provisionnés)
-./build.sh android        # délègue à scripts/build-android.sh
+./build.sh android        # délègue à scripts/build-android.sh (APK debug)
+./build.sh android --release        # AAB signé → build/android/Rekonect-<date>.aab
 
 ./run.sh                  # = ./run.sh ios → install si besoin + build +
                           #   lance sur un simulateur dispo (réutilise un simu démarré)
@@ -23,6 +24,28 @@ ASC_KEY_ID=<id> ASC_ISSUER_ID=<uuid> ./build.sh ios --upload
 
 `build.sh` et `run.sh` lancent automatiquement `./install.sh` si `ios/` ou
 `node_modules/` manquent. Team ID surchargeable : `TEAM_ID=XXXX ./build.sh`.
+
+### Version et numéro de build
+
+`version.json` à la racine est la **source de vérité** :
+
+```json
+{ "version": "1.0", "build": 3 }
+```
+
+`ios/` et `android/` étant gitignorés (régénérables par `cap add`), le numéro
+de build ne peut pas vivre dans `project.pbxproj` / `build.gradle` : les scripts
+l'y réinjectent à chaque build (`MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`,
+`versionName`/`versionCode`). **Incrémenter `build` avant chaque livraison** :
+App Store Connect comme Google Play refusent deux livraisons au même numéro.
+
+### Node
+
+`.nvmrc` fixe Node **22.13.1**. vite 8 / rolldown exigent `^20.19 || >=22.12` ;
+en deçà, `npm install` saute silencieusement le binaire natif
+`@rolldown/binding-darwin-arm64` et le build web casse au premier import.
+Les scripts basculent sur la version du `.nvmrc` via nvm et refusent de
+démarrer sur une version trop ancienne.
 
 ### Signature et upload
 
@@ -161,12 +184,37 @@ npm run build && npx cap sync ios && npx cap run ios --target <DEVICE_ID>
 ### Script rapide
 
 ```bash
-# Build + install sur émulateur
+# Build + install sur émulateur (APK debug)
 ./scripts/build-android.sh
 
-# Build + distribuer via Firebase
+# Build + distribuer via Firebase App Distribution (APK debug)
 ./scripts/build-android.sh --distribute
+
+# AAB signé pour Google Play → build/android/Rekonect-<date>.aab
+ANDROID_KEYSTORE_PASS=<pass> ./scripts/build-android.sh --release
+
+# …puis envoi sur la piste interne (fastlane supply)
+ANDROID_KEYSTORE_PASS=<pass> GOOGLE_PLAY_JSON_KEY=<sa.json> \
+  ./scripts/build-android.sh --release --upload-play
 ```
+
+### Google Play — prérequis (non encore réunis)
+
+> ⚠️ Au 19/08/2026 la machine de dev n'a **ni JDK ni SDK Android** : le chemin
+> `--release` n'a jamais pu être exécuté. Les scripts s'arrêtent proprement en
+> indiquant ce qui manque.
+
+| Prérequis | État | Comment |
+|---|---|---|
+| JDK 17 | ❌ absent | `brew install --cask temurin@17` |
+| SDK Android | ❌ absent | `brew install --cask android-commandlinetools` puis `sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"` |
+| Projet `android/` | ❌ absent | généré par `npx cap add android` (automatique) |
+| Keystore de release | ❌ absent | `keytool -genkeypair -v -keystore ~/.android/rekonect-release.jks -alias rekonect -keyalg RSA -keysize 2048 -validity 10000` — **à sauvegarder : sa perte interdit toute mise à jour de l'app** |
+| Compte Google Play | ❔ | 25 $ une fois + vérification d'identité |
+| Compte de service Play | ❔ | Play Console → Utilisateurs et autorisations → API d'accès |
+
+Le **premier** AAB d'une app doit être déposé à la main dans la Play Console ;
+l'API refuse de créer la fiche. Les suivants passent par `--upload-play`.
 
 ### Étape par étape
 
