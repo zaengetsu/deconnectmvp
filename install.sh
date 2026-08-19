@@ -117,8 +117,10 @@ if [ -f "$PBXPROJ" ]; then
   fi
 fi
 
-# ─── Version / build number depuis version.json ───────────────
+# ─── Réglages de livraison depuis version.json ────────────────
 apply_ios_version
+apply_ios_deployment_target
+apply_ios_privacy
 
 # Préférence Xcode "legacy build location" : les produits vont dans
 # ios/App/build. Xcode 26 refuse de nettoyer ce dossier s'il ne l'a pas

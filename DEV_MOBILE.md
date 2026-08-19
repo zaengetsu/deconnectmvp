@@ -25,19 +25,39 @@ ASC_KEY_ID=<id> ASC_ISSUER_ID=<uuid> ./build.sh ios --upload
 `build.sh` et `run.sh` lancent automatiquement `./install.sh` si `ios/` ou
 `node_modules/` manquent. Team ID surchargeable : `TEAM_ID=XXXX ./build.sh`.
 
-### Version et numéro de build
+### version.json — réglages de livraison
 
-`version.json` à la racine est la **source de vérité** :
+`ios/` et `android/` étant gitignorés (régénérables par `cap add`), tout réglage
+posé dans `project.pbxproj`, `Podfile`, `Info.plist` ou `build.gradle` est perdu
+à la régénération. `version.json` à la racine est donc la **source de vérité**,
+réinjectée à chaque build par `install.sh` / `build.sh` :
 
 ```json
-{ "version": "1.0", "build": 3 }
+{
+  "version": "1.0",
+  "build": 4,
+  "ios": {
+    "deploymentTarget": "15.0",
+    "privacy": { "NSCameraUsageDescription": "…", "NSPhotoLibraryUsageDescription": "…" }
+  }
+}
 ```
 
-`ios/` et `android/` étant gitignorés (régénérables par `cap add`), le numéro
-de build ne peut pas vivre dans `project.pbxproj` / `build.gradle` : les scripts
-l'y réinjectent à chaque build (`MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`,
-`versionName`/`versionCode`). **Incrémenter `build` avant chaque livraison** :
-App Store Connect comme Google Play refusent deux livraisons au même numéro.
+| Champ | Injecté dans |
+|---|---|
+| `version` | `MARKETING_VERSION` (Xcode), `versionName` (Gradle) |
+| `build` | `CURRENT_PROJECT_VERSION` (Xcode), `versionCode` (Gradle) |
+| `ios.deploymentTarget` | `IPHONEOS_DEPLOYMENT_TARGET` + `platform :ios` du Podfile — appliqué **avant** `cap sync`, car `pod install` fige la plateforme des Pods |
+| `ios.privacy` | clés `NS*UsageDescription` de `Info.plist` |
+
+**Incrémenter `build` avant chaque livraison** : App Store Connect comme Google
+Play refusent deux livraisons au même numéro — y compris quand la précédente a
+été rejetée au traitement, le numéro reste consommé.
+
+Sans purpose string, le traitement Apple rejette le build (erreur **90683**) dès
+que le binaire lie une API sensible — c'est le cas via `@capacitor/camera`, même
+pour les APIs que l'app n'appelle pas. Minimum iOS **15.0** : Apple l'imposera au
+printemps 2027, et les builds antérieurs remontaient l'avertissement 90068.
 
 ### Node
 

@@ -39,6 +39,42 @@ apply_ios_version() {
   echo "🏷️  Version $V (build $B) appliquée au projet Xcode"
 }
 
+# Purpose strings : le binaire lie les APIs Camera/Photos via
+# @capacitor/camera, Apple refuse alors le build sans NS*UsageDescription
+# (erreur 90683 au traitement). Info.plist étant régénérable, version.json
+# fait foi.
+apply_ios_privacy() {
+  PLIST="ios/App/App/Info.plist"
+  [ -f "$PLIST" ] || return 0
+  # une clé par ligne : le découpage sur espaces n'est pas portable
+  # (zsh ne fait pas de word splitting sur $VAR, contrairement à bash)
+  KEYS="$(node -p "Object.keys((require('./version.json').ios||{}).privacy||{}).join('\n')" 2>/dev/null)"
+  [ -n "$KEYS" ] || return 0
+  # plutil et pas PlistBuddy : ce dernier parse les quotes à l'intérieur
+  # de sa commande, une apostrophe française ("l'appareil") le fait échouer.
+  N=0
+  while IFS= read -r K; do
+    [ -n "$K" ] || continue
+    V="$(node -p "require('./version.json').ios.privacy['$K']")"
+    plutil -replace "$K" -string "$V" "$PLIST" || return 1
+    N=$((N + 1))
+  done <<EOF_KEYS
+$KEYS
+EOF_KEYS
+  echo "🔐 $N purpose strings appliquées à Info.plist"
+}
+
+# À appliquer AVANT cap sync : pod install fige la plateforme des Pods.
+apply_ios_deployment_target() {
+  T="$(node -p "(require('./version.json').ios||{}).deploymentTarget||''" 2>/dev/null)"
+  [ -n "$T" ] || return 0
+  PBX="ios/App/App.xcodeproj/project.pbxproj"
+  [ -f "$PBX" ] && sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = [^;]*;/IPHONEOS_DEPLOYMENT_TARGET = $T;/g" "$PBX"
+  POD="ios/App/Podfile"
+  [ -f "$POD" ] && sed -i '' "s/^platform :ios, '.*'/platform :ios, '$T'/" "$POD"
+  echo "📱 Deployment target iOS $T appliqué (Xcode + Podfile)"
+}
+
 apply_android_version() {
   GRADLE="android/app/build.gradle"
   V="$(read_version)"; B="$(read_build)"

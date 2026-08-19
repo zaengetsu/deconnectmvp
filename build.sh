@@ -107,11 +107,16 @@ rm -rf ios/App/Build ios/App/build
 mkdir -p ios/App/build
 xattr -w com.apple.xcode.CreatedByBuildSystem true ios/App/build 2>/dev/null || true
 
+# Deployment target avant le sync : pod install fige la plateforme des Pods
+apply_ios_deployment_target
+
 echo "🔄 Sync Capacitor iOS..."
 npx cap sync ios
 
-# Version + build number : version.json fait foi (ios/ est gitignoré)
+# Version, build number et purpose strings : version.json fait foi
+# (ios/ est gitignoré, donc régénéré sans ces réglages)
 apply_ios_version
+apply_ios_privacy
 
 if [ "$OPEN_XCODE" = 1 ]; then
   echo "🚀 Ouverture de Xcode..."

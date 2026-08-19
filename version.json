@@ -1,4 +1,12 @@
 {
   "version": "1.0",
-  "build": 3
+  "build": 4,
+  "ios": {
+    "deploymentTarget": "15.0",
+    "privacy": {
+      "NSCameraUsageDescription": "Rekonect utilise l'appareil photo pour scanner le QR code de liaison parent-enfant et photographier la preuve d'une activité réalisée.",
+      "NSPhotoLibraryUsageDescription": "Rekonect accède à vos photos pour vous permettre de choisir une image existante comme preuve d'activité.",
+      "NSPhotoLibraryAddUsageDescription": "Rekonect demande cet accès pour enregistrer une preuve d'activité dans votre galerie si vous le souhaitez."
+    }
+  }
 }
