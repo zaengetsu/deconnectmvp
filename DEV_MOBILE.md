@@ -38,7 +38,11 @@ réinjectée à chaque build par `install.sh` / `build.sh` :
   "build": 4,
   "ios": {
     "deploymentTarget": "15.0",
-    "privacy": { "NSCameraUsageDescription": "…", "NSPhotoLibraryUsageDescription": "…" }
+    "infoPlist": {
+      "NSCameraUsageDescription": "…",
+      "NSPhotoLibraryUsageDescription": "…",
+      "ITSAppUsesNonExemptEncryption": false
+    }
   }
 }
 ```
@@ -48,7 +52,7 @@ réinjectée à chaque build par `install.sh` / `build.sh` :
 | `version` | `MARKETING_VERSION` (Xcode), `versionName` (Gradle) |
 | `build` | `CURRENT_PROJECT_VERSION` (Xcode), `versionCode` (Gradle) |
 | `ios.deploymentTarget` | `IPHONEOS_DEPLOYMENT_TARGET` + `platform :ios` du Podfile — appliqué **avant** `cap sync`, car `pod install` fige la plateforme des Pods |
-| `ios.privacy` | clés `NS*UsageDescription` de `Info.plist` |
+| `ios.infoPlist` | clés d'`Info.plist`, typées automatiquement (string / booléen / entier) |
 
 **Incrémenter `build` avant chaque livraison** : App Store Connect comme Google
 Play refusent deux livraisons au même numéro — y compris quand la précédente a
@@ -58,6 +62,22 @@ Sans purpose string, le traitement Apple rejette le build (erreur **90683**) dè
 que le binaire lie une API sensible — c'est le cas via `@capacitor/camera`, même
 pour les APIs que l'app n'appelle pas. Minimum iOS **15.0** : Apple l'imposera au
 printemps 2027, et les builds antérieurs remontaient l'avertissement 90068.
+`ITSAppUsesNonExemptEncryption: false` évite le questionnaire de conformité export
+à chaque livraison : l'app n'embarque aucune crypto, seulement HTTPS/TLS système.
+
+### Suivre une livraison
+
+`xcrun altool --list-builds` n'existe plus. Interroger l'API App Store Connect
+(JWT ES256 signé avec le `.p8`) :
+
+```
+GET /v1/builds?filter[app]=6786703445&sort=-uploadedDate   → processingState
+GET /v1/builds/{id}/buildBetaDetail                        → internal/externalBuildState
+```
+
+`processingState: VALID` = traitement passé ; `IN_BETA_TESTING` = distribuable
+aux testeurs. Un build **rejeté au traitement n'apparaît jamais dans la liste**,
+et son numéro reste consommé.
 
 ### Node
 

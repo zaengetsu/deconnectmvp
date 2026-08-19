@@ -116,7 +116,7 @@ npx cap sync ios
 # Version, build number et purpose strings : version.json fait foi
 # (ios/ est gitignoré, donc régénéré sans ces réglages)
 apply_ios_version
-apply_ios_privacy
+apply_ios_info_plist
 
 if [ "$OPEN_XCODE" = 1 ]; then
   echo "🚀 Ouverture de Xcode..."

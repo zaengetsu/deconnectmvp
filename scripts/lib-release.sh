@@ -39,29 +39,37 @@ apply_ios_version() {
   echo "🏷️  Version $V (build $B) appliquée au projet Xcode"
 }
 
-# Purpose strings : le binaire lie les APIs Camera/Photos via
-# @capacitor/camera, Apple refuse alors le build sans NS*UsageDescription
-# (erreur 90683 au traitement). Info.plist étant régénérable, version.json
-# fait foi.
-apply_ios_privacy() {
+# Réglages Info.plist. Deux raisons de les tenir ici plutôt que dans
+# ios/ (régénérable) :
+#  - purpose strings : le binaire lie les APIs Camera/Photos via
+#    @capacitor/camera, Apple refuse le build sans NS*UsageDescription
+#    (erreur 90683 au traitement), même pour les APIs jamais appelées ;
+#  - ITSAppUsesNonExemptEncryption : sans elle, chaque build attend une
+#    réponse au questionnaire de conformité export avant distribution.
+apply_ios_info_plist() {
   PLIST="ios/App/App/Info.plist"
   [ -f "$PLIST" ] || return 0
   # une clé par ligne : le découpage sur espaces n'est pas portable
   # (zsh ne fait pas de word splitting sur $VAR, contrairement à bash)
-  KEYS="$(node -p "Object.keys((require('./version.json').ios||{}).privacy||{}).join('\n')" 2>/dev/null)"
+  KEYS="$(node -p "Object.keys((require('./version.json').ios||{}).infoPlist||{}).join('\n')" 2>/dev/null)"
   [ -n "$KEYS" ] || return 0
   # plutil et pas PlistBuddy : ce dernier parse les quotes à l'intérieur
   # de sa commande, une apostrophe française ("l'appareil") le fait échouer.
   N=0
   while IFS= read -r K; do
     [ -n "$K" ] || continue
-    V="$(node -p "require('./version.json').ios.privacy['$K']")"
-    plutil -replace "$K" -string "$V" "$PLIST" || return 1
+    T="$(node -p "typeof require('./version.json').ios.infoPlist['$K']")"
+    V="$(node -p "String(require('./version.json').ios.infoPlist['$K'])")"
+    case "$T" in
+      boolean) plutil -replace "$K" -bool   "$V" "$PLIST" || return 1 ;;
+      number)  plutil -replace "$K" -integer "$V" "$PLIST" || return 1 ;;
+      *)       plutil -replace "$K" -string "$V" "$PLIST" || return 1 ;;
+    esac
     N=$((N + 1))
   done <<EOF_KEYS
 $KEYS
 EOF_KEYS
-  echo "🔐 $N purpose strings appliquées à Info.plist"
+  echo "🔐 $N clés Info.plist appliquées"
 }
 
 # À appliquer AVANT cap sync : pod install fige la plateforme des Pods.

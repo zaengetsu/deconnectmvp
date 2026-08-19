@@ -120,7 +120,7 @@ fi
 # ─── Réglages de livraison depuis version.json ────────────────
 apply_ios_version
 apply_ios_deployment_target
-apply_ios_privacy
+apply_ios_info_plist
 
 # Préférence Xcode "legacy build location" : les produits vont dans
 # ios/App/build. Xcode 26 refuse de nettoyer ce dossier s'il ne l'a pas
