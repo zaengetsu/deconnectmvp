@@ -44,15 +44,27 @@ vi.mock('../lib/supabase', () => {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1', email: 'test@test.com' } } }),
         signInWithPassword: vi.fn(),
         signUp: vi.fn(),
-        signOut: vi.fn(),
+        signOut: vi.fn().mockResolvedValue({ error: null }),
+        signInAnonymously: vi.fn().mockResolvedValue({ data: { user: { id: 'anon-1', is_anonymous: true } }, error: null }),
         resetPasswordForEmail: vi.fn().mockResolvedValue({ data: {}, error: null }),
         onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
       },
       from: vi.fn().mockImplementation(mockChain),
       rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+      removeChannel: vi.fn(),
+      channel: vi.fn().mockReturnValue({ on: vi.fn().mockReturnThis(), subscribe: vi.fn().mockReturnThis() }),
       functions: {
         invoke: vi.fn().mockResolvedValue({ data: null, error: null }),
       },
     },
   };
 });
+
+// Mock Capacitor Preferences (session enfant persistée)
+vi.mock('@capacitor/preferences', () => ({
+  Preferences: {
+    set: vi.fn().mockResolvedValue(undefined),
+    get: vi.fn().mockResolvedValue({ value: null }),
+    remove: vi.fn().mockResolvedValue(undefined),
+  },
+}));

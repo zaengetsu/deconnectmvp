@@ -16,7 +16,7 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchShowDuration: 1500,
       launchAutoHide: true,
-      backgroundColor: '#F0F4FF',
+      backgroundColor: '#3C41A8', // splash Rekonect : indigo, comme la maquette
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
@@ -50,7 +50,7 @@ const config: CapacitorConfig = {
 
   // ─── Android specific ────────────────────────────────────
   android: {
-    backgroundColor: '#F0F4FF',
+    backgroundColor: '#F6F4F1',
     allowMixedContent: false,
     captureInput: true,
     webContentsDebuggingEnabled: false,
