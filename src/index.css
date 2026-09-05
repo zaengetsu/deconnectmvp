@@ -1,5 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+/* Manrope embarquée (public/fonts) : la charte s'affiche même hors ligne
+   et sans attendre Google Fonts au premier lancement. */
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/manrope-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/manrope-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/manrope-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/manrope-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 800; font-display: swap; src: url('/fonts/manrope-latin-800-normal.woff2') format('woff2'); }
 @import "tailwindcss";
+@import './styles/rekonect.css';
 
 /* ─── Ionic Core ─── */
 @import '@ionic/react/css/core.css';
@@ -18,90 +25,76 @@
    Charte visuelle : /artifacts/visual_charter.md
    ═══════════════════════════════════════════════════════════════ */
 :root {
-  /* ── CTA Green (espace enfant) ── */
-  --dc-green:        #34C759;
-  --dc-green-dark:   #28A745;
-  --dc-green-light:  #E8F8ED;
-  --dc-green-shadow: rgba(52, 199, 89, 0.35);
-
-  /* ── Blue (navigation, headers enfant) ── */
-  --dc-blue:         #1565C0;
-  --dc-blue-mid:     #1E88E5;
-  --dc-blue-light:   #E3F0FF;
-
-  /* ── Gold (points, XP, récompenses) ── */
-  --dc-gold:         #F59E0B;
-  --dc-gold-dark:    #D97706;
-  --dc-gold-light:   #FEF3C7;
-
-  /* ── Accent parent (violet sobre) ── */
-  --dc-primary:       #6C5CE7;
-  --dc-primary-light: #A29BFE;
-  --dc-primary-dark:  #4834D4;
-
-  /* ── Autres accents ── */
-  --dc-purple:       #8B5CF6;
-  --dc-purple-light: #EDE9FE;
-  --dc-orange:       #F97316;
-  --dc-orange-light: #FFF0E6;
-  --dc-pink:         #EC4899;
-  --dc-pink-light:   #FFF0F7;
-  --dc-teal:         #0EA5E9;
-  --dc-teal-light:   #E0F2FE;
-
-  /* ── Feedback ── */
-  --dc-success:      #34C759;
-  --dc-warning:      #F59E0B;
-  --dc-danger:       #EF4444;
-  --dc-danger-light: #FEF2F2;
-
-  /* ── Neutres ── */
-  --dc-bg:           #F0F4FF;
-  --dc-bg-card:      #FFFFFF;
-  --dc-text:         #1A1D2E;
-  --dc-text-light:   #6B7280;
-  --dc-text-muted:   #9CA3AF;
-  --dc-border:       #E5E7EB;
-
-  /* ── Radius ── */
-  --dc-radius-pill:  50px;
-  --dc-radius-xl:    24px;
+  /* ═══════════════════════════════════════════════════════════
+     Les jetons de marque vivent dans ./styles/rekonect.css (contrat
+     repris de la maquette : --rk-surface, --rk-text, --rk-nav…).
+     Les --dc-* ci-dessous ne sont que des alias de compatibilité.
+     ═══════════════════════════════════════════════════════════ */
+  --dc-green:        var(--rk-sage);
+  --dc-green-dark:   var(--rk-sage);
+  --dc-green-light:  var(--rk-sagesoft);
+  --dc-green-shadow: rgba(110, 158, 133, .35);
+  --dc-blue:         var(--rk-indigo);
+  --dc-blue-mid:     var(--rk-indigo);
+  --dc-blue-light:   var(--rk-indigosoft);
+  --dc-gold:         var(--rk-amber);
+  --dc-gold-dark:    var(--rk-amber);
+  --dc-gold-light:   var(--rk-ambersoft);
+  --dc-primary:       var(--rk-indigo);
+  --dc-primary-light: var(--rk-indigo);
+  --dc-primary-dark:  var(--rk-indigo);
+  --dc-purple:       #7C6BD4;
+  --dc-purple-light: #EDEAFA;
+  --dc-orange:       var(--rk-accent);
+  --dc-orange-light: var(--rk-accentsoft);
+  --dc-pink:         #E2607F;
+  --dc-pink-light:   var(--rk-raspsoft);
+  --dc-teal:         #3FA0C9;
+  --dc-teal-light:   #E4F2F8;
+  --dc-success:      var(--rk-sage);
+  --dc-warning:      var(--rk-amber);
+  --dc-danger:       var(--rk-rasp);
+  --dc-danger-light: var(--rk-raspsoft);
+  --dc-bg:           var(--rk-bg);
+  --dc-bg-card:      var(--rk-surface);
+  --dc-text:         var(--rk-text);
+  --dc-text-light:   var(--rk-text2);
+  --dc-text-muted:   var(--rk-text3);
+  --dc-border:       var(--rk-border);
+  --dc-radius-pill:  999px;
+  --dc-radius-xl:    20px;
   --dc-radius-lg:    20px;
-  --dc-radius:       16px;
+  --dc-radius:       14px;
   --dc-radius-sm:    12px;
+  --dc-shadow:       0 1px 2px rgba(22,24,43,.04), 0 8px 24px -10px rgba(22,24,43,.14);
+  --dc-shadow-md:    var(--dc-shadow);
+  --dc-shadow-lg:    0 2px 4px rgba(22,24,43,.05), 0 16px 40px -14px rgba(22,24,43,.2);
+  --cat-sport-bg:    var(--rk-accentsoft); --cat-sport-accent:    var(--rk-accent);
+  --cat-nature-bg:   var(--rk-sagesoft);   --cat-nature-accent:   var(--rk-sage);
+  --cat-creative-bg: var(--rk-accentsoft); --cat-creative-accent: var(--rk-accent);
+  --cat-family-bg:   var(--rk-raspsoft);   --cat-family-accent:   var(--rk-rasp);
+  --cat-reading-bg:  var(--rk-indigosoft); --cat-reading-accent:  var(--rk-indigo);
+  --cat-cooking-bg:  var(--rk-ambersoft);  --cat-cooking-accent:  var(--rk-amber);
 
-  /* ── Shadows ── */
-  --dc-shadow:       0 2px 12px rgba(0, 0, 0, 0.06);
-  --dc-shadow-md:    0 4px 20px rgba(0, 0, 0, 0.08);
-  --dc-shadow-lg:    0 8px 32px rgba(0, 0, 0, 0.10);
-
-  /* ── Catégories ── */
-  --cat-sport-bg:       #FFF0E6; --cat-sport-accent:    #F97316;
-  --cat-nature-bg:      #E8F8ED; --cat-nature-accent:   #34C759;
-  --cat-creative-bg:    #EDE9FE; --cat-creative-accent: #8B5CF6;
-  --cat-family-bg:      #FFF0F7; --cat-family-accent:   #EC4899;
-  --cat-reading-bg:     #E3F0FF; --cat-reading-accent:  #1565C0;
-  --cat-cooking-bg:     #FEF3C7; --cat-cooking-accent:  #F59E0B;
-
-  /* ── Ionic ── */
-  --ion-font-family:        'Nunito', system-ui, -apple-system, sans-serif;
-  --ion-background-color:   var(--dc-bg);
-  --ion-text-color:         var(--dc-text);
+  --ion-font-family:        'Manrope', system-ui, -apple-system, sans-serif;
+  --ion-background-color:   var(--rk-bg);
+  --ion-text-color:         var(--rk-text);
 }
 
-ion-content  { --background: var(--dc-bg); }
-ion-toolbar  { --background: #FFFFFF; --border-color: var(--dc-border); }
-ion-tab-bar  { --background: #FFFFFF; --border: 1px solid var(--dc-border); }
+ion-content  { --background: var(--rk-bg); }
+ion-toolbar  { --background: var(--rk-surface); --border-color: var(--rk-border); }
+
 
 /* ═══ Reset & Base ════════════════════════════════════════════ */
 * { font-family: var(--ion-font-family); box-sizing: border-box; }
-body { background: var(--dc-bg); color: var(--dc-text); }
+body { background: var(--rk-bg); color: var(--rk-text); }
 input, textarea, select { font-size: 16px !important; } /* iOS zoom prevention */
 button { touch-action: manipulation; }
 
 /* ═══ Cards ══════════════════════════════════════════════════ */
 .dc-card {
   background: var(--dc-bg-card); border-radius: var(--dc-radius-lg);
+  border: 1px solid var(--dc-border);
   box-shadow: var(--dc-shadow); padding: 16px;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
@@ -115,11 +108,11 @@ button { touch-action: manipulation; }
   transition: all 0.15s ease; white-space: nowrap;
 }
 .dc-btn:active { transform: scale(0.97); }
-.dc-btn-green  { background: var(--dc-green); color: white; box-shadow: 0 4px 16px var(--dc-green-shadow); }
-.dc-btn-green:active { background: var(--dc-green-dark); }
-.dc-btn-primary { background: var(--dc-primary); color: white; box-shadow: 0 4px 16px rgba(108,92,231,0.25); }
+.dc-btn-green  { background: var(--rk-peach); color: var(--rk-ink); box-shadow: 0 8px 20px -8px rgba(255,148,105,.7); }
+.dc-btn-green:active { background: #F58455; }
+.dc-btn-primary { background: var(--dc-primary); color: white; box-shadow: 0 8px 20px -8px rgba(60,65,168,.55); }
 .dc-btn-primary:active { background: var(--dc-primary-dark); }
-.dc-btn-outline { background: transparent; color: var(--dc-primary); border: 2px solid var(--dc-primary); }
+.dc-btn-outline { background: transparent; color: var(--rk-ink); border: 1.5px solid rgba(22,24,43,.16); }
 .dc-btn-ghost   { background: transparent; color: var(--dc-text-light); box-shadow: none; height: auto; padding: 8px 12px; }
 .dc-btn-full    { width: 100%; }
 .dc-btn-lg      { height: 56px; font-size: 16px; }
@@ -152,17 +145,17 @@ button { touch-action: manipulation; }
   width: 52px; height: 52px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 22px; font-weight: 800; color: white; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--dc-blue) 0%, var(--dc-blue-mid) 100%);
+  background: linear-gradient(135deg, var(--rk-indigo) 0%, var(--rk-indigo-mid) 100%);
 }
 .dc-avatar-sm { width: 36px; height: 36px; font-size: 15px; }
 .dc-avatar-lg { width: 68px; height: 68px; font-size: 28px; }
 
 /* ═══ XP Bar ═════════════════════════════════════════════════ */
-.dc-xp-bar  { width: 100%; height: 8px; background: rgba(255,255,255,0.25); border-radius: 8px; overflow: hidden; }
-.dc-xp-fill { height: 100%; border-radius: 8px; background: white; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+.dc-xp-bar  { width: 100%; height: 10px; background: rgba(22,24,43,.08); border-radius: var(--rk-radius-pill); overflow: hidden; }
+.dc-xp-fill { height: 100%; border-radius: var(--rk-radius-pill); background: var(--rk-peach); transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
 
 /* ═══ Misc ═══════════════════════════════════════════════════ */
-.dc-section-title { font-size: 17px; font-weight: 800; color: var(--dc-text); margin: 0 0 12px; }
+.dc-section-title { font-size: 17px; font-weight: 800; letter-spacing: -.02em; color: var(--dc-text); margin: 0 0 12px; }
 
 /* ─── Page Header (unifié) ─── */
 .dc-page-header {
@@ -174,14 +167,14 @@ button { touch-action: manipulation; }
   border-bottom: 1px solid var(--dc-border);
   margin-bottom: 0;
 }
-.dc-page-header h1 { font-size: 24px; font-weight: 900; margin: 0 0 4px; color: var(--dc-text); }
+.dc-page-header h1 { font-size: 26px; font-weight: 800; letter-spacing: -.03em; margin: 0 0 4px; color: var(--dc-text); }
 .dc-page-header p  { font-size: 13px; color: var(--dc-text-light); margin: 0; }
 .dc-page-header .dc-header-row {
   display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
 }
 /* Alias */
 .dc-standard-header { background: white; padding: calc(env(safe-area-inset-top) + 16px) 20px 16px; border-bottom: 1px solid var(--dc-border); }
-.dc-standard-header h1 { font-size: 24px; font-weight: 900; margin: 0 0 4px; color: var(--dc-text); }
+.dc-standard-header h1 { font-size: 26px; font-weight: 800; letter-spacing: -.03em; margin: 0 0 4px; color: var(--dc-text); }
 .dc-standard-header .dc-header-sub { font-size: 13px; color: var(--dc-text-light); margin: 0; }
 .dc-standard-header .dc-header-icon-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 
@@ -204,11 +197,11 @@ button { touch-action: manipulation; }
 
 .dc-btn-danger {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 0 14px; height: 36px; border-radius: var(--dc-radius-sm);
+  padding: 0 14px; height: 36px; border-radius: var(--dc-radius-pill);
   font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.15s;
-  background: rgba(239,68,68,0.08); border: none; color: var(--dc-danger);
+  background: var(--rk-raspberry-soft); border: none; color: #AE3A50;
 }
-.dc-btn-danger:active { background: rgba(239,68,68,0.18); }
+.dc-btn-danger:active { background: #F6D9DF; }
 
 /* ─── Icon button ─── */
 .dc-btn-icon {
@@ -228,8 +221,8 @@ button { touch-action: manipulation; }
   background: white; color: var(--dc-text-light);
 }
 .dc-tab-selector button.active {
-  border-color: var(--dc-primary);
-  background: rgba(108,92,231,0.07);
+  border-color: transparent;
+  background: var(--rk-indigo-soft);
   color: var(--dc-primary);
 }
 
@@ -256,60 +249,4 @@ button { touch-action: manipulation; }
 .dc-animate-in:nth-child(5) { animation-delay: 240ms; }
 .dc-animate-in:nth-child(6) { animation-delay: 300ms; }
 
-/* ═══ Tab Bar — Enfant ═══════════════════════════════════════ */
-.dc-child-tab-bar {
-  --background: #FFFFFF; --border: 1px solid rgba(0,0,0,0.07);
-  box-shadow: 0 -2px 16px rgba(0,0,0,0.06);
-  height: 60px;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-.dc-child-tab-bar ion-tab-button {
-  --color: #9CA3AF;
-  --color-selected: var(--dc-blue);
-  position: relative;
-  --background: transparent;
-  --background-focused: transparent;
-}
-.dc-child-tab-bar ion-tab-button.tab-selected {
-  background: transparent;
-}
-.dc-child-tab-bar ion-tab-button.tab-selected::after {
-  content: '';
-  position: absolute;
-  bottom: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--dc-blue);
-}
 
-/* ═══ Tab Bar — Parent ═══════════════════════════════════════ */
-.dc-tab-bar {
-  --background: #FFFFFF; --border: 1px solid rgba(0,0,0,0.07);
-  box-shadow: 0 -2px 16px rgba(0,0,0,0.06);
-  height: 60px;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-.dc-tab-bar ion-tab-button {
-  --color: #94a3b8;
-  --color-selected: var(--dc-primary);
-  position: relative;
-  --background: transparent;
-  --background-focused: transparent;
-}
-.dc-tab-bar ion-tab-button.tab-selected {
-  background: transparent;
-}
-.dc-tab-bar ion-tab-button.tab-selected::after {
-  content: '';
-  position: absolute;
-  bottom: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--dc-primary);
-}

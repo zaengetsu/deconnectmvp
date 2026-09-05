@@ -1,0 +1,155 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   REKONECT — contrat de jetons repris tel quel de la maquette.
+   Les noms (--rk-surface, --rk-text2, --rk-nav…) sont ceux du prototype :
+   le balisage des écrans peut donc être porté sans être réécrit.
+
+   Deux axes indépendants :
+     • clair / sombre        → [data-rk-dark]
+     • espace parent/enfant  → [data-rk-space="parent"|"child"]
+     • thème enfant          → [data-rk-theme="peach|ocean|mint|berry|sun|rasp"]
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --rk-bg:          #F6F4F1;
+  --rk-surface:     #FFFFFF;
+  --rk-surface2:    #F1EEE9;
+  --rk-text:        #16182B;
+  --rk-text2:       #4A4E66;
+  --rk-text3:       #8A8FA6;
+  --rk-border:      rgba(22, 24, 43, .09); --rk-track: rgba(22,24,43,.16);
+  --rk-line:        rgba(22, 24, 43, .06);
+
+  --rk-indigo:      #3C41A8;
+  --rk-indigosoft:  #EEEFFB;
+  --rk-indigofg:    #FFFFFF;
+
+  /* Thème enfant par défaut : Pêche */
+  --rk-accent:       #FF9469;
+  --rk-accentink:    #3A1D0E;
+  --rk-accentsoft:   #FFEDE4;
+  --rk-accentshadow: #FF946999;
+
+  --rk-sage:      #6E9E85;
+  --rk-sagesoft:  #E9F1EC;
+  --rk-amber:     #96681A;
+  --rk-ambersoft: #FBF0DA;
+  --rk-rasp:      #AE3A50;
+  --rk-raspsoft:  #FBE9EC;
+
+  /* Navigation : indigo côté parent, accent du thème côté enfant */
+  --rk-nav:        var(--rk-indigo);
+  --rk-navfg:      var(--rk-indigofg);
+  --rk-navshadow:  #3C41A880;
+}
+
+/* ── Espace enfant : la navigation prend la couleur du thème ─────────────── */
+[data-rk-space='child'] {
+  --rk-nav:       var(--rk-accent);
+  --rk-navfg:     var(--rk-accentink);
+  --rk-navshadow: var(--rk-accentshadow);
+}
+
+/* ── Thèmes enfant (débloqués tous les 3 niveaux) ────────────────────────── */
+[data-rk-theme='peach'] { --rk-accent:#FF9469; --rk-accentink:#3A1D0E; --rk-accentsoft:#FFEDE4; --rk-accentshadow:#FF946999; }
+[data-rk-theme='ocean'] { --rk-accent:#3FA0C9; --rk-accentink:#06222E; --rk-accentsoft:#E4F2F8; --rk-accentshadow:#3FA0C999; }
+[data-rk-theme='mint']  { --rk-accent:#5CB88F; --rk-accentink:#0B2419; --rk-accentsoft:#E7F4EE; --rk-accentshadow:#5CB88F99; }
+[data-rk-theme='berry'] { --rk-accent:#7C6BD4; --rk-accentink:#FFFFFF; --rk-accentsoft:#EDEAFA; --rk-accentshadow:#7C6BD499; }
+[data-rk-theme='sun']   { --rk-accent:#E8B33F; --rk-accentink:#2E2205; --rk-accentsoft:#FBF1DA; --rk-accentshadow:#E8B33F99; }
+[data-rk-theme='rasp']  { --rk-accent:#E2607F; --rk-accentink:#FFFFFF; --rk-accentsoft:#FCE9EE; --rk-accentshadow:#E2607F99; }
+
+/* ── Mode sombre ─────────────────────────────────────────────────────────── */
+[data-rk-dark] {
+  --rk-bg:         #12131E;
+  --rk-surface:    #1C1E2D;
+  --rk-surface2:   #23263A;
+  --rk-text:       #F2F1EE;
+  --rk-text2:      rgba(242, 241, 238, .72);
+  --rk-text3:      rgba(242, 241, 238, .46);
+  --rk-border:     rgba(255, 255, 255, .09); --rk-track: #3A3E52;
+  --rk-line:       rgba(255, 255, 255, .06);
+  --rk-indigo:     #6D73E8;
+  --rk-indigosoft: rgba(109, 115, 232, .16);
+  --rk-indigofg:   #0E0F19;
+  --rk-sage:       #7FB99B;
+  --rk-sagesoft:   rgba(127, 185, 155, .15);
+  --rk-amber:      #E9BC5B;
+  --rk-ambersoft:  rgba(233, 188, 91, .15);
+  --rk-rasp:       #E8798D;
+  --rk-raspsoft:   rgba(232, 121, 141, .15);
+  --rk-navshadow:  rgba(0, 0, 0, .6);
+}
+[data-rk-dark][data-rk-theme='peach'] { --rk-accentsoft: rgba(255,148,105,.16); --rk-accentshadow: rgba(0,0,0,.6); }
+[data-rk-dark][data-rk-theme='ocean'] { --rk-accentsoft: rgba(63,160,201,.16);  --rk-accentshadow: rgba(0,0,0,.6); }
+[data-rk-dark][data-rk-theme='mint']  { --rk-accentsoft: rgba(92,184,143,.16);  --rk-accentshadow: rgba(0,0,0,.6); }
+[data-rk-dark][data-rk-theme='berry'] { --rk-accentsoft: rgba(124,107,212,.2);  --rk-accentshadow: rgba(0,0,0,.6); }
+[data-rk-dark][data-rk-theme='sun']   { --rk-accentsoft: rgba(232,179,63,.16);  --rk-accentshadow: rgba(0,0,0,.6); }
+[data-rk-dark][data-rk-theme='rasp']  { --rk-accentsoft: rgba(226,96,127,.2);   --rk-accentshadow: rgba(0,0,0,.6); }
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
+.rk-app {
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  background: var(--rk-bg);
+  color: var(--rk-text);
+  -webkit-font-smoothing: antialiased;
+}
+.rk-app *, .rk-app *::before, .rk-app *::after { box-sizing: border-box; }
+.rk-app button {
+  font-family: inherit; cursor: pointer; border: none;
+  background: none; padding: 0; color: inherit; text-align: left;
+}
+.rk-app h1, .rk-app h2, .rk-app h3, .rk-app p { margin: 0; }
+
+/* Zone défilable sans barre visible, comme dans la maquette */
+.rk-sc { overflow-y: auto; scrollbar-width: none; }
+.rk-sc::-webkit-scrollbar { display: none; }
+
+/* ── Animations de la maquette ───────────────────────────────────────────── */
+@keyframes rk-up    { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes rk-sheet { from { transform: translateY(100%); }            to { transform: translateY(0); } }
+@keyframes rk-fade  { from { opacity: 0; }                            to { opacity: 1; } }
+
+.rk-screen { animation: rk-up .28s ease both; }
+.rk-sheet  { animation: rk-sheet .3s cubic-bezier(.2, .8, .2, 1) both; }
+.rk-scrim  { animation: rk-fade .2s ease both; }
+
+/* ── Barre d'onglets : 82px, quatre onglets et un bouton central ─────────── */
+/* La maquette (cadre 390×844) compte 82px pour la barre, zone de l'indicateur
+   d'accueil comprise : on garde 82px sur iPhone (inset 34px) et on ne grandit
+   que si l'inset est plus grand. */
+/* Sans libellés sous les pictos, la barre descend à 72px (82 dans la maquette
+   avec les libellés) ; le bouton central garde son débord de 20px au-dessus. */
+:root { --rk-tabbar-h: max(72px, calc(42px + env(safe-area-inset-bottom))); }
+.rk-tabbar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: var(--rk-tabbar-h);
+  padding: 10px 8px env(safe-area-inset-bottom);
+  background: var(--rk-surface);
+  border-top: 1px solid var(--rk-border);
+  z-index: 40;
+  display: flex; align-items: flex-start;
+}
+.rk-tab {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; gap: 5px; padding-top: 5px; position: relative; /* sans libellé : picto centré dans la zone utile */
+}
+.rk-tab span { font-size: 10px; font-weight: 700; }
+.rk-fab {
+  position: fixed;
+  bottom: calc(var(--rk-tabbar-h) - 38px);
+  left: 50%; transform: translateX(-50%);
+  width: 58px; height: 58px; border-radius: 50%;
+  z-index: 50; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 10px 24px -6px var(--rk-navshadow);
+}
+
+/* Feuille modale (bottom sheet) */
+.rk-scrim-bg {
+  position: fixed; inset: 0; background: rgba(22, 24, 43, .45);
+  z-index: 60;
+}
+.rk-sheet-panel {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 61;
+  background: var(--rk-surface);
+  border-radius: 26px 26px 0 0;
+  padding: 22px 22px calc(26px + env(safe-area-inset-bottom));
+}
