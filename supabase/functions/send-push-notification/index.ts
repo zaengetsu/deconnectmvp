@@ -60,10 +60,12 @@ async function generateApnsJwt(): Promise<string> {
 }
 
 // ── Send to a single iOS device ───────────────────────────────────────────────
-async function sendApns(token: string, title: string, body: string, data: Record<string, unknown> = {}): Promise<boolean> {
+type PushResult = { ok: boolean; invalidToken: boolean }
+
+async function sendApns(token: string, title: string, body: string, data: Record<string, unknown> = {}): Promise<PushResult> {
   if (!APNS_KEY_ID || !APNS_TEAM_ID || !APNS_PRIVATE_KEY) {
     console.warn('[APNS] Missing credentials — skipping iOS push')
-    return false
+    return { ok: false, invalidToken: false }
   }
 
   const jwt = await generateApnsJwt()
@@ -91,9 +93,14 @@ async function sendApns(token: string, title: string, body: string, data: Record
   if (!res.ok) {
     const errBody = await res.text()
     console.error('[APNS] Error:', res.status, errBody)
-    return false
+    // 410 Gone / BadDeviceToken : l'appareil a désinstallé ou changé de token
+    const invalidToken =
+      res.status === 410 ||
+      errBody.includes('BadDeviceToken') ||
+      errBody.includes('Unregistered')
+    return { ok: false, invalidToken }
   }
-  return true
+  return { ok: true, invalidToken: false }
 }
 
 // ── FCM v1: Get OAuth2 access token from Service Account ─────────────────────
@@ -151,10 +158,10 @@ async function getFcmAccessToken(serviceAccount: Record<string, string>): Promis
 }
 
 // ── Send to a single Android device (FCM v1 API) ──────────────────────────────
-async function sendFcm(token: string, title: string, body: string, data: Record<string, unknown> = {}): Promise<boolean> {
+async function sendFcm(token: string, title: string, body: string, data: Record<string, unknown> = {}): Promise<PushResult> {
   if (!FCM_SERVICE_ACCOUNT_JSON) {
     console.warn('[FCM] Missing service account — skipping Android push')
-    return false
+    return { ok: false, invalidToken: false }
   }
 
   let serviceAccount: Record<string, string>
@@ -162,13 +169,13 @@ async function sendFcm(token: string, title: string, body: string, data: Record<
     serviceAccount = JSON.parse(FCM_SERVICE_ACCOUNT_JSON)
   } catch {
     console.error('[FCM] Invalid service account JSON')
-    return false
+    return { ok: false, invalidToken: false }
   }
 
   const projectId = serviceAccount.project_id
   if (!projectId) {
     console.error('[FCM] Missing project_id in service account')
-    return false
+    return { ok: false, invalidToken: false }
   }
 
   const accessToken = await getFcmAccessToken(serviceAccount)
@@ -203,9 +210,14 @@ async function sendFcm(token: string, title: string, body: string, data: Record<
   if (!res.ok) {
     const errBody = await res.text()
     console.error('[FCM] Error:', res.status, errBody)
-    return false
+    // UNREGISTERED / token invalide : à purger de push_tokens
+    const invalidToken =
+      res.status === 404 ||
+      errBody.includes('UNREGISTERED') ||
+      errBody.includes('INVALID_ARGUMENT')
+    return { ok: false, invalidToken }
   }
-  return true
+  return { ok: true, invalidToken: false }
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -213,32 +225,84 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
-    const { user_id, title, body, data = {} } = await req.json()
-    if (!user_id || !title || !body) throw new Error('user_id, title et body sont requis')
+    const payload = await req.json()
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
-    const { data: tokens, error: tokErr } = await admin
-      .from('push_tokens')
-      .select('token, platform')
-      .eq('user_id', user_id)
+
+    // Deux modes d'appel :
+    //  • { notification_id }                        → déclenché par la base (trigger / cron)
+    //  • { recipient_type, recipient_id, title, … }  → appel direct
+    //  • { user_id, title, body, data }              → ancien format, conservé
+    let recipientType: 'parent' | 'child' | null = payload.recipient_type ?? null
+    let recipientId: string | null = payload.recipient_id ?? payload.user_id ?? null
+    let title: string = payload.title
+    let body: string = payload.body
+    let data: Record<string, unknown> = payload.data ?? {}
+    let notificationId: string | null = payload.notification_id ?? null
+
+    if (notificationId) {
+      const { data: notif, error } = await admin
+        .from('notifications')
+        .select('id, recipient_type, recipient_id, title, body, route, data, channels, status')
+        .eq('id', notificationId)
+        .single()
+
+      if (error || !notif) throw new Error('Notification introuvable')
+      if (!notif.channels?.includes('push')) {
+        return new Response(JSON.stringify({ success: true, skipped: 'push non demandé' }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        })
+      }
+
+      recipientType = notif.recipient_type
+      recipientId   = notif.recipient_id
+      title         = notif.title
+      body          = notif.body
+      // Le deep link voyage dans le payload : c'est lui qui ouvre le bon écran.
+      data = { ...(notif.data ?? {}), route: notif.route ?? '', notification_id: notif.id }
+    }
+
+    if (!recipientId || !title || !body) {
+      throw new Error('recipient_id (ou user_id), title et body sont requis')
+    }
+
+    // Un token appartient soit à un parent (user_id), soit à un enfant (child_id)
+    const query = admin.from('push_tokens').select('id, token, platform')
+    const { data: tokens, error: tokErr } = recipientType === 'child'
+      ? await query.eq('child_id', recipientId)
+      : await query.eq('user_id', recipientId)
 
     if (tokErr) throw tokErr
     if (!tokens || tokens.length === 0) {
-      console.info('[PushNotification] No tokens for user:', user_id)
-      return new Response(JSON.stringify({ success: true, sent: 0 }), {
+      console.info('[PushNotification] Aucun token pour', recipientType, recipientId)
+      return new Response(JSON.stringify({ success: true, sent: 0, total: 0 }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       })
     }
 
     let sent = 0
-    for (const { token, platform } of tokens) {
-      let ok = false
-      if (platform === 'ios') ok = await sendApns(token, title, body, data)
-      else if (platform === 'android') ok = await sendFcm(token, title, body, data)
-      if (ok) sent++
+    const staleTokenIds: string[] = []
+
+    for (const { id, token, platform } of tokens) {
+      let result: PushResult = { ok: false, invalidToken: false }
+      if (platform === 'ios') result = await sendApns(token, title, body, data)
+      else if (platform === 'android') result = await sendFcm(token, title, body, data)
+
+      if (result.ok) sent++
+      if (result.invalidToken) staleTokenIds.push(id)
     }
 
-    console.info(`[PushNotification] Sent ${sent}/${tokens.length} for user ${user_id}`)
+    // Purge des tokens morts : sans ça la table se remplit d'appareils fantômes
+    if (staleTokenIds.length > 0) {
+      await admin.from('push_tokens').delete().in('id', staleTokenIds)
+      console.info(`[PushNotification] ${staleTokenIds.length} token(s) invalide(s) supprimé(s)`)
+    }
+
+    if (notificationId && sent === 0 && tokens.length > 0) {
+      await admin.from('notifications').update({ status: 'failed' }).eq('id', notificationId)
+    }
+
+    console.info(`[PushNotification] ${sent}/${tokens.length} envoyé(s) → ${recipientType} ${recipientId}`)
     return new Response(JSON.stringify({ success: true, sent, total: tokens.length }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     })

@@ -128,6 +128,61 @@ const wrap = (content: string) => `<!DOCTYPE html>
 // ─── Templates ───────────────────────────────────────────────────────────────
 const templates: Record<string, (d: Record<string, string>) => { subject: string; html: string }> = {
 
+  // Notification importante relayée par email (5.14).
+  // Le push reste le canal principal : l'email ne part que pour les
+  // événements que la base marque explicitement avec le canal 'email'.
+  notification: (d) => ({
+    subject: d.title || 'Deconnect',
+    html: wrap(`
+      <h1>${d.title || 'Deconnect'}</h1>
+      <p>${d.body || ''}</p>
+      <hr class="divider">
+      <p class="muted">Ouvrez l'application pour voir le détail.</p>
+      <p class="muted">Vous pouvez régler ce que vous recevez dans Réglages → Notifications.</p>
+    `),
+  }),
+
+  // Récapitulatif hebdomadaire
+  weekly_report: (d) => ({
+    subject: 'Votre semaine avec Deconnect',
+    html: wrap(`
+      <h1>Votre semaine</h1>
+      <p>Bonjour${d.name ? ` ${d.name}` : ''},</p>
+      <div class="info-block">
+        <p><strong>${d.activities || '0'}</strong> activité(s) terminée(s)</p>
+        ${d.hours ? `<p><strong>${d.hours}</strong> passées hors écran</p>` : ''}
+        ${d.pending ? `<p><strong>${d.pending}</strong> récompense(s) à valider</p>` : ''}
+      </div>
+      <p>Ouvrez l'application pour voir le bilan détaillé.</p>
+    `),
+  }),
+
+  // Nouvelle connexion au compte (sécurité)
+  new_login: (d) => ({
+    subject: 'Nouvelle connexion à votre compte',
+    html: wrap(`
+      <h1>Nouvelle connexion</h1>
+      <p>Bonjour${d.name ? ` ${d.name}` : ''},</p>
+      <p>Une connexion à votre compte vient d'avoir lieu${d.device ? ` depuis ${d.device}` : ''}${d.when ? `, le ${d.when}` : ''}.</p>
+      <hr class="divider">
+      <p class="muted">Si c'était vous, il n'y a rien à faire. Sinon, changez votre mot de passe dès que possible.</p>
+    `),
+  }),
+
+  // Profil enfant créé
+  child_profile_created: (d) => ({
+    subject: `Le profil de ${d.childName || 'votre enfant'} est prêt`,
+    html: wrap(`
+      <h1>Profil créé</h1>
+      <p>Le profil de <strong>${d.childName || 'votre enfant'}</strong> est prêt.</p>
+      <div class="info-block">
+        <p>— Assignez-lui une première activité</p>
+        <p>— Définissez une récompense qui lui parle</p>
+        <p>— Reliez son appareil avec le QR code depuis sa fiche</p>
+      </div>
+    `),
+  }),
+
   // Bienvenue
   welcome: (d) => ({
     subject: 'Bienvenue sur Sortir Écran',
