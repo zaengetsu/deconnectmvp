@@ -224,24 +224,18 @@ export const activitiesService = {
   },
 
   // ─── Assign activities to a child (parent action) ─────────
+  /**
+   * Une activité est assignable autant de fois que le parent le souhaite
+   * (deux fois par semaine, à chaque enfant, à nouveau une fois réalisée…).
+   * Chaque assignation est une ligne child_activities distincte ; aucune
+   * n'est bloquée par une assignation précédente, active ou terminée.
+   */
   async assignActivitiesToChild(childId: string, activityIds: string[]): Promise<void> {
-    // Seules les assignations ACTIVES bloquent la ré-assignation
-    // (available, selected, submitted) — les activités validées peuvent être ré-assignées
-    const { data: existing } = await supabase
-      .from('child_activities')
-      .select('activity_id, status')
-      .eq('child_id', childId)
-      .in('activity_id', activityIds)
-      .in('status', ['available', 'selected', 'submitted']);
-
-    const currentlyActive = new Set((existing || []).map((r: any) => r.activity_id));
-    const toInsert = activityIds
-      .filter(id => !currentlyActive.has(id))
-      .map(activity_id => ({
-        child_id: childId,
-        activity_id,
-        status: 'available' as const,
-      }));
+    const toInsert = activityIds.map(activity_id => ({
+      child_id: childId,
+      activity_id,
+      status: 'available' as const,
+    }));
 
     if (toInsert.length === 0) return;
 

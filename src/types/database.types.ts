@@ -38,6 +38,10 @@ export interface Child extends BaseEntity {
   is_active: boolean;
   streak_days: number;
   last_activity_date: string | null;
+  /** Identité de l'appareil enfant (session anonyme liée) — migration 024. */
+  auth_user_id?: string | null;
+  /** Dernière liaison d'un appareil — migration 031. */
+  device_linked_at?: string | null;
 }
 
 export type ChildInsert = Pick<Child, 'parent_id' | 'display_name' | 'age'> & Partial<Pick<Child, 'avatar_url'>>;
@@ -74,6 +78,14 @@ export type ActivityInsert = Pick<Activity, 'title' | 'points' | 'difficulty'> &
 
 // ─── Child Activities ────────────────────────────────────────
 export interface ChildActivity extends BaseEntity {
+  /** Preuve envoyée par l'enfant — migration 004. */
+  proof_url?: string | null;
+  proof_type?: string | null;
+  /** Assignation et planification — migration 015. */
+  assigned_by?: string | null;
+  assigned_by_role?: string | null;
+  scheduled_for?: string | null;
+  expires_at?: string | null;
   child_id: string;
   activity_id: string;
   status: ActivityStatus;

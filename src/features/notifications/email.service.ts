@@ -9,7 +9,11 @@ type EmailEventType =
   | 'password_reset'
   | 'password_changed'
   | 'activity_submitted'   // parent notified when child submits
-  | 'reward_requested';    // parent notified when child requests reward
+  | 'reward_requested'     // parent notified when child requests reward
+  | 'notification'         // notification importante relayée (canal 'email' côté base)
+  | 'weekly_report'        // récapitulatif hebdomadaire
+  | 'new_login'            // sécurité : nouvelle connexion
+  | 'child_profile_created';
 
 interface SendEmailPayload {
   event_type: EmailEventType;
@@ -28,6 +32,29 @@ async function sendEmail(payload: SendEmailPayload): Promise<void> {
 }
 
 export const emailService = {
+  // ─── Sécurité & compte (5.14) ─────────────────────────────
+  async sendNewLogin(email: string, name: string, device?: string): Promise<void> {
+    await sendEmail({
+      event_type: 'new_login',
+      recipient_email: email,
+      recipient_name: name,
+      data: {
+        name,
+        device: device || '',
+        when: new Date().toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' }),
+      },
+    });
+  },
+
+  async sendChildProfileCreated(email: string, name: string, childName: string): Promise<void> {
+    await sendEmail({
+      event_type: 'child_profile_created',
+      recipient_email: email,
+      recipient_name: name,
+      data: { name, childName },
+    });
+  },
+
   // ─── Auth emails (parents) ────────────────────────────────
   async sendWelcome(email: string, name: string): Promise<void> {
     await sendEmail({ event_type: 'welcome', recipient_email: email, recipient_name: name, data: { name } });

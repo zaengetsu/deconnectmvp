@@ -28,35 +28,35 @@ export const POINTS_CONFIG = {
 } as const;
 
 export const LEVEL_NAMES: { name: string; color: string }[] = [
-  { name: 'Graine',       color: '#34C759' },
-  { name: 'Pousse',       color: '#1565C0' },
-  { name: 'Explorateur',  color: '#0EA5E9' },
-  { name: 'Aventurier',   color: '#8B5CF6' },
-  { name: 'Champion',     color: '#F59E0B' },
-  { name: 'Héros',        color: '#F97316' },
-  { name: 'Super Héros',  color: '#EC4899' },
-  { name: 'Maître',       color: '#EF4444' },
-  { name: 'Grand Maître', color: '#6C5CE7' },
-  { name: 'Légende',      color: '#1565C0' },
+  { name: 'Graine',       color: '#6E9E85' },
+  { name: 'Pousse',       color: '#3C41A8' },
+  { name: 'Explorateur',  color: '#3FA0C9' },
+  { name: 'Aventurier',   color: '#7C6BD4' },
+  { name: 'Champion',     color: '#E0A233' },
+  { name: 'Héros',        color: '#FF9469' },
+  { name: 'Super Héros',  color: '#E2607F' },
+  { name: 'Maître',       color: '#D8556B' },
+  { name: 'Grand Maître', color: '#3C41A8' },
+  { name: 'Légende',      color: '#3C41A8' },
 ];
 
 // ─── Categories — use getCategoryStyle() from ChildUIKit instead ─────────────
 export const CATEGORY_COLORS: Record<string, string> = {
-  sport:             '#F97316',
-  creativite:        '#8B5CF6',
-  nature:            '#34C759',
-  'vie-quotidienne': '#1565C0',
-  social:            '#0EA5E9',
-  lecture:           '#1565C0',
-  famille:           '#EC4899',
-  cuisine:           '#F59E0B',
+  sport:             '#FF9469',
+  creativite:        '#7C6BD4',
+  nature:            '#6E9E85',
+  'vie-quotidienne': '#3C41A8',
+  social:            '#3FA0C9',
+  lecture:           '#3C41A8',
+  famille:           '#E2607F',
+  cuisine:           '#E0A233',
 } as const;
 
 // ─── Difficulty ──────────────────────────────────────────────
 export const DIFFICULTY_CONFIG = {
-  easy:   { label: 'Facile',    color: '#22C55E', emoji: '' },
-  medium: { label: 'Moyen',     color: '#F59E0B', emoji: '' },
-  hard:   { label: 'Difficile', color: '#EF4444', emoji: '' },
+  easy:   { label: 'Facile',    color: '#6E9E85', emoji: '' },
+  medium: { label: 'Moyen',     color: '#E0A233', emoji: '' },
+  hard:   { label: 'Difficile', color: '#D8556B', emoji: '' },
 } as const;
 
 // ─── Child-friendly messages ─────────────────────────────────
@@ -77,11 +77,11 @@ export const getRandomEncouragement = (): string => {
 
 // ─── Reward Categories (brief) ───────────────────────────────
 export const REWARD_CATEGORIES: Record<string, { label: string; color: string; icon: string }> = {
-  experience:     { label: 'Expériences',              color: '#F97316', icon: 'compass' },
-  privilege:      { label: 'Privilèges',               color: '#8B5CF6', icon: 'crown' },
-  responsibility: { label: 'Responsabilités',           color: '#1565C0', icon: 'shield' },
-  symbolic:       { label: 'Symboliques',              color: '#F59E0B', icon: 'award' },
-  family:         { label: 'Moments familiaux',        color: '#EC4899', icon: 'heart' },
+  experience:     { label: 'Expériences',              color: '#FF9469', icon: 'compass' },
+  privilege:      { label: 'Privilèges',               color: '#7C6BD4', icon: 'crown' },
+  responsibility: { label: 'Responsabilités',           color: '#3C41A8', icon: 'shield' },
+  symbolic:       { label: 'Symboliques',              color: '#E0A233', icon: 'award' },
+  family:         { label: 'Moments familiaux',        color: '#E2607F', icon: 'heart' },
 } as const;
 
 // ─── Streak messages ─────────────────────────────────────────

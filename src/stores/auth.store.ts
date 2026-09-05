@@ -21,6 +21,8 @@ interface AuthState {
   resetPassword: (email: string) => Promise<void>;
   fetchProfile: (userId: string) => Promise<Profile | null>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
+  /** Relit la session Supabase et aligne le store (après une connexion faite hors du store, ex. session enfant). */
+  syncSession: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -77,7 +79,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
 
         if (session?.user) {
-          const profile = await get().fetchProfile(session.user.id);
+          // Session enfant (anonyme) : pas de profil parent — surtout pas d'auto-création
+          const profile = session.user.is_anonymous ? null : await get().fetchProfile(session.user.id);
           set({ user: session.user, session, profile, isInitialized: true, isLoading: false });
         } else {
           set({ isInitialized: true, isLoading: false });
@@ -95,7 +98,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               event === 'TOKEN_REFRESHED'
             ) {
               if (session?.user) {
-                const profile = await get().fetchProfile(session.user.id);
+                const profile = session.user.is_anonymous ? null : await get().fetchProfile(session.user.id);
                 set({ user: session.user, session, profile });
               }
             } else if (event === 'SIGNED_OUT') {
@@ -181,6 +184,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!data.user) throw new Error('Aucun utilisateur trouvé');
       const profile = await get().fetchProfile(data.user.id);
       set({ user: data.user, session: data.session, profile, isLoading: false });
+
+      // Sécurité : on prévient par email à chaque nouvelle connexion (5.14).
+      // Volontairement sans await : une erreur d'email ne doit jamais
+      // empêcher quelqu'un de se connecter.
+      if (data.user.email) {
+        emailService.sendNewLogin(
+          data.user.email,
+          profile?.full_name ?? '',
+          Capacitor.isNativePlatform() ? `l'application ${Capacitor.getPlatform()}` : 'un navigateur web',
+        ).catch(() => {});
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur de connexion';
       set({ isLoading: false, error: message });
@@ -269,7 +283,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return null;
     }
 
-    if (data) return data;
+    if (data) {
+      // Après un changement d'adresse confirmé, auth.users.email est la source
+      // de vérité : on réaligne profiles.email silencieusement.
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser?.email && authUser.email !== data.email) {
+        await supabase.from('profiles').update({ email: authUser.email }).eq('id', userId);
+        return { ...data, email: authUser.email };
+      }
+      return data;
+    }
 
     // Profile missing — auto-create
     console.warn('[AuthStore] Profile missing — auto-creating for:', userId);
@@ -307,6 +330,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, error: message });
       throw error;
     }
+  },
+
+  // ── syncSession ────────────────────────────────────────────────────
+  syncSession: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) { set({ user: null, session: null, profile: null }); return; }
+    const profile = session.user.is_anonymous ? null : await get().fetchProfile(session.user.id);
+    set({ user: session.user, session, profile });
   },
 
   // ── clearError ─────────────────────────────────────────────────────

@@ -56,8 +56,11 @@ export function usePushNotifications() {
     ).then((token) => {
       if (token) {
         const platform = Capacitor.getPlatform() as 'ios' | 'android' | 'web';
-        notificationService.savePushToken(user.id, token, platform);
-        console.info('[Push] Token saved');
+        // En mode enfant, le token appartient à l'enfant (child_id), pas au
+        // compte parent : c'est ce qui rend le push enfant routable.
+        const childId = mode === 'child' && selectedChild ? selectedChild.id : null;
+        notificationService.savePushToken(user.id, token, platform, childId);
+        console.info('[Push] Token saved', childId ? '(enfant)' : '(parent)');
       }
     });
 
@@ -65,7 +68,7 @@ export function usePushNotifications() {
       pushService.cleanup();
       pushInitializedRef.current = false;
     };
-  }, [user]);
+  }, [user, mode, selectedChild?.id]);
 
   // Realtime subscription — re-subscribe only when recipient changes
   useEffect(() => {
@@ -95,8 +98,11 @@ export function usePushNotifications() {
 
     unsubscribeRef.current = unsubscribe;
 
-    // Initial unread count
-    refreshUnread();
+    // Compteur initial, hors du corps synchrone de l'effet
+    void (async () => {
+      const count = await notificationService.getUnreadCount(recipientType, recipientId);
+      if (mounted) setUnreadCount(count);
+    })();
 
     return () => {
       mounted = false;

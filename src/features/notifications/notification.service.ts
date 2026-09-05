@@ -11,6 +11,34 @@ export interface AppNotification {
   data: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
+  // Modèle v2 (migrations 025-028)
+  type?: string | null;
+  priority?: 'critical' | 'high' | 'normal' | 'low' | null;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  status?: string | null;
+  group_key?: string | null;
+}
+
+/** Familles utilisées par le filtre du centre de notifications. */
+export type NotificationFilter = 'all' | 'unread' | 'action' | 'activity' | 'reward';
+
+const FILTER_TYPES: Record<Exclude<NotificationFilter, 'all' | 'unread'>, string[]> = {
+  action:   ['activity_validation_required', 'reward_requested', 'reward_pending'],
+  activity: ['activity_completed', 'activity_validated', 'activity_reminder', 'activity_planned', 'activity_rejected'],
+  reward:   ['reward_requested', 'reward_pending', 'reward_approved', 'reward_unlocked', 'reward_rejected'],
+};
+
+/** Une notification qui attend une action du parent se distingue visuellement. */
+export function isActionRequired(n: AppNotification): boolean {
+  return n.priority === 'high' || n.priority === 'critical'
+    || FILTER_TYPES.action.includes(n.type ?? '');
+}
+
+export function filterNotifications(list: AppNotification[], filter: NotificationFilter): AppNotification[] {
+  if (filter === 'all') return list;
+  if (filter === 'unread') return list.filter(n => !n.is_read);
+  return list.filter(n => FILTER_TYPES[filter].includes(n.type ?? ''));
 }
 
 export const notificationService = {
@@ -94,16 +122,42 @@ export const notificationService = {
   async savePushToken(
     userId: string,
     token: string,
-    platform: 'ios' | 'android' | 'web'
+    platform: 'ios' | 'android' | 'web',
+    childId?: string | null
   ): Promise<void> {
+    // Un token appartient soit à un parent, soit à un enfant — jamais aux deux.
+    // Sans child_id, aucune notification enfant ne peut être routée vers le
+    // bon appareil (cf. migration 024).
     const { error } = await supabase
       .from('push_tokens')
       .upsert(
-        { user_id: userId, token, platform, updated_at: new Date().toISOString() },
+        {
+          user_id: childId ? null : userId,
+          child_id: childId ?? null,
+          token,
+          platform,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: 'token' }
       );
 
     if (error) console.error('[NotificationService] Failed to save push token:', error);
+  },
+
+  // ─── Suppression (5.13) ────────────────────────────────
+  async deleteNotification(notificationId: string): Promise<void> {
+    const { error } = await supabase.from('notifications').delete().eq('id', notificationId);
+    if (error) console.error('[NotificationService] delete failed:', error);
+  },
+
+  async deleteAllRead(recipientType: 'parent' | 'child', recipientId: string): Promise<void> {
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('recipient_type', recipientType)
+      .eq('recipient_id', recipientId)
+      .eq('is_read', true);
+    if (error) console.error('[NotificationService] deleteAllRead failed:', error);
   },
 
   // ─── Real-time subscription ────────────────────────────
@@ -112,8 +166,9 @@ export const notificationService = {
     recipientId: string,
     onNewNotification: (notification: AppNotification) => void
   ) {
+    const channelName = `notifications:${recipientType}:${recipientId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const channel = supabase
-      .channel(`notifications:${recipientType}:${recipientId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
