@@ -3,271 +3,326 @@ import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { rewardsService } from '../../features/rewards/rewards.service';
-import { notificationService } from '../../features/notifications/notification.service';
 import { REWARD_CATEGORIES } from '../../lib/constants';
-import { Gift, Plus, CheckCircle, Compass, Crown, Shield, Award, Heart, Trash2 } from 'lucide-react';
+import RkSearch from '../../components/rk/RkSearch';
+import RkTile from '../../components/rk/RkTile';
+import { useSwipe, stepSection } from '../../hooks/useSwipe';
+import { matches } from '../../lib/search';
 import type { Reward, RewardRequest } from '../../types/database.types';
 
-// Map category icon names to Lucide components
-const CATEGORY_ICONS: Record<string, React.FC<any>> = {
-  compass: Compass, crown: Crown, shield: Shield, award: Award, heart: Heart,
+/** Récompenses parent — porté de la maquette Rekonect (écran pRewards). */
+
+const CATEGORY_TINT: Record<string, string> = {
+  experience: 'var(--rk-sagesoft)',
+  privilege: 'var(--rk-indigosoft)',
+  responsibility: 'var(--rk-indigosoft)',
+  symbolic: 'var(--rk-ambersoft)',
+  family: 'var(--rk-raspsoft)',
 };
 
-type Tab = 'mine' | 'catalog';
+const timeAgo = (iso?: string | null) => {
+  if (!iso) return '';
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 60) return `il y a ${Math.max(1, m)} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `il y a ${h} h`;
+  return `il y a ${Math.floor(h / 24)} j`;
+};
 
 const ParentRewardsPage: React.FC = () => {
   const history = useHistory();
   const { user } = useAuthStore();
-  const [tab, setTab] = useState<Tab>('mine');
+  const [tab, setTab] = useState<'mine' | 'catalog'>('mine');
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [requests, setRequests] = useState<RewardRequest[]>([]);
   const [catalog, setCatalog] = useState<Reward[]>([]);
   const [activating, setActivating] = useState<string | null>(null);
   const [activated, setActivated] = useState<Set<string>>(new Set());
-
-  const load = async (userId: string) => {
-    const [r, req] = await Promise.all([
-      rewardsService.getRewards(userId),
-      rewardsService.getPendingRewardRequests(userId),
-    ]);
-    setRewards(r); setRequests(req);
-    setActivated(new Set(r.map(rw => rw.title)));
-  };
-
-  const loadCatalog = async () => {
-    const c = await rewardsService.getCatalogRewards();
-    setCatalog(c);
-  };
+  const [processing, setProcessing] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const fetchAll = () => {
     if (!user) return;
-    load(user.id).catch(() => {});
-    loadCatalog().catch(() => {});
+    Promise.all([
+      rewardsService.getRewards(user.id),
+      rewardsService.getPendingRewardRequests(user.id),
+    ]).then(([r, req]) => {
+      setRewards(r);
+      setRequests(req);
+      setActivated(new Set(r.map(rw => rw.title)));
+    }).catch(() => {});
+    rewardsService.getCatalogRewards().then(setCatalog).catch(() => {});
   };
 
   useIonViewWillEnter(fetchAll);
 
-  const handleApprove = async (req: RewardRequest) => {
+  const approve = async (req: RewardRequest) => {
     if (!user) return;
-    await rewardsService.approveRewardRequest(req.id, user.id);
-    if (req.child?.id) {
-      notificationService.createNotification(
-        'child', req.child.id,
-        'Récompense accordée',
-        `"${req.reward?.title}" t'a été accordée !`,
-        'gift', '/child/rewards',
-        { type: 'reward_approved', reward_id: req.id }
-      ).catch(() => {});
-    }
-    load(user.id);
+    setProcessing(req.id);
+    try { await rewardsService.approveRewardRequest(req.id, user.id); fetchAll(); }
+    catch (e) { console.error('[pRewards] approve:', e); }
+    finally { setProcessing(null); }
   };
 
-  const handleReject = async (req: RewardRequest) => {
+  const decline = async (req: RewardRequest) => {
     if (!user) return;
-    await rewardsService.rejectRewardRequest(req.id, user.id);
-    if (req.child?.id) {
-      notificationService.createNotification(
-        'child', req.child.id,
-        'Récompense non accordée',
-        `"${req.reward?.title}" n'est pas encore disponible. Continue à gagner des points !`,
-        'info', '/child/points',
-        { type: 'reward_rejected', reward_id: req.id }
-      ).catch(() => {});
-    }
-    load(user.id);
+    setProcessing(req.id);
+    try { await rewardsService.rejectRewardRequest(req.id, user.id); fetchAll(); }
+    catch (e) { console.error('[pRewards] reject:', e); }
+    finally { setProcessing(null); }
   };
 
-  const handleActivate = async (catalogReward: Reward) => {
+  const activate = async (item: Reward) => {
     if (!user) return;
-    setActivating(catalogReward.id);
+    setActivating(item.id);
     try {
-      await rewardsService.activateCatalogReward(user.id, catalogReward);
-      setActivated(prev => new Set([...prev, catalogReward.title]));
-      load(user.id);
-    } catch (e) { console.error(e); }
-    setActivating(null);
+      await rewardsService.activateCatalogReward(user.id, item);
+      setActivated(prev => new Set([...prev, item.title]));
+      fetchAll();
+    } catch (e) { console.error('[pRewards] activate:', e); }
+    finally { setActivating(null); }
   };
 
-  const handleDelete = async (rewardId: string) => {
-    if (!user) return;
-    try {
-      await rewardsService.deleteReward(rewardId);
-      load(user.id);
-    } catch (e) { console.error(e); }
-  };
+  const eyebrow = (color = 'var(--rk-text3)'): React.CSSProperties => ({
+    fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color, marginBottom: 12,
+  });
 
-  const iconBox: React.CSSProperties = {
-    width: 38, height: 38, borderRadius: 10,
-    background: 'rgba(108,92,231,0.08)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  };
+  const SECTIONS = ['mine', 'catalog'] as const;
+  const swipe = useSwipe({
+    onLeft:  () => stepSection(SECTIONS, tab, 1, setTab),
+    onRight: () => stepSection(SECTIONS, tab, -1, setTab),
+  });
 
-  // Group catalog by category
-  const catalogByCategory = Object.entries(REWARD_CATEGORIES).map(([key, meta]) => ({
-    key,
-    ...meta,
-    items: catalog.filter(r => r.reward_category === key),
+  const catalogFiltered = catalog.filter(c => matches(query, c.title, c.description));
+  const mineFiltered = rewards.filter(r => matches(query, r.title, r.description));
+
+  const byCategory = Object.entries(REWARD_CATEGORIES).map(([key, meta]) => ({
+    key, meta, items: catalogFiltered.filter(c => (c.reward_type === 'catalog') && (c as Reward & { category?: string }).category === key),
   })).filter(g => g.items.length > 0);
+
+  const catalogGroups = byCategory.length > 0
+    ? byCategory
+    : catalogFiltered.length > 0
+      ? [{ key: 'all', meta: { label: 'Idées', color: '#FF9469', icon: 'compass' }, items: catalogFiltered }]
+      : [];
 
   return (
     <IonPage><IonContent fullscreen>
-      <div className="dc-page-header">
-        <div className="dc-header-row">
-          <img src="/images/menu/gift.png" alt="récompenses" style={{ width: 26, height: 26, objectFit: 'contain' }} />
-          <h1>Récompenses</h1>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }} {...swipe}>
+
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 18px',
+          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
+        }}>
+          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+            Récompenses
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 14px' }}>
+            Ce que les points permettent d'obtenir
+          </p>
+          <div style={{ display: 'flex', gap: 5, background: 'var(--rk-surface2)', padding: 4, borderRadius: 13 }}>
+            <button onClick={() => setTab('mine')} style={{
+              flex: 1, height: 36, borderRadius: 10, fontSize: 13, fontWeight: 700, textAlign: 'center',
+              background: tab === 'mine' ? 'var(--rk-surface)' : 'transparent',
+              color: tab === 'mine' ? 'var(--rk-text)' : 'var(--rk-text3)',
+            }}>Les miennes · {rewards.length}</button>
+            <button onClick={() => setTab('catalog')} style={{
+              flex: 1, height: 36, borderRadius: 10, fontSize: 13, fontWeight: 700, textAlign: 'center',
+              background: tab === 'catalog' ? 'var(--rk-surface)' : 'transparent',
+              color: tab === 'catalog' ? 'var(--rk-text)' : 'var(--rk-text3)',
+            }}>Idées</button>
+          </div>
+          <RkSearch
+            value={query}
+            onChange={setQuery}
+            placeholder={tab === 'mine' ? 'Rechercher dans mes récompenses' : 'Rechercher une idée'}
+            style={{ marginTop: 12 }}
+          />
         </div>
-        <p>Gérez et choisissez les récompenses</p>
-      </div>
 
-      <div style={{ padding: '20px 20px 100px' }}>
+        {/* ── Les miennes ─────────────────────────────────────── */}
+        {tab === 'mine' && (
+          <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 22 }}>
 
-        <div className="dc-tab-selector">
-          {([['mine', 'Mes récompenses'], ['catalog', 'Catalogue']] as const).map(([t, label]) => (
-            <button key={t} onClick={() => setTab(t)} className={tab === t ? 'active' : ''}>
-              {label}
+            {requests.length > 0 && (
+              <div>
+                <div style={eyebrow('var(--rk-amber)')}>
+                  DEMANDE{requests.length > 1 ? 'S' : ''} EN ATTENTE
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {requests.map(req => {
+                    const isImg = req.child?.avatar_url?.startsWith('/images/avatars/');
+                    return (
+                      <div key={req.id} style={{
+                        background: 'var(--rk-surface)', border: '1.5px solid var(--rk-amber)',
+                        borderRadius: 20, padding: 16,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                          {isImg ? (
+                            <img src={req.child!.avatar_url!} alt="" style={{
+                              width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, background: '#EDE7FF',
+                            }} />
+                          ) : (
+                            <div style={{
+                              width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: '#EDE7FF',
+                              color: 'var(--rk-indigo)', display: 'flex', alignItems: 'center',
+                              justifyContent: 'center', fontSize: 15, fontWeight: 800,
+                            }}>{req.child?.display_name?.[0]?.toUpperCase() ?? '?'}</div>
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--rk-text)' }}>
+                              {req.reward?.title}
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>
+                              {req.child?.display_name} · {req.reward?.required_points} pts · {timeAgo(req.requested_at)}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => approve(req)} disabled={processing === req.id} style={{
+                            flex: 1, height: 44, borderRadius: 999, background: 'var(--rk-indigo)',
+                            color: 'var(--rk-indigofg)', fontSize: 14, fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            opacity: processing === req.id ? .6 : 1,
+                          }}>Accorder</button>
+                          <button onClick={() => decline(req)} disabled={processing === req.id} style={{
+                            width: 100, height: 44, borderRadius: 999, border: '1.5px solid var(--rk-border)',
+                            color: 'var(--rk-text)', fontSize: 14, fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>Refuser</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <div style={eyebrow()}>RÉCOMPENSES ACTIVES</div>
+              {mineFiltered.length === 0 ? (
+                <div style={{
+                  background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+                  borderRadius: 20, padding: '26px 18px', textAlign: 'center',
+                  fontSize: 14, color: 'var(--rk-text3)', lineHeight: 1.5,
+                }}>
+                  {query
+                    ? `Aucune récompense ne correspond à « ${query} ».`
+                    : "Aucune récompense pour l'instant. Piochez dans les idées, c'est le plus rapide."}
+                </div>
+              ) : (
+                <div style={{
+                  background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+                  borderRadius: 20, overflow: 'hidden',
+                }}>
+                  {mineFiltered.map((r, i) => {
+                    const cat = (r as Reward & { category?: string }).category;
+                    return (
+                      <div key={r.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 12, padding: '15px 16px',
+                        borderBottom: i === mineFiltered.length - 1 ? 'none' : '1px solid var(--rk-line)',
+                      }}>
+                        <RkTile img="/images/menu/gift.png" size={36} radius={11}
+                          tint={CATEGORY_TINT[cat ?? ''] ?? 'var(--rk-accentsoft)'} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>{r.title}</div>
+                          <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>
+                            {REWARD_CATEGORIES[cat ?? '']?.label ?? r.description ?? 'Récompense'}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--rk-text)', flexShrink: 0 }}>
+                          {r.required_points}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <button onClick={() => history.push('/parent/create-reward')} style={{
+              width: '100%', height: 52, borderRadius: 999, border: '1.5px dashed var(--rk-border)',
+              color: 'var(--rk-text2)', fontSize: 14, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+            }}>
+              <span style={{ fontSize: 19, lineHeight: 1 }}>+</span> Créer une récompense
             </button>
-          ))}
-        </div>
+          </div>
+        )}
 
-        {/* ═══ TAB: Mes récompenses ═══ */}
-        {tab === 'mine' && (<>
-          <button className="dc-btn dc-btn-primary dc-btn-full"
-            style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-            onClick={() => history.push('/parent/create-reward')}>
-            <Plus size={16} strokeWidth={2.5} />
-            Créer une récompense
-          </button>
+        {/* ── Idées ───────────────────────────────────────────── */}
+        {tab === 'catalog' && (
+          <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <p style={{ fontSize: 13, color: 'var(--rk-text2)', margin: 0, lineHeight: 1.6 }}>
+              Des idées classées par nature. Les récompenses immatérielles marchent mieux que les objets :
+              elles se répètent sans coût.
+            </p>
 
-          {/* Pending requests */}
-          {requests.length > 0 && (<>
-            <h3 className="dc-section-title">Demandes en attente ({requests.length})</h3>
-            {requests.map(req => (
-              <div key={req.id} className="dc-card" style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                  <div style={iconBox}>
-                    <Gift size={18} color="var(--dc-primary)" strokeWidth={1.8} />
+            {catalogGroups.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--rk-text3)', fontSize: 13 }}>
+                Aucune idée ne correspond{query ? ` à « ${query} »` : ''}.
+              </div>
+            )}
+            {catalogGroups.map(group => (
+              <div key={group.key}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 11 }}>
+                  <RkTile img="/images/menu/gift.png" size={30} radius={10}
+                    tint={CATEGORY_TINT[group.key] ?? 'var(--rk-accentsoft)'} />
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--rk-text)', letterSpacing: '-.01em' }}>
+                    {group.meta.label}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700 }}>{req.reward?.title}</div>
-                    <div style={{ fontSize: 13, color: 'var(--dc-text-light)' }}>
-                      {req.child?.display_name} · {req.reward?.required_points} pts
-                    </div>
+                  <div style={{ fontSize: 11, color: 'var(--rk-text3)', fontWeight: 600 }}>
+                    {group.items.length} idée{group.items.length > 1 ? 's' : ''}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="dc-btn dc-btn-primary" style={{ flex: 1, padding: '10px' }}
-                    onClick={() => handleApprove(req)}>Approuver</button>
-                  <button className="dc-btn dc-btn-outline" style={{ flex: 1, padding: '10px' }}
-                    onClick={() => handleReject(req)}>Refuser</button>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {group.items.map(item => {
+                    const already = activated.has(item.title);
+                    return (
+                      <div key={item.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 12, background: 'var(--rk-surface)',
+                        border: '1px solid var(--rk-border)', borderRadius: 16, padding: '13px 15px',
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            {item.title}
+                            {already && (
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
+                                background: 'var(--rk-sagesoft)', color: 'var(--rk-sage)',
+                              }}>déjà active</span>
+                            )}
+                          </div>
+                          {item.description && (
+                            <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>{item.description}</div>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--rk-text)', flexShrink: 0 }}>
+                          {item.required_points}
+                        </div>
+                        {/* Toujours ré-ajoutable : une même idée peut servir à plusieurs enfants
+                            ou être proposée à nouveau. */}
+                        <button
+                          onClick={() => activate(item)}
+                          disabled={activating === item.id}
+                          style={{
+                            height: 32, padding: '0 13px', borderRadius: 999, flexShrink: 0,
+                            fontSize: 12, fontWeight: 700,
+                            background: 'var(--rk-indigosoft)', color: 'var(--rk-indigo)',
+                            display: 'flex', alignItems: 'center',
+                          }}
+                        >
+                          {activating === item.id ? '…' : already ? 'Ajouter encore' : 'Ajouter'}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
-          </>)}
-
-          {/* Rewards list */}
-          <h3 className="dc-section-title">Récompenses créées ({rewards.length})</h3>
-          {rewards.length === 0 ? (
-            <div className="dc-card" style={{ textAlign: 'center', padding: 32 }}>
-              <div style={{ ...iconBox, margin: '0 auto 12px', width: 48, height: 48, borderRadius: 14 }}>
-                <Gift size={22} color="var(--dc-text-muted)" strokeWidth={1.5} />
-              </div>
-              <p style={{ color: 'var(--dc-text-light)', margin: 0 }}>
-                Créez votre première récompense ou parcourez le catalogue
-              </p>
-            </div>
-          ) : rewards.map(r => (
-            <div key={r.id} className="dc-card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-              <div style={iconBox}>
-                <img src="/images/menu/gift.png" alt="récompense" style={{ width: 18, height: 18, objectFit: 'contain' }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700 }}>{r.title}</div>
-                {r.description && <div style={{ fontSize: 13, color: 'var(--dc-text-light)' }}>{r.description}</div>}
-              </div>
-              <div className="dc-badge-pill" style={{ background: 'rgba(108,92,231,0.1)', color: 'var(--dc-primary)' }}>
-                {r.required_points} pts
-              </div>
-              <button className="dc-btn-danger" onClick={() => handleDelete(r.id)}>
-                <Trash2 size={14} strokeWidth={2} />
-              </button>
-            </div>
-          ))}
-        </>)}
-
-        {/* ═══ TAB: Catalogue ═══ */}
-        {tab === 'catalog' && (<>
-          <p style={{ fontSize: 14, color: 'var(--dc-text-light)', marginBottom: 20, lineHeight: 1.6 }}>
-            Parcourez les récompenses suggérées par catégorie. Ajoutez celles qui conviennent à votre famille.
-          </p>
-
-          {catalogByCategory.map(({ key, label, color, icon, items }) => {
-            const IconCmp = CATEGORY_ICONS[icon] || Gift;
-            return (
-              <div key={key} style={{ marginBottom: 28 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    background: `${color}15`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <IconCmp size={18} color={color} strokeWidth={1.8} />
-                  </div>
-                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--dc-text)' }}>
-                    {label}
-                  </h3>
-                  <span style={{ fontSize: 12, color: 'var(--dc-text-muted)', fontWeight: 500 }}>
-                    {items.length} idées
-                  </span>
-                </div>
-
-                {items.map(r => {
-                  const isAdded = activated.has(r.title);
-                  return (
-                    <div key={r.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '12px 14px', background: 'white', borderRadius: 12,
-                      border: '1px solid var(--dc-border)', marginBottom: 6,
-                    }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{r.title}</div>
-                        {r.description && (
-                          <div style={{ fontSize: 12, color: 'var(--dc-text-light)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {r.description}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color, flexShrink: 0 }}>
-                        {r.required_points} pts
-                      </div>
-                      {isAdded ? (
-                        <div style={{
-                          display: 'flex', alignItems: 'center', gap: 4,
-                          fontSize: 12, fontWeight: 600, color: 'var(--dc-green)',
-                          flexShrink: 0,
-                        }}>
-                          <CheckCircle size={14} strokeWidth={2} /> Ajouté
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleActivate(r)}
-                          disabled={activating === r.id}
-                          style={{
-                            background: `${color}12`, border: `1.5px solid ${color}40`,
-                            borderRadius: 8, padding: '6px 12px',
-                            fontSize: 12, fontWeight: 700, color,
-                            cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s',
-                          }}
-                        >
-                          {activating === r.id ? '...' : '+ Ajouter'}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </>)}
+          </div>
+        )}
       </div>
     </IonContent></IonPage>
   );

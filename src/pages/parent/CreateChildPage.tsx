@@ -1,40 +1,31 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useRkBack } from '../../hooks/useRkBack';
+import React, { useRef, useState } from 'react';
+import { MIN_CHILD_AGE, MAX_CHILD_AGE } from '../../lib/constants';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { childrenService } from '../../features/children/children.service';
+import { emailService } from '../../features/notifications/email.service';
 
-const AVATAR_COLORS: string[] = [
-  '#1565C0', '#34C759', '#F59E0B', '#8B5CF6',
-  '#EC4899', '#F97316', '#0EA5E9', '#EF4444',
-];
+/** Ajouter un enfant — porté de la maquette Rekonect (écran pNewKid). */
+
+const AGES = Array.from({ length: MAX_CHILD_AGE - MIN_CHILD_AGE + 1 }, (_, i) => i + MIN_CHILD_AGE); // 7 → 18, aligné sur childSchema
+const AVATARS = Array.from({ length: 14 }, (_, i) => `/images/avatars/avatar_${String(i + 1).padStart(2, '0')}.png`);
 
 const CreateChildPage: React.FC = () => {
+  const { user, profile } = useAuthStore();
   const history = useHistory();
-  const { user } = useAuthStore();
+  const back = useRkBack('/parent/children');
   const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
+  const [displayName, setDisplayName] = useState('');
+  const [age, setAge] = useState(9);
+  const [avatar, setAvatar] = useState(AVATARS[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState('');
-  const [age, setAge] = useState(10);
-  const [selectedColor, setSelectedColor] = useState(AVATAR_COLORS[0]);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validation front-end
-    if (!displayName.trim()) { setError('Le prénom est requis'); return; }
-    if (displayName.trim().length < 2) { setError('Le prénom doit contenir au moins 2 caractères'); return; }
-
-    if (!user) {
-      const msg = 'Session introuvable — veuillez vous reconnecter';
-      setError(msg);
-      alert(msg);
-      return;
-    }
-
+  const submit = async () => {
+    if (!user || !displayName.trim()) return;
     setLoading(true);
     setError(null);
     try {
@@ -42,129 +33,126 @@ const CreateChildPage: React.FC = () => {
         parent_id: user.id,
         display_name: displayName.trim(),
         age,
-        avatar_url: selectedColor,
+        avatar_url: avatar,
       });
+
+      // Événement important côté parent : email en plus de l'in-app (5.14)
+      if (profile?.email) {
+        emailService.sendChildProfileCreated(profile.email, profile.full_name ?? '', displayName.trim());
+      }
+
       if (mounted.current) history.replace('/parent/children');
-    } catch (e: any) {
-      const msg = e?.message || 'Erreur inconnue';
-      const code = e?.code ? ` [${e.code}]` : '';
-      const detail = e?.details ? ` — ${e.details}` : '';
-      const hint = e?.hint ? ` (${e.hint})` : '';
-      const fullMsg = `ERREUR: ${msg}${code}${detail}${hint}`;
-      alert(fullMsg); // Alert natif iOS — toujours visible
-      if (mounted.current) setError(fullMsg);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur inconnue');
     } finally {
-      if (mounted.current) setLoading(false);
+      setLoading(false);
     }
   };
 
-  const inp: React.CSSProperties = {
-    width: '100%', padding: '14px 16px', borderRadius: 12,
-    border: '2px solid var(--dc-border)', fontSize: 15,
-    background: 'white', outline: 'none', boxSizing: 'border-box',
-    fontFamily: 'var(--dc-font)', color: 'var(--dc-text)',
+  const label: React.CSSProperties = {
+    fontSize: 12, fontWeight: 700, color: 'var(--rk-text2)', marginBottom: 7,
   };
 
   return (
-    <IonPage>
-      <IonContent fullscreen>
-        <div style={{ minHeight: '100vh', background: 'var(--dc-bg)', padding: '0 0 100px' }}>
-          {/* Header */}
-          <div style={{
-            background: 'linear-gradient(135deg, var(--dc-primary) 0%, var(--dc-primary-light) 100%)',
-            padding: '60px 24px 32px', color: 'white', marginBottom: 24,
-          }}>
-            <button onClick={() => history.goBack()} style={{
-              background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12,
-              padding: '8px 16px', color: 'white', fontSize: 14, cursor: 'pointer', marginBottom: 16,
-            }}>← Retour</button>
-            <h1 style={{ fontSize: 26, fontWeight: 900, margin: 0 }}>Nouveau profil</h1>
-            <p style={{ opacity: 0.85, fontSize: 14, margin: '4px 0 0' }}>Créez un espace pour votre enfant</p>
-          </div>
+    <IonPage><IonContent fullscreen>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-          <div style={{ padding: '0 24px' }}>
-            {/* Avatar preview */}
-            <div style={{ marginBottom: 28 }}>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--dc-text)' }}>
-                Couleur du profil
-              </label>
-              <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <div style={{
-                  width: 80, height: 80, borderRadius: '50%', background: selectedColor,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)', fontSize: 28, fontWeight: 900, color: 'white',
-                }}>
-                  {displayName.trim() ? displayName.trim()[0].toUpperCase() : '?'}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-                {AVATAR_COLORS.map(color => (
-                  <button key={color} type="button" onClick={() => setSelectedColor(color)} style={{
-                    width: 44, height: 44, borderRadius: '50%', background: color,
-                    border: `3px solid ${selectedColor === color ? '#111' : 'transparent'}`,
-                    cursor: 'pointer', transform: selectedColor === color ? 'scale(1.15)' : 'scale(1)',
-                    transition: 'all 0.2s',
-                  }} />
-                ))}
-              </div>
-            </div>
-
-            <form onSubmit={onSubmit}>
-              {/* Name */}
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 8, color: 'var(--dc-text)' }}>
-                  Prénom ou pseudo *
-                </label>
-                <input
-                  value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
-                  placeholder="Ex : Lucas, Zoé..."
-                  style={inp}
-                />
-              </div>
-
-              {/* Age */}
-              <div style={{ marginBottom: 28 }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 8, color: 'var(--dc-text)' }}>
-                  Âge <span style={{ color: 'var(--dc-text-muted)', fontWeight: 400 }}>(7–18 ans)</span>
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
-                  {[7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map(a => (
-                    <button key={a} type="button" onClick={() => setAge(a)} style={{
-                      padding: '11px 0', borderRadius: 12, fontSize: 15, fontWeight: 700,
-                      border: `2px solid ${age === a ? 'var(--dc-primary)' : 'var(--dc-border)'}`,
-                      background: age === a ? 'var(--dc-primary)' : 'white',
-                      color: age === a ? 'white' : 'var(--dc-text)',
-                      cursor: 'pointer', transition: 'all 0.2s',
-                    }}>
-                      {a}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Error */}
-              {error && (
-                <div style={{
-                  background: '#FEE2E2', color: '#DC2626', padding: '12px 16px',
-                  borderRadius: 12, marginBottom: 16, fontSize: 13, wordBreak: 'break-all',
-                }}>
-                  {error}
-                </div>
-              )}
-
-              <button type="submit" disabled={loading} style={{
-                width: '100%', padding: '16px', borderRadius: 16, fontSize: 16, fontWeight: 800,
-                background: loading ? '#ccc' : 'linear-gradient(135deg, var(--dc-primary), var(--dc-primary-light))',
-                color: 'white', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-              }}>
-                {loading ? 'Création...' : 'Créer le profil'}
-              </button>
-            </form>
-          </div>
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
+          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
+        }}>
+          <button onClick={() => back()} style={{
+            fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
+          }}>← Enfants</button>
+          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+            Ajouter un enfant
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>
+            Vous pourrez lier son appareil ensuite
+          </p>
         </div>
-      </IonContent>
-    </IonPage>
+
+        <div style={{ padding: '20px 22px 140px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+          <div>
+            <div style={label}>Prénom</div>
+            <input
+              value={displayName}
+              onChange={e => setDisplayName(e.target.value)}
+              placeholder="Son prénom"
+              style={{
+                width: '100%', height: 50, borderRadius: 14,
+                border: `1.5px solid ${displayName ? 'var(--rk-accent)' : 'var(--rk-border)'}`,
+                background: 'var(--rk-surface)', padding: '0 15px',
+                fontSize: 15, fontWeight: 600, fontFamily: 'inherit', color: 'var(--rk-text)',
+              }}
+            />
+          </div>
+
+          <div>
+            <div style={label}>Âge</div>
+            <div className="rk-sc" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+              {AGES.map(a => {
+                const on = a === age;
+                return (
+                  <button key={a} onClick={() => setAge(a)} style={{
+                    width: 46, height: 46, borderRadius: 14, flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 15, fontWeight: on ? 800 : 700,
+                    background: on ? 'var(--rk-indigo)' : 'var(--rk-surface)',
+                    border: on ? 'none' : '1px solid var(--rk-border)',
+                    color: on ? 'var(--rk-indigofg)' : 'var(--rk-text3)',
+                  }}>{a}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ ...label, marginBottom: 9 }}>Avatar</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 9 }}>
+              {AVATARS.map(src => {
+                const on = avatar === src;
+                return (
+                  <button key={src} onClick={() => setAvatar(src)} style={{
+                    borderRadius: 16, padding: 5,
+                    background: on ? 'var(--rk-accentsoft)' : 'var(--rk-surface2)',
+                    border: `2.5px solid ${on ? 'var(--rk-accent)' : 'transparent'}`,
+                  }}>
+                    <img src={src} alt="" style={{
+                      width: '100%', aspectRatio: '1', borderRadius: 12,
+                      objectFit: 'cover', display: 'block', background: '#EDE7FF',
+                    }} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {error && (
+            <div style={{
+              background: 'var(--rk-raspsoft)', borderRadius: 16, padding: '14px 15px',
+              fontSize: 12, color: 'var(--rk-rasp)', lineHeight: 1.55,
+            }}>{error}</div>
+          )}
+
+          <button
+            onClick={submit}
+            disabled={loading || !displayName.trim()}
+            style={{
+              width: '100%', height: 52, borderRadius: 999,
+              background: displayName.trim() ? 'var(--rk-indigo)' : 'var(--rk-surface2)',
+              color: displayName.trim() ? 'var(--rk-indigofg)' : 'var(--rk-text3)',
+              fontSize: 15, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: loading ? .6 : 1,
+            }}
+          >
+            {loading ? 'Création…' : 'Créer le profil'}
+          </button>
+        </div>
+      </div>
+    </IonContent></IonPage>
   );
 };
 

@@ -1,256 +1,215 @@
-import React, { useEffect, useState } from 'react';
-import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
+import { useRkBack } from '../../hooks/useRkBack';
+import React, { useEffect, useMemo, useState } from 'react';
+import { IonContent, IonPage } from '@ionic/react';
 import { useParams, useHistory } from 'react-router-dom';
-import { useAuthStore } from '../../stores/auth.store';
-import { supabase } from '../../lib/supabase';
-import { activitiesService } from '../../features/activities/activities.service';
 import { childrenService } from '../../features/children/children.service';
-import { CheckCircle, Circle, ArrowLeft } from 'lucide-react';
-import type { Activity, Child } from '../../types/database.types';
+import { activitiesService } from '../../features/activities/activities.service';
+import { getCategoryStyle } from '../../lib/categoryStyle';
+import RkSearch from '../../components/rk/RkSearch';
+import { matches } from '../../lib/search';
+import type { Activity, ActivityCategory, Child, ChildActivity } from '../../types/database.types';
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  easy: '#00B894',
-  medium: '#F59E0B',
-  hard: '#EF4444',
-};
-const DIFFICULTY_LABELS: Record<string, string> = {
-  easy: 'Facile',
-  medium: 'Moyen',
-  hard: 'Difficile',
-};
+/** Assigner des activités — porté de la maquette Rekonect (écran pAssign). */
+
+const TINTS = ['var(--rk-indigosoft)', 'var(--rk-sagesoft)', 'var(--rk-accentsoft)', 'var(--rk-ambersoft)'];
 
 const AssignActivitiesPage: React.FC = () => {
   const { childId } = useParams<{ childId: string }>();
   const history = useHistory();
-  const { user } = useAuthStore();
+  const back = useRkBack(`/parent/children/${childId}`);
 
   const [child, setChild] = useState<Child | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [customActivities, setCustomActivities] = useState<Activity[]>([]);
+  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [cat, setCat] = useState('all');
+  const [query, setQuery] = useState('');
+  const [history_, setHistory_] = useState<ChildActivity[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [activeAssigned, setActiveAssigned] = useState<Set<string>>(new Set());   // en cours → bloqué
-  const [activeStatuses, setActiveStatuses] = useState<Map<string, string>>(new Map()); // status par activité active
-  const [completedCount, setCompletedCount] = useState<Map<string, number>>(new Map()); // historique
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'catalog' | 'custom'>('catalog');
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      if (!user) return;
+  useEffect(() => {
+    childrenService.getChild(childId).then(setChild).catch(() => {});
+    activitiesService.getActivities().then(setActivities).catch(() => {});
+    activitiesService.getCategories().then(setCategories).catch(() => {});
+    activitiesService.getChildActivities(childId).then(setHistory_).catch(() => {});
+  }, [childId]);
 
-      const [childData, catalogData, customData, assignedData] = await Promise.all([
-        childrenService.getChild(childId),
-        activitiesService.getActivities(),
-        activitiesService.getParentCustomActivities(user.id),
-        supabase
-          .from('child_activities')
-          .select('activity_id, status')
-          .eq('child_id', childId),
-      ]);
+  const visible = useMemo(
+    () => activities
+      .filter(a => cat === 'all' || a.category_id === cat)
+      .filter(a => matches(query, a.title, a.description, a.category?.name)),
+    [activities, cat, query],
+  );
 
-      setChild(childData);
-      setActivities(catalogData);
-      setCustomActivities(customData);
-
-      const rows = (assignedData.data || []) as { activity_id: string; status: string }[];
-
-      // Activités EN COURS → bloquées (ne peut pas ré-assigner)
-      const activeRows = rows.filter(r => ['available', 'selected', 'submitted'].includes(r.status));
-      const active = new Set(activeRows.map(r => r.activity_id));
-      setActiveAssigned(active);
-
-      // Map status détaillé pour chaque activité active
-      const statuses = new Map<string, string>();
-      activeRows.forEach(r => statuses.set(r.activity_id, r.status));
-      setActiveStatuses(statuses);
-
-      // Historique : nombre de fois validées par activité
-      const counts = new Map<string, number>();
-      rows.filter(r => r.status === 'validated').forEach(r => {
-        counts.set(r.activity_id, (counts.get(r.activity_id) || 0) + 1);
-      });
-      setCompletedCount(counts);
-    } finally {
-      setLoading(false);
+  // Ce que l'enfant a déjà de cette activité : en cours (à faire / commencée /
+  // envoyée) ou déjà réalisée. Informatif seulement — on peut toujours ré-assigner.
+  const stateOf = useMemo(() => {
+    const map = new Map<string, { active: number; done: number }>();
+    for (const ca of history_) {
+      const cur = map.get(ca.activity_id) ?? { active: 0, done: 0 };
+      if (ca.status === 'available' || ca.status === 'selected' || ca.status === 'submitted') cur.active += 1;
+      if (ca.status === 'validated') cur.done += 1;
+      map.set(ca.activity_id, cur);
     }
-  };
-
-  useEffect(() => { fetchData(); }, [childId]);
-  useIonViewWillEnter(() => { fetchData(); });
+    return map;
+  }, [history_]);
 
   const toggle = (id: string) => {
-    if (activeAssigned.has(id)) return; // en cours → bloqué
     setSelected(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
 
-  const handleSave = async () => {
+  const assign = async () => {
     if (selected.size === 0) return;
     setSaving(true);
-    setError(null);
     try {
-      await activitiesService.assignActivitiesToChild(childId, Array.from(selected));
-      history.goBack();
+      await activitiesService.assignActivitiesToChild(childId, [...selected]);
+      history.replace(`/parent/children/${childId}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erreur lors de l\'assignation');
+      console.error('[pAssign]', e);
     } finally {
       setSaving(false);
     }
   };
 
-  const displayList = tab === 'catalog' ? activities : customActivities;
-  const newSelected = [...selected].filter(id => !activeAssigned.has(id)).length;
+  const totalPoints = [...selected].reduce((sum, id) => {
+    const a = activities.find(x => x.id === id);
+    return sum + (a?.points ?? 0);
+  }, 0);
 
   return (
-    <IonPage>
-      <IonContent fullscreen>
-        <div style={{ background: 'var(--dc-bg)', minHeight: '100vh', paddingBottom: 100 }}>
+    <IonPage><IonContent fullscreen>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-          {/* Header */}
-          <div style={{
-            background: 'linear-gradient(135deg, #6C5CE7 0%, #A29BFE 100%)',
-            padding: '60px 24px 24px',
-            color: 'white',
-          }}>
-            <button
-              onClick={() => history.goBack()}
-              style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12, padding: '8px 16px', color: 'white', fontSize: 14, cursor: 'pointer', marginBottom: 16 }}
-            >
-              <ArrowLeft size={14} style={{ marginRight: 6 }} />Retour
-            </button>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>
-              Assigner des activités
-            </h1>
-            {child && (
-              <p style={{ margin: '4px 0 0', opacity: 0.85, fontSize: 14 }}>
-                Pour {child.display_name} · {newSelected > 0 ? `${newSelected} sélectionnée${newSelected > 1 ? 's' : ''}` : 'Sélectionnez des activités'}
-              </p>
-            )}
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
+          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
+        }}>
+          <button onClick={() => back()} style={{
+            fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
+          }}>← {child?.display_name ?? 'Retour'}</button>
+          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+            Assigner
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>
+            Sélectionnez les activités pour {child?.display_name ?? 'votre enfant'}
+          </p>
+        </div>
+
+        <div style={{ padding: '18px 22px 200px' }}>
+          <RkSearch value={query} onChange={setQuery} placeholder="Rechercher une activité" style={{ marginBottom: 14 }} />
+          <div className="rk-sc" style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 14 }}>
+            {[{ id: 'all', name: 'Toutes' }, ...categories].map(c => {
+              const on = cat === c.id;
+              return (
+                <button key={c.id} onClick={() => setCat(c.id)} style={{
+                  height: 34, padding: '0 15px', borderRadius: 999, flexShrink: 0, whiteSpace: 'nowrap',
+                  fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center',
+                  background: on ? 'var(--rk-indigo)' : 'var(--rk-surface)',
+                  border: on ? 'none' : '1px solid var(--rk-border)',
+                  color: on ? 'var(--rk-indigofg)' : 'var(--rk-text2)',
+                }}>{c.name}</button>
+              );
+            })}
           </div>
 
-          <div style={{ padding: '20px 20px 0' }}>
-            {/* Tab switcher */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-              {([['catalog', 'Catalogue'], ['custom', 'Mes activités']] as const).map(([t, label]) => (
-                <button key={t} onClick={() => setTab(t)} style={{
-                  flex: 1, padding: '11px', borderRadius: 12, fontSize: 14, fontWeight: 700,
-                  border: `2px solid ${tab === t ? 'var(--dc-primary)' : 'var(--dc-border)'}`,
-                  background: tab === t ? 'rgba(108,92,231,0.08)' : 'white',
-                  color: tab === t ? 'var(--dc-primary)' : 'var(--dc-text-light)',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {label}
-                </button>
-              ))}
+          {visible.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--rk-text3)', fontSize: 13 }}>
+              Aucune activité ne correspond{query ? ` à « ${query} »` : ''}.
             </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {visible.map((a, i) => {
+              const on = selected.has(a.id);
+              const st = getCategoryStyle(a.category?.slug);
+              return (
+                <button key={a.id} onClick={() => toggle(a.id)} style={{
+                  display: 'flex', alignItems: 'center', gap: 13, width: '100%',
+                  background: 'var(--rk-surface)', borderRadius: 18, padding: 13,
+                  border: on ? '1.5px solid var(--rk-indigo)' : '1px solid var(--rk-border)',
+                }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: 8, flexShrink: 0,
+                    background: on ? 'var(--rk-indigo)' : 'transparent',
+                    border: on ? 'none' : '2px solid var(--rk-border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {on && (
+                      <div style={{
+                        width: 11, height: 6, borderLeft: '2.5px solid #fff', borderBottom: '2.5px solid #fff',
+                        transform: 'rotate(-45deg) translate(1px,-2px)',
+                      }} />
+                    )}
+                  </div>
 
-            {error && (
-              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '12px 16px', marginBottom: 16, color: '#DC2626', fontSize: 13 }}>
-                {error}
-              </div>
-            )}
+                  <div style={{
+                    width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+                    background: TINTS[i % TINTS.length],
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <img src={st.imgSrc} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />
+                  </div>
 
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: 40, color: 'var(--dc-text-light)' }}>Chargement...</div>
-            ) : displayList.length === 0 ? (
-              <div className="dc-card" style={{ textAlign: 'center', padding: 32, color: 'var(--dc-text-light)' }}>
-                {tab === 'custom' ? 'Aucune activité personnalisée créée' : 'Aucune activité dans le catalogue'}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {displayList.map(activity => {
-                  const isActive = activeAssigned.has(activity.id); // en cours
-                  const timesCompleted = completedCount.get(activity.id) || 0;
-                  const isSelected = selected.has(activity.id);
-                  return (
-                    <button
-                      key={activity.id}
-                      onClick={() => toggle(activity.id)}
-                      style={{
-                        width: '100%', textAlign: 'left',
-                        background: isActive ? 'rgba(245,158,11,0.05)' : isSelected ? 'rgba(108,92,231,0.07)' : 'white',
-                        border: `2px solid ${isActive ? 'rgba(245,158,11,0.35)' : isSelected ? 'var(--dc-primary)' : 'var(--dc-border)'}`,
-                        borderRadius: 14, padding: '14px 16px',
-                        cursor: isActive ? 'default' : 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 14,
-                        transition: 'all 0.15s',
-                        opacity: isActive ? 0.75 : 1,
-                      }}
-                    >
-                      <div style={{ flexShrink: 0, color: isActive ? '#F59E0B' : isSelected ? 'var(--dc-primary)' : 'var(--dc-border)' }}>
-                        <CheckCircle size={22} strokeWidth={2} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--dc-text)' }}>{activity.title}</div>
-                        {activity.description && (
-                          <div style={{ fontSize: 12, color: 'var(--dc-text-light)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {activity.description}
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--dc-primary)', background: 'rgba(108,92,231,0.1)', padding: '2px 8px', borderRadius: 20 }}>
-                            +{activity.points} pts
-                          </span>
-                          {activity.difficulty && (
-                            <span style={{ fontSize: 12, fontWeight: 600, color: DIFFICULTY_COLORS[activity.difficulty] || '#888', background: `${DIFFICULTY_COLORS[activity.difficulty] || '#888'}15`, padding: '2px 8px', borderRadius: 20 }}>
-                              {DIFFICULTY_LABELS[activity.difficulty] || activity.difficulty}
-                            </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>{a.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>
+                      {a.category?.name ?? 'Activité'}
+                      {a.duration_minutes ? ` · ${a.duration_minutes} min` : ''}
+                    </div>
+                    {(() => {
+                      const st2 = stateOf.get(a.id);
+                      if (!st2 || (st2.active === 0 && st2.done === 0)) return null;
+                      return (
+                        <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
+                          {st2.active > 0 && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
+                              background: 'var(--rk-ambersoft)', color: 'var(--rk-text2)',
+                            }}>en cours{st2.active > 1 ? ` ×${st2.active}` : ''}</span>
                           )}
-                          {isActive && (
-                            <span style={{ fontSize: 12, fontWeight: 600, color: '#F59E0B', background: 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: 20 }}>
-                              ⏳ {activeStatuses.get(activity.id) === 'available' ? 'Assignée (pas commencée)'
-                                : activeStatuses.get(activity.id) === 'selected' ? 'En cours'
-                                : 'Soumise (en attente)'}
-                            </span>
-                          )}
-                          {timesCompleted > 0 && (
-                            <span style={{ fontSize: 12, fontWeight: 600, color: '#00B894', background: 'rgba(0,184,148,0.1)', padding: '2px 8px', borderRadius: 20 }}>
-                              ✓ {timesCompleted}× réalisée
-                            </span>
+                          {st2.done > 0 && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
+                              background: 'var(--rk-sagesoft)', color: 'var(--rk-text2)',
+                            }}>faite {st2.done > 1 ? `×${st2.done}` : 'une fois'}</span>
                           )}
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      );
+                    })()}
+                  </div>
+
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--rk-text)', flexShrink: 0 }}>
+                    {a.points}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Sticky bottom bar */}
-        {newSelected > 0 && (
+        {/* Barre d'action fixe : la sélection reste visible pendant le défilement */}
+        {selected.size > 0 && (
           <div style={{
-            position: 'fixed', bottom: 0, left: 0, right: 0,
-            background: 'white', padding: '16px 20px 32px',
-            boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
-            display: 'flex', gap: 12,
+            position: 'fixed', left: 0, right: 0, zIndex: 45,
+            bottom: 'var(--rk-tabbar-h)',
+            padding: '14px 22px 18px',
+            background: 'var(--rk-surface)', borderTop: '1px solid var(--rk-border)',
           }}>
-            <button
-              className="dc-btn dc-btn-outline"
-              style={{ flex: 1 }}
-              onClick={() => setSelected(new Set())}
-            >
-              Effacer
-            </button>
-            <button
-              className="dc-btn dc-btn-primary"
-              style={{ flex: 2, opacity: saving ? 0.7 : 1 }}
-              disabled={saving}
-              onClick={handleSave}
-            >
-              {saving ? 'Assignation...' : `Assigner ${newSelected} activité${newSelected > 1 ? 's' : ''}`}
+            <button onClick={assign} disabled={saving} style={{
+              width: '100%', height: 52, borderRadius: 999, background: 'var(--rk-indigo)',
+              color: 'var(--rk-indigofg)', fontSize: 15, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              opacity: saving ? .6 : 1,
+            }}>
+              {saving ? 'Attribution…' : `Assigner ${selected.size} activité${selected.size > 1 ? 's' : ''} · ${totalPoints} pts`}
             </button>
           </div>
         )}
-      </IonContent>
-    </IonPage>
+      </div>
+    </IonContent></IonPage>
   );
 };
 

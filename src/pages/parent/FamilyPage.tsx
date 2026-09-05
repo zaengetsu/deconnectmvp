@@ -1,16 +1,17 @@
+import { useRkBack, useBackSwipe } from '../../hooks/useRkBack';
 import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
-import { useHistory } from 'react-router-dom';
-import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/auth.store';
-import { Users, Mail, QrCode, GraduationCap, HeartHandshake, Baby, ArrowLeft, CheckCircle, UserPlus } from 'lucide-react';
+import { RkShell, RkSheet } from '../../components/rk/RkShell';
+
+/** Ma famille — porté de la maquette Rekonect (écran pFamily). */
 
 const MEMBER_ROLES = [
-  { value: 'co_parent',   label: 'Co-parent',     Icon: Users },
-  { value: 'educator',    label: 'Éducateur·rice', Icon: GraduationCap },
-  { value: 'grandparent', label: 'Grand-parent',   Icon: HeartHandshake },
-  { value: 'babysitter',  label: 'Baby-sitter',    Icon: Baby },
+  { value: 'co_parent',   label: 'Co-parent' },
+  { value: 'educator',    label: 'Éducateur·rice' },
+  { value: 'grandparent', label: 'Grand-parent' },
+  { value: 'babysitter',  label: 'Baby-sitter' },
 ] as const;
 
 type MemberRole = typeof MEMBER_ROLES[number]['value'];
@@ -23,301 +24,247 @@ interface FamilyMember {
   joined_at: string | null;
 }
 
-const FamilyPage: React.FC = () => {
+const ROLE_LABEL: Record<string, string> = Object.fromEntries(MEMBER_ROLES.map(r => [r.value, r.label]));
+
+const FamilyPageInner: React.FC = () => {
   const { user, profile } = useAuthStore();
-  const history = useHistory();
+  const back = useRkBack('/parent/settings');
+  const backSwipe = useBackSwipe(back);
 
   const [members, setMembers] = useState<FamilyMember[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [role, setRole] = useState<MemberRole>('co_parent');
+  const [email, setEmail] = useState('');
+  const [token, setToken] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // Invite flow
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteMode, setInviteMode] = useState<'email' | 'qr'>('email');
-  const [inviteRole, setInviteRole] = useState<MemberRole>('co_parent');
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteToken, setInviteToken] = useState<string | null>(null);
-  const [inviteSuccess, setInviteSuccess] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
-
-  const loadMembers = async () => {
+  const load = async () => {
     if (!user) return;
-    setLoading(true);
     const { data } = await supabase
       .from('family_members')
       .select('*')
       .eq('owner_id', user.id)
-      .order('created_at', { ascending: false });
-    setMembers((data || []) as FamilyMember[]);
-    setLoading(false);
+      .neq('status', 'revoked');
+    setMembers((data as FamilyMember[]) ?? []);
   };
 
-  useEffect(() => { loadMembers(); }, [user]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('family_members')
+        .select('*')
+        .eq('owner_id', user.id)
+        .neq('status', 'revoked');
+      if (!cancelled) setMembers((data as FamilyMember[]) ?? []);
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   const createInvite = async () => {
-    setInviteLoading(true);
-    setInviteError(null);
+    if (!user) return;
+    setCreating(true);
     try {
-      if (inviteMode === 'email') {
-        // Call Edge Function — it creates the token AND sends the email
-        const { data: fnData, error: fnError } = await supabase.functions.invoke('send-family-invitation', {
-          body: {
-            invite_email: inviteEmail,
-            member_role:  inviteRole,
-            inviter_name: profile?.full_name || user?.email || 'Un parent',
-          },
-        });
-
-        if (fnError) throw fnError;
-        if (fnData?.error) throw new Error(fnData.error);
-
-        setInviteToken(fnData.token);
-        setInviteSuccess(true);
-      } else {
-        // QR mode — create token via RPC, no email sent
-        const { data, error } = await supabase.rpc('create_family_invitation', {
-          p_member_role:  inviteRole,
-          p_invite_email: null,
-        });
-
-        if (error) throw error;
-        const result = typeof data === 'string' ? JSON.parse(data) : data;
-        setInviteToken(result.token);
-      }
-    } catch (e: any) {
-      // Friendly error messages
-      const msg = e?.message || 'Une erreur est survenue';
-      if (msg.includes('Brevo')) {
-        setInviteError('Erreur d\'envoi email. Vérifiez votre clé Brevo dans les secrets Supabase.');
-      } else {
-        setInviteError(msg);
-      }
+      const { data, error } = await supabase.rpc('create_family_invitation', {
+        p_member_role: role,
+        p_invite_email: email || null,
+      });
+      if (error) throw error;
+      setToken(typeof data === 'string' ? data : (data as { token?: string })?.token ?? null);
+      load();
+    } catch (e) {
+      console.error('[pFamily] invite:', e);
     } finally {
-      setInviteLoading(false);
+      setCreating(false);
     }
   };
 
-  const revokeAccess = async (memberId: string) => {
-    await supabase.from('family_members').update({ status: 'revoked' }).eq('id', memberId);
-    loadMembers();
+  const copyCode = async () => {
+    if (!token) return;
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* presse-papier indisponible */ }
   };
 
-  const resetInvite = () => {
-    setShowInviteModal(false);
-    setInviteToken(null);
-    setInviteSuccess(false);
-    setInviteError(null);
-    setInviteEmail('');
-    setInviteRole('co_parent');
+  const share = async () => {
+    if (!token) return;
+    const text = `Rejoins notre famille sur Rekonect avec le code ${token}`;
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch { /* partage annulé */ }
+    }
+    copyCode();
   };
 
-  const deepLinkUrl = inviteToken
-    ? `${window.location.origin}/join-family?token=${inviteToken}`
-    : '';
+  const eyebrow: React.CSSProperties = {
+    fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: 'var(--rk-text3)', marginBottom: 12,
+  };
+
+  const ownerName = profile?.full_name || 'Vous';
+  const active = members.filter(m => m.status === 'active');
+  const pending = members.filter(m => m.status === 'pending');
+  const total = active.length + 1;
 
   return (
-    <IonPage>
-      <IonContent fullscreen>
-        <div style={{ minHeight: '100vh', background: 'var(--dc-bg)', paddingBottom: 100 }}>
-        <div className="dc-standard-header">
-            <button onClick={() => history.goBack()} style={{ background: 'none', border: 'none', color: 'var(--dc-text-muted)', fontSize: 13, cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6, padding: 0 }}>
-              <ArrowLeft size={14} strokeWidth={2} /> Retour
-            </button>
-            <div className="dc-header-icon-row">
-              <img src="/images/menu/family.png" alt="famille" style={{ width: 28, height: 28, objectFit: 'contain' }} />
-              <h1>Ma famille</h1>
-            </div>
-            <p className="dc-header-sub">Gérez les adultes qui ont accès aux profils de vos enfants</p>
-          </div>
+    <IonPage><IonContent fullscreen>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }} {...backSwipe}>
 
-          <div style={{ padding: '20px' }}>
-            {/* Invite button */}
-            <button onClick={() => setShowInviteModal(true)} className="dc-btn dc-btn-primary dc-btn-full" style={{ marginBottom: 24, height: 52 }}>
-              <UserPlus size={18} strokeWidth={2} /> Inviter un membre
-            </button>
-
-            {/* Members list */}
-            {loading ? (
-              <p style={{ textAlign: 'center', color: 'var(--dc-text-light)', padding: 40 }}>Chargement...</p>
-            ) : members.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                <div style={{ width: 64, height: 64, borderRadius: 20, background: 'var(--dc-blue-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                  <Users size={30} color="var(--dc-blue)" strokeWidth={1.5} />
-                </div>
-                <h3 style={{ fontWeight: 800, marginBottom: 8 }}>Famille pour l'instant</h3>
-                <p style={{ color: 'var(--dc-text-light)', fontSize: 14 }}>Invitez l'autre parent, un éducateur ou un grand-parent à rejoindre la famille.</p>
-              </div>
-            ) : (
-              <>
-                <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>Membres ({members.length})</h3>
-                {members.map(m => {
-                  const roleInfo = MEMBER_ROLES.find(r => r.value === m.member_role);
-                  return (
-                    <div key={m.id} style={{
-                      background: 'white', borderRadius: 16, padding: '14px 16px',
-                      marginBottom: 10, display: 'flex', alignItems: 'center', gap: 14,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                      opacity: m.status === 'revoked' ? 0.5 : 1,
-                    }}>
-                      <div style={{ width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--dc-blue-light)', flexShrink: 0 }}>
-                        {roleInfo && (() => { const I = roleInfo.Icon; return <I size={20} color="var(--dc-blue)" strokeWidth={1.8} />; })()}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {m.member_email}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--dc-text-light)', marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <span>{roleInfo?.label}</span>
-                          <span style={{ padding: '2px 8px', borderRadius: 50, fontSize: 11, fontWeight: 700,
-                            background: m.status === 'active' ? 'var(--dc-green-light)' : m.status === 'pending' ? 'var(--dc-gold-light)' : 'var(--dc-danger-light)',
-                            color: m.status === 'active' ? 'var(--dc-green-dark)' : m.status === 'pending' ? 'var(--dc-gold-dark)' : 'var(--dc-danger)',
-                          }}>
-                            {m.status === 'active' ? 'Actif' : m.status === 'pending' ? 'En attente' : 'Révoqué'}
-                          </span>
-                        </div>
-                      </div>
-                      {m.status !== 'revoked' && (
-                        <button
-                          onClick={() => revokeAccess(m.id)}
-                          style={{
-                            background: 'rgba(255,107,107,0.1)', border: 'none', borderRadius: 10,
-                            padding: '8px 12px', color: '#FF6B6B', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                          }}
-                        >
-                          Révoquer
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </>
-            )}
-          </div>
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
+          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
+        }}>
+          <button onClick={back} style={{
+            fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
+          }}>← Réglages</button>
+          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+            Ma famille
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>
+            Co-parent, grands-parents, éducateur
+          </p>
         </div>
 
-        {/* ─── INVITE MODAL ─── */}
-        {showInviteModal && (
-          <div style={{
-            position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.5)',
-            display: 'flex', alignItems: 'flex-end',
-          }} onClick={resetInvite}>
-            <div onClick={e => e.stopPropagation()} style={{
-              background: 'white', borderRadius: '24px 24px 0 0', padding: '24px 24px 48px',
-              width: '100%', maxWidth: 600, margin: '0 auto',
+        <div style={{ padding: '18px 22px 60px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+          <div>
+            <div style={eyebrow}>MEMBRES · {total}</div>
+            <div style={{
+              background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+              borderRadius: 20, overflow: 'hidden',
             }}>
-              <div style={{ width: 40, height: 4, background: 'var(--dc-border)', borderRadius: 4, margin: '0 auto 20px' }} />
-
-              {!inviteToken ? (
-                <>
-                  <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 20 }}>Inviter un membre</h2>
-
-                  {/* Mode toggle */}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-                    {(['email', 'qr'] as const).map(m => (
-                      <button key={m} onClick={() => setInviteMode(m)} style={{ flex: 1, padding: '10px', borderRadius: 12, fontSize: 14, fontWeight: 700, border: `2px solid ${inviteMode === m ? 'var(--dc-primary)' : 'var(--dc-border)'}`, background: inviteMode === m ? 'rgba(108,92,231,0.08)' : 'white', color: inviteMode === m ? 'var(--dc-primary)' : 'var(--dc-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                        {m === 'email' ? <><Mail size={15} strokeWidth={2} /> Par email</> : <><QrCode size={15} strokeWidth={2} /> QR code</>}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Role picker */}
-                  <label style={{ display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Rôle</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
-                    {MEMBER_ROLES.map(r => (
-                     <button key={r.value} onClick={() => setInviteRole(r.value)} style={{ padding: '10px 12px', borderRadius: 12, fontSize: 13, fontWeight: 700, border: `2px solid ${inviteRole === r.value ? 'var(--dc-primary)' : 'var(--dc-border)'}`, background: inviteRole === r.value ? 'rgba(108,92,231,0.08)' : 'white', color: inviteRole === r.value ? 'var(--dc-primary)' : 'var(--dc-text)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <r.Icon size={15} strokeWidth={2} /> {r.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Email input */}
-                  {inviteMode === 'email' && (
-                    <div style={{ marginBottom: 20 }}>
-                      <label style={{ display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Email</label>
-                      <input
-                        type="email"
-                        value={inviteEmail}
-                        onChange={e => setInviteEmail(e.target.value)}
-                        placeholder="autre.parent@email.com"
-                        style={{
-                          width: '100%', padding: '14px', borderRadius: 12, fontSize: 15,
-                          border: '2px solid var(--dc-border)', background: 'white',
-                          outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--dc-font)',
-                        }}
-                        autoFocus
-                      />
-                    </div>
-                  )}
-
-                  {inviteError && (
-                    <div style={{ background: '#FEE2E2', color: '#DC2626', padding: '10px 14px', borderRadius: 10, marginBottom: 16, fontSize: 13 }}>
-                      {inviteError}
-                    </div>
-                  )}
-
-                  <button
-                    onClick={createInvite}
-                    disabled={inviteLoading || (inviteMode === 'email' && !inviteEmail)}
-                    style={{
-                      width: '100%', padding: '16px', borderRadius: 16, fontSize: 16, fontWeight: 800,
-                      border: 'none', cursor: 'pointer', background: 'var(--dc-primary)', color: 'white',
-                      opacity: inviteLoading ? 0.7 : 1,
-                    }}
-                  >
-                    {inviteLoading ? 'Génération...' : inviteMode === 'email' ? 'Envoyer l\'invitation' : 'Générer le QR code'}
-                  </button>
-                </>
-              ) : (
-                /* Show QR or success */
-                <div style={{ textAlign: 'center' }}>
-                  {inviteMode === 'qr' ? (
-                    <>
-                      <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 4 }}>QR code d'invitation</h2>
-                      <p style={{ color: 'var(--dc-text-light)', fontSize: 14, marginBottom: 24 }}>
-                        Faites scanner ce code par l'autre parent — valable 7 jours
-                      </p>
-                      <div style={{ display: 'inline-block', padding: 20, borderRadius: 20, border: '3px solid var(--dc-primary)', background: 'white' }}>
-                        <QRCodeSVG
-                          value={JSON.stringify({ type: 'deconnect_family', token: inviteToken, inviter: profile?.full_name })}
-                          size={200}
-                          level="M"
-                          fgColor="#2D3436"
-                        />
-                      </div>
-                      <p style={{ marginTop: 16, fontSize: 12, color: 'var(--dc-text-muted)' }}>
-                        Ou partagez ce lien : <br />
-                        <span style={{ color: 'var(--dc-primary)', wordBreak: 'break-all' }}>{deepLinkUrl}</span>
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ width: 56, height: 56, borderRadius: 18, background: 'var(--dc-green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                        <CheckCircle size={28} color="var(--dc-green)" strokeWidth={1.8} />
-                      </div>
-                      <h2 style={{ fontWeight: 900 }}>Invitation envoyée !</h2>
-                      <p style={{ color: 'var(--dc-text-light)', fontSize: 14 }}>
-                        Un email a été envoyé à <strong>{inviteEmail}</strong>.
-                        Le lien est valable 7 jours.
-                      </p>
-                    </>
-                  )}
-                  <button
-                    onClick={resetInvite}
-                    style={{
-                      marginTop: 24, width: '100%', padding: '14px', borderRadius: 16, fontSize: 15, fontWeight: 700,
-                      border: '2px solid var(--dc-border)', background: 'white', cursor: 'pointer',
-                    }}
-                  >
-                    Fermer
-                  </button>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '15px 16px',
+                borderBottom: active.length + pending.length > 0 ? '1px solid var(--rk-line)' : 'none',
+              }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: '50%', background: 'var(--rk-indigo)',
+                  color: 'var(--rk-indigofg)', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', fontSize: 15, fontWeight: 800, flexShrink: 0,
+                }}>{ownerName[0]?.toUpperCase()}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>{ownerName}</div>
+                  <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>{profile?.email}</div>
                 </div>
-              )}
+                <div style={{
+                  height: 26, padding: '0 10px', borderRadius: 999, background: 'var(--rk-indigosoft)',
+                  color: 'var(--rk-indigo)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                  display: 'flex', alignItems: 'center', flexShrink: 0,
+                }}>Admin</div>
+              </div>
+
+              {[...active, ...pending].map((m, i, arr) => (
+                <div key={m.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '15px 16px',
+                  borderBottom: i === arr.length - 1 ? 'none' : '1px solid var(--rk-line)',
+                }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%', background: 'var(--rk-surface2)',
+                    color: 'var(--rk-text2)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 15, fontWeight: 800, flexShrink: 0,
+                  }}>{m.member_email?.[0]?.toUpperCase() ?? '?'}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>{m.member_email}</div>
+                    <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>
+                      {m.status === 'pending' ? 'Invitation envoyée' : 'Peut valider les activités'}
+                    </div>
+                  </div>
+                  <div style={{
+                    height: 26, padding: '0 10px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0,
+                    background: m.status === 'pending' ? 'var(--rk-ambersoft)' : 'var(--rk-surface2)',
+                    color: m.status === 'pending' ? 'var(--rk-amber)' : 'var(--rk-text2)',
+                    fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center',
+                  }}>
+                    {ROLE_LABEL[m.member_role] ?? 'Membre'}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        )}
-      </IonContent>
-    </IonPage>
+
+          {/* ── Code d'invitation ─────────────────────────────── */}
+          {token ? (
+            <div style={{
+              background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+              borderRadius: 20, padding: 20, textAlign: 'center',
+            }}>
+              <div style={eyebrow}>CODE D'INVITATION</div>
+              <div style={{
+                fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 32, fontWeight: 700,
+                letterSpacing: '.16em', color: 'var(--rk-text)', wordBreak: 'break-all',
+              }}>{token}</div>
+              <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 8 }}>Valable 48 heures</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+                <button onClick={share} style={{
+                  flex: 1, height: 44, borderRadius: 999, background: 'var(--rk-indigo)',
+                  color: 'var(--rk-indigofg)', fontSize: 14, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>Partager</button>
+                <button onClick={copyCode} style={{
+                  width: 100, height: 44, borderRadius: 999, border: '1.5px solid var(--rk-border)',
+                  color: 'var(--rk-text)', fontSize: 14, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>{copied ? 'Copié' : 'Copier'}</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setSheetOpen(true)} style={{
+              width: '100%', height: 52, borderRadius: 999, border: '1.5px dashed var(--rk-border)',
+              color: 'var(--rk-text2)', fontSize: 14, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+            }}>
+              <span style={{ fontSize: 19, lineHeight: 1 }}>+</span> Inviter quelqu'un
+            </button>
+          )}
+        </div>
+
+        <RkSheet
+          open={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          title="Inviter quelqu'un"
+          subtitle="Cette personne pourra suivre et valider les activités"
+        >
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 16 }}>
+            {MEMBER_ROLES.map(r => (
+              <button key={r.value} onClick={() => setRole(r.value)} style={{
+                height: 34, padding: '0 13px', borderRadius: 999, fontSize: 13, fontWeight: 600,
+                background: role === r.value ? 'var(--rk-indigosoft)' : 'var(--rk-surface2)',
+                color: role === r.value ? 'var(--rk-indigo)' : 'var(--rk-text2)',
+                display: 'flex', alignItems: 'center',
+              }}>{r.label}</button>
+            ))}
+          </div>
+
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="Adresse email (facultatif)"
+            style={{
+              width: '100%', height: 50, borderRadius: 16, border: '1.5px solid var(--rk-border)',
+              background: 'var(--rk-surface)', padding: '0 15px', fontSize: 15,
+              fontFamily: 'inherit', color: 'var(--rk-text)', marginBottom: 16,
+            }}
+          />
+
+          <button onClick={() => { createInvite(); setSheetOpen(false); }} disabled={creating} style={{
+            width: '100%', height: 52, borderRadius: 999, background: 'var(--rk-indigo)',
+            color: 'var(--rk-indigofg)', fontSize: 15, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: creating ? .6 : 1,
+          }}>
+            {creating ? 'Création…' : "Créer le code d'invitation"}
+          </button>
+        </RkSheet>
+      </div>
+    </IonContent></IonPage>
   );
 };
+
+/** La page est atteignable hors des onglets parent : elle porte sa propre coquille. */
+const FamilyPage: React.FC = () => (
+  <RkShell space="parent"><FamilyPageInner /></RkShell>
+);
 
 export default FamilyPage;

@@ -1,260 +1,235 @@
-import React, { useState, useEffect } from 'react';
+import { notificationsOutline, optionsOutline, timeOutline, peopleOutline, swapHorizontalOutline } from 'ionicons/icons';
+import RkTile from '../../components/rk/RkTile';
+import { useRkBack } from '../../hooks/useRkBack';
+import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { useAuthStore } from '../../stores/auth.store';
 import { useAppStore } from '../../stores/app.store';
-import { Users, ChevronRight, User, Pencil, Check, LogOut, Bell, BellOff, ExternalLink } from 'lucide-react';
-import { PushNotifications } from '@capacitor/push-notifications';
-import { Capacitor } from '@capacitor/core';
+import { useRk, type RkTheme } from '../../components/rk/RkShell';
+
+/** Réglages — porté de la maquette Rekonect (écran pSettings). */
+
+const ACCENTS: { key: RkTheme; color: string; label: string }[] = [
+  { key: 'peach', color: '#FF9469', label: 'Pêche' },
+  { key: 'ocean', color: '#3FA0C9', label: 'Océan' },
+  { key: 'mint',  color: '#5CB88F', label: 'Menthe' },
+  { key: 'berry', color: '#7C6BD4', label: 'Myrtille' },
+  { key: 'sun',   color: '#E8B33F', label: 'Soleil' },
+  { key: 'rasp',  color: '#E2607F', label: 'Framboise' },
+];
 
 const SettingsPage: React.FC = () => {
-  const { profile, signOut, updateProfile } = useAuthStore();
+  const { profile, signOut } = useAuthStore();
   const { switchToParent } = useAppStore();
+  const { theme, setTheme, dark, setDark } = useRk();
   const history = useHistory();
-
-  const [editingName, setEditingName] = useState(false);
-  const [newName, setNewName] = useState(profile?.full_name || '');
-  const [savingName, setSavingName] = useState(false);
-  const [nameSuccess, setNameSuccess] = useState(false);
-
-  // Notification permission state
-  const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'prompt' | 'checking'>('checking');
+  const back = useRkBack('/parent/dashboard');
+  const [perm, setPerm] = useState<'granted' | 'denied' | 'prompt' | 'checking'>('checking');
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) { setNotifPermission('prompt'); return; }
-    PushNotifications.checkPermissions().then(res => {
-      setNotifPermission(res.receive as 'granted' | 'denied' | 'prompt');
-    }).catch(() => setNotifPermission('prompt'));
+    let cancelled = false;
+    void (async () => {
+      if (!Capacitor.isNativePlatform()) { if (!cancelled) setPerm('prompt'); return; }
+      try {
+        const res = await PushNotifications.checkPermissions();
+        if (!cancelled) setPerm(res.receive as 'granted' | 'denied' | 'prompt');
+      } catch { if (!cancelled) setPerm('prompt'); }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  const handleLogout = async () => {
+  const enablePush = async () => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (perm === 'denied') {
+      // iOS ne repropose pas la boîte de dialogue : il faut passer par les Réglages
+      alert('Activez les notifications dans Réglages → Notifications → Rekonect.');
+      return;
+    }
+    const res = await PushNotifications.requestPermissions();
+    if (res.receive === 'granted') await PushNotifications.register();
+    setPerm(res.receive as 'granted' | 'denied' | 'prompt');
+  };
+
+  const logout = async () => {
     await signOut();
     switchToParent();
     history.replace('/onboarding');
   };
 
-  const handleEnableNotifications = async () => {
-    if (!Capacitor.isNativePlatform()) return;
-    if (notifPermission === 'denied') {
-      // iOS won't re-show the dialog — must go to Settings
-      // Use Capacitor App to open app settings
-      try {
-        const { App } = await import('@capacitor/app');
-        // On iOS, openUrl with app-settings:// opens the app's notification settings
-        await (App as any).openUrl({ url: 'app-settings:' });
-      } catch {
-        alert('Activez les notifications dans : Réglages iOS → Notifications → [Nom de l\'app]');
-      }
-      return;
-    }
-    // Not yet asked — request now
-    const result = await PushNotifications.requestPermissions();
-    if (result.receive === 'granted') {
-      await PushNotifications.register();
-    }
-    setNotifPermission(result.receive as 'granted' | 'denied' | 'prompt');
-  };
+  const name = profile?.full_name || 'Mon compte';
+  const initial = name[0]?.toUpperCase() ?? 'P';
+  const accentLabel = ACCENTS.find(a => a.key === theme)?.label ?? 'Pêche';
 
-  const handleSaveName = async () => {
-    if (!newName.trim() || newName.trim().length < 2) return;
-    setSavingName(true);
-    try {
-      await updateProfile({ full_name: newName.trim() });
-      setEditingName(false);
-      setNameSuccess(true);
-      setTimeout(() => setNameSuccess(false), 3000);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSavingName(false);
-    }
+  const eyebrow: React.CSSProperties = {
+    fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: 'var(--rk-text3)', marginBottom: 12,
   };
-
-  const inp = {
-    width: '100%', padding: '12px 14px', borderRadius: 10,
-    border: '2px solid var(--dc-primary)', fontSize: 15,
-    background: 'white', outline: 'none', boxSizing: 'border-box' as const,
-    fontFamily: 'var(--dc-font)',
+  const row: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 13, padding: '15px 16px', width: '100%',
   };
-
-  const iconBox = {
-    width: 38, height: 38, borderRadius: 10, display: 'flex',
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  };
-
   return (
     <IonPage><IonContent fullscreen>
-      <div className="dc-page-header">
-        <div className="dc-header-row">
-          <img src="/images/menu/gear.png" alt="paramètres" style={{ width: 26, height: 26, objectFit: 'contain' }} />
-          <h1>Paramètres</h1>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
+
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
+          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
+        }}>
+          <button onClick={back} style={{ fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12 }}>← Accueil</button>
+          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+            Réglages
+          </h1>
         </div>
-      </div>
-      <div style={{ padding: '20px 20px 100px' }}>
 
-        {/* Profile card */}
-        <div className="dc-card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: editingName ? 16 : 0 }}>
-            <div className="dc-avatar" style={{ background: 'var(--dc-primary)', color: 'white', flexShrink: 0 }}>
-              {(profile?.full_name || '?')[0].toUpperCase()}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>{profile?.full_name}</div>
-              <div style={{ fontSize: 13, color: 'var(--dc-text-light)' }}>{profile?.email}</div>
-            </div>
-            <button
-              onClick={() => { setEditingName(!editingName); setNewName(profile?.full_name || ''); }}
-              style={{
-                background: 'none', border: '2px solid var(--dc-border)', borderRadius: 10,
-                padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                color: 'var(--dc-primary)',
-              }}
-            >
-              <Pencil size={14} strokeWidth={2} />
-            </button>
-          </div>
+        <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 22 }}>
 
-          {editingName && (
-            <div style={{ marginTop: 4 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--dc-text-light)' }}>
-                Votre prénom / nom
-              </label>
-              <input
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                placeholder="Ex : Marie Dupont"
-                style={inp}
-                autoFocus
-              />
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button
-                  onClick={handleSaveName}
-                  disabled={savingName || !newName.trim()}
-                  style={{
-                    flex: 1, padding: '10px', borderRadius: 10, fontSize: 14, fontWeight: 800,
-                    background: 'var(--dc-primary)', color: 'white', border: 'none',
-                    cursor: savingName ? 'not-allowed' : 'pointer', opacity: savingName ? 0.7 : 1,
-                  }}
-                >
-                  {savingName ? 'Sauvegarde...' : 'Enregistrer'}
-                </button>
-                <button
-                  onClick={() => setEditingName(false)}
-                  style={{
-                    padding: '10px 16px', borderRadius: 10, fontSize: 14,
-                    background: 'none', border: '2px solid var(--dc-border)',
-                    color: 'var(--dc-text-light)', cursor: 'pointer',
-                  }}
-                >
-                  Annuler
-                </button>
-              </div>
-            </div>
-          )}
-
-          {nameSuccess && (
+          {/* ── Compte ────────────────────────────────────────── */}
+          <button onClick={() => history.push('/parent/account')} style={{
+            display: 'flex', alignItems: 'center', gap: 14, background: 'var(--rk-surface)',
+            border: '1px solid var(--rk-border)', borderRadius: 20, padding: 16, width: '100%', textAlign: 'left',
+          }}>
             <div style={{
-              marginTop: 10, padding: '8px 12px', borderRadius: 8,
-              background: 'rgba(0,184,148,0.1)', color: '#00B894',
-              fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+              width: 48, height: 48, borderRadius: '50%', background: 'var(--rk-indigo)',
+              color: 'var(--rk-indigofg)', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', fontSize: 18, fontWeight: 800, flexShrink: 0,
+            }}>{initial}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--rk-text)' }}>{name}</div>
+              <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>{profile?.email}</div>
+              <div style={{ fontSize: 11, color: 'var(--rk-indigo)', fontWeight: 700, marginTop: 4 }}>Modifier nom, email, mot de passe</div>
+            </div>
+            <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
+          </button>
+
+          {/* ── Apparence ─────────────────────────────────────── */}
+          <div>
+            <div style={eyebrow}>APPARENCE</div>
+            <div style={{
+              background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+              borderRadius: 20, padding: 16,
             }}>
-              <Check size={14} /> Nom mis à jour
-            </div>
-          )}
-        </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Mode sombre</div>
+                  <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>Plus doux le soir</div>
+                </div>
+                <button
+                  onClick={() => setDark(!dark)}
+                  role="switch"
+                  aria-checked={dark}
+                  style={{
+                    width: 46, height: 28, borderRadius: 999, position: 'relative', flexShrink: 0,
+                    background: dark ? 'var(--rk-indigo)' : 'var(--rk-track)',
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 3, left: dark ? 21 : 3, width: 22, height: 22,
+                    borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)',
+                    transition: 'left .18s',
+                  }} />
+                </button>
+              </div>
 
-        {/* Abonnement */}
-        <div className="dc-card" style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: 11, fontWeight: 700, marginBottom: 12, color: 'var(--dc-text-muted)', letterSpacing: '0.08em' }}>ABONNEMENT</h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontWeight: 700 }}>Plan Gratuit</div>
-              <div style={{ fontSize: 13, color: 'var(--dc-text-light)' }}>1 enfant · Fonctionnalités de base</div>
-            </div>
-            <button className="dc-btn" style={{ padding: '8px 16px', fontSize: 13, background: 'var(--dc-accent)', color: 'white', borderRadius: 50 }}>Upgrade</button>
-          </div>
-        </div>
-
-        {/* Notifications */}
-        <div className="dc-card" style={{ marginBottom: 10 }}>
-          <h3 style={{ fontSize: 11, fontWeight: 700, marginBottom: 14, color: 'var(--dc-text-muted)', letterSpacing: '0.08em' }}>NOTIFICATIONS</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ ...iconBox, background: notifPermission === 'granted' ? 'rgba(0,184,148,0.1)' : 'rgba(255,107,107,0.1)' }}>
-              {notifPermission === 'granted'
-                ? <Bell size={18} color="var(--dc-success)" strokeWidth={2} />
-                : <BellOff size={18} color="#FF6B6B" strokeWidth={2} />}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>Notifications push</div>
-              <div style={{ fontSize: 12, color: notifPermission === 'granted' ? 'var(--dc-success)' : 'var(--dc-text-muted)' }}>
-                {notifPermission === 'checking' && 'Vérification...'}
-                {notifPermission === 'granted' && '✓ Activées'}
-                {notifPermission === 'denied' && 'Désactivées — touchez pour activer dans les Réglages'}
-                {notifPermission === 'prompt' && 'Touchez pour activer'}
+              <div style={{ paddingTop: 16, borderTop: '1px solid var(--rk-line)' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)', marginBottom: 4 }}>
+                  Couleur d'accent
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginBottom: 13 }}>
+                  Actuellement : {accentLabel}. Chaque enfant peut choisir la sienne.
+                </div>
+                <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+                  {ACCENTS.map(a => (
+                    <button
+                      key={a.key}
+                      onClick={() => setTheme(a.key)}
+                      aria-label={a.label}
+                      style={{
+                        width: 38, height: 38, borderRadius: 12, background: a.color,
+                        boxShadow: theme === a.key ? '0 0 0 2.5px var(--rk-text)' : '0 0 0 1px var(--rk-border)',
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-            {notifPermission !== 'granted' && notifPermission !== 'checking' && (
-              <button
-                onClick={handleEnableNotifications}
-                style={{
-                  background: 'var(--dc-primary)', color: 'white', border: 'none',
-                  borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                }}
-              >
-                {notifPermission === 'denied' ? <><ExternalLink size={13} /> Réglages</> : 'Activer'}
+          </div>
+
+          {/* ── Compte & liens ────────────────────────────────── */}
+          <div>
+            <div style={eyebrow}>COMPTE</div>
+            <div style={{
+              background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+              borderRadius: 20, overflow: 'hidden',
+            }}>
+              <button onClick={enablePush} style={{ ...row, borderBottom: '1px solid var(--rk-line)' }}>
+                <RkTile icon={notificationsOutline} tint={perm === 'granted' ? 'var(--rk-sagesoft)' : 'var(--rk-ambersoft)'} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Notifications push</div>
+                  <div style={{
+                    fontSize: 12, marginTop: 2,
+                    color: perm === 'granted' ? 'var(--rk-sage)' : 'var(--rk-text3)',
+                  }}>
+                    {perm === 'checking' && 'Vérification…'}
+                    {perm === 'granted' && 'Activées'}
+                    {perm === 'denied' && 'Désactivées — touchez pour ouvrir les réglages'}
+                    {perm === 'prompt' && 'Touchez pour activer'}
+                  </div>
+                </div>
+                <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
               </button>
-            )}
-          </div>
 
-          {/* Link to notifications history */}
-          <div
-            onClick={() => history.push('/parent/notifications')}
-            style={{
-              marginTop: 14, paddingTop: 14,
-              borderTop: '1px solid var(--dc-border)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Historique des notifications</span>
-            <ChevronRight size={16} color="var(--dc-text-muted)" />
-          </div>
-        </div>
+              <button onClick={() => history.push('/parent/notification-preferences')} style={{ ...row, borderBottom: '1px solid var(--rk-line)' }}>
+                <RkTile icon={optionsOutline} tint="var(--rk-indigosoft)" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Préférences de notifications</div>
+                  <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>
+                    Catégories, canaux, horaires silencieux
+                  </div>
+                </div>
+                <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
+              </button>
 
-        {/* Ma famille */}
-        <div className="dc-card" style={{ marginBottom: 10, cursor: 'pointer' }} onClick={() => history.push('/family')}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ ...iconBox, background: 'rgba(108,92,231,0.1)' }}>
-              <img src="/images/menu/family.png" alt="famille" style={{ width: 20, height: 20, objectFit: 'contain' }} />
+              <button onClick={() => history.push('/parent/notifications')} style={{ ...row, borderBottom: '1px solid var(--rk-line)' }}>
+                <RkTile icon={timeOutline} tint="var(--rk-indigosoft)" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Historique des notifications</div>
+                </div>
+                <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
+              </button>
+
+              <button onClick={() => history.push('/family')} style={{ ...row, borderBottom: '1px solid var(--rk-line)' }}>
+                <RkTile icon={peopleOutline} tint="var(--rk-raspsoft)" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Ma famille</div>
+                  <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>
+                    Inviter un co-parent, un éducateur
+                  </div>
+                </div>
+                <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
+              </button>
+
+              <button onClick={() => history.push('/select-child')} style={row}>
+                <RkTile icon={swapHorizontalOutline} tint="var(--rk-accentsoft)" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Basculer vers l'espace enfant</div>
+                </div>
+                <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
+              </button>
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>Ma famille</div>
-              <div style={{ fontSize: 12, color: 'var(--dc-text-light)' }}>Inviter un co-parent, éducateur...</div>
-            </div>
-            <ChevronRight size={16} color="var(--dc-text-muted)" />
           </div>
-        </div>
 
-        {/* Espace enfant */}
-        <div className="dc-card" style={{ marginBottom: 24, cursor: 'pointer' }} onClick={() => history.push('/select-child')}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ ...iconBox, background: 'rgba(0,184,148,0.1)' }}>
-              <User size={18} color="var(--dc-success)" strokeWidth={2} />
-            </div>
-            <div style={{ flex: 1, fontWeight: 600, fontSize: 15 }}>Espace enfant</div>
-            <ChevronRight size={16} color="var(--dc-text-muted)" />
-          </div>
-        </div>
+          <button onClick={logout} style={{
+            width: '100%', height: 50, borderRadius: 999, background: 'var(--rk-raspsoft)',
+            color: 'var(--rk-rasp)', fontSize: 14, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            Se déconnecter
+          </button>
 
-        <button
-          className="dc-btn dc-btn-full"
-          style={{ background: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-          onClick={handleLogout}
-        >
-          <LogOut size={16} strokeWidth={2} />
-          Se déconnecter
-        </button>
+          <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--rk-text3)' }}>Rekonect 1.0.0</div>
+        </div>
       </div>
     </IonContent></IonPage>
   );

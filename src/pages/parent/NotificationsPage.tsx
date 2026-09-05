@@ -1,25 +1,49 @@
+import { useRkBack } from '../../hooks/useRkBack';
 import React, { useState, useCallback } from 'react';
 import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
-import { notificationService, type AppNotification } from '../../features/notifications/notification.service';
-import { Bell, ArrowLeft, Check, CheckCheck } from 'lucide-react';
+import {
+  notificationService,
+  isActionRequired,
+  type AppNotification,
+} from '../../features/notifications/notification.service';
 
-const timeAgo = (dateStr: string) => {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const m = Math.floor(diff / 60000);
-  const h = Math.floor(diff / 3600000);
-  const d = Math.floor(diff / 86400000);
-  if (m < 1) return "À l'instant";
-  if (m < 60) return `Il y a ${m} min`;
-  if (h < 24) return `Il y a ${h}h`;
-  return `Il y a ${d}j`;
+/** Notifications parent — porté de la maquette Rekonect (écran pNotifs). */
+
+const tintOf = (n: AppNotification) => {
+  const t = n.type ?? '';
+  if (t.includes('reward')) return 'var(--rk-raspsoft)';
+  if (t.includes('validation') || t.includes('planned') || t.includes('reminder')) return 'var(--rk-ambersoft)';
+  if (t.includes('completed') || t.includes('validated') || t.includes('goal')) return 'var(--rk-sagesoft)';
+  return 'var(--rk-indigosoft)';
+};
+
+const shortTime = (iso: string) => {
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 60) return `${Math.max(1, m)} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h`;
+  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+};
+
+/** La maquette groupe par jour : aujourd'hui, hier, puis les jours nommés. */
+const dayBucket = (iso: string) => {
+  const d = new Date(iso);
+  const today = new Date();
+  const isSameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (isSameDay(d, today)) return "AUJOURD'HUI";
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (isSameDay(d, yesterday)) return 'HIER';
+  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
 };
 
 const NotificationsPage: React.FC = () => {
   const { user } = useAuthStore();
   const history = useHistory();
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const back = useRkBack('/parent/dashboard');
+  const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -27,9 +51,9 @@ const NotificationsPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await notificationService.getParentNotifications(user.id, 50);
-      setNotifications(data);
+      setItems(data);
     } catch (e) {
-      console.error('[NotificationsPage] load error:', e);
+      console.error('[pNotifs]', e);
     } finally {
       setLoading(false);
     }
@@ -37,134 +61,122 @@ const NotificationsPage: React.FC = () => {
 
   useIonViewWillEnter(() => { load(); });
 
-  const handleMarkAllRead = async () => {
-    if (!user) return;
-    await notificationService.markAllRead('parent', user.id);
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-  };
-
-  const handleTap = async (n: AppNotification) => {
+  const open = async (n: AppNotification) => {
     if (!n.is_read) {
       await notificationService.markAsRead(n.id);
-      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+      setItems(prev => prev.map(x => (x.id === n.id ? { ...x, is_read: true } : x)));
     }
     if (n.route) history.push(n.route);
   };
 
-  const unread = notifications.filter(n => !n.is_read).length;
+  const markAll = async () => {
+    if (!user) return;
+    await notificationService.markAllRead('parent', user.id);
+    setItems(prev => prev.map(n => ({ ...n, is_read: true })));
+  };
+
+  // Regroupement par jour, dans l'ordre d'arrivée
+  const groups: { label: string; items: AppNotification[] }[] = [];
+  items.forEach(n => {
+    const label = dayBucket(n.created_at);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(n);
+    else groups.push({ label, items: [n] });
+  });
+
+  const unread = items.filter(n => !n.is_read).length;
 
   return (
-    <IonPage>
-      <IonContent fullscreen>
-        <div style={{ minHeight: '100vh', background: 'var(--dc-bg)' }}>
+    <IonPage><IonContent fullscreen>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-          {/* Header */}
-          <div style={{
-            background: 'linear-gradient(135deg, var(--dc-blue) 0%, var(--dc-blue-mid) 100%)',
-            padding: '56px 20px 24px', color: 'white',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button
-                  onClick={() => history.goBack()}
-                  style={{
-                    background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 10,
-                    padding: '8px', color: 'white', cursor: 'pointer', display: 'flex',
-                  }}
-                >
-                  <ArrowLeft size={18} strokeWidth={2} />
-                </button>
-                <div>
-                  <h1 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Notifications</h1>
-                  {unread > 0 && (
-                    <p style={{ fontSize: 12, opacity: 0.8, margin: '2px 0 0' }}>
-                      {unread} non lue{unread > 1 ? 's' : ''}
-                    </p>
-                  )}
-                </div>
-              </div>
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
+          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
+        }}>
+          <button onClick={back} style={{
+            fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
+          }}>← Accueil</button>
+
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+            <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+              Notifications
+            </h1>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               {unread > 0 && (
-                <button
-                  onClick={handleMarkAllRead}
-                  style={{
-                    background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 10,
-                    padding: '8px 12px', color: 'white', cursor: 'pointer',
-                    fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4,
-                  }}
-                >
-                  <CheckCheck size={14} strokeWidth={2} />
-                  Tout lire
-                </button>
+                <button onClick={markAll} style={{
+                  height: 32, padding: '0 12px', borderRadius: 999, background: 'var(--rk-indigosoft)',
+                  color: 'var(--rk-indigo)', fontSize: 12, fontWeight: 700,
+                  display: 'flex', alignItems: 'center',
+                }}>Tout lire</button>
               )}
+              <button onClick={() => history.push('/parent/notification-preferences')} style={{
+                height: 32, padding: '0 12px', borderRadius: 999, background: 'var(--rk-surface2)',
+                color: 'var(--rk-text2)', fontSize: 12, fontWeight: 700,
+                display: 'flex', alignItems: 'center',
+              }}>Réglages</button>
             </div>
           </div>
-
-          <div style={{ padding: '16px 16px 100px' }}>
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--dc-text-muted)' }}>
-                Chargement...
-              </div>
-            ) : notifications.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                <div style={{
-                  width: 64, height: 64, borderRadius: 20,
-                  background: 'var(--dc-blue-light)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  margin: '0 auto 16px',
-                }}>
-                  <Bell size={28} color="var(--dc-blue)" strokeWidth={1.5} />
-                </div>
-                <h3 style={{ fontWeight: 800, marginBottom: 8 }}>Aucune notification</h3>
-                <p style={{ color: 'var(--dc-text-muted)', fontSize: 14 }}>
-                  Vous recevrez des alertes quand vos enfants complètent des activités ou demandent des récompenses.
-                </p>
-              </div>
-            ) : (
-              notifications.map(n => (
-                <div
-                  key={n.id}
-                  onClick={() => handleTap(n)}
-                  style={{
-                    background: n.is_read ? 'white' : 'rgba(108,92,231,0.04)',
-                    borderRadius: 16, padding: '14px 16px', marginBottom: 10,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-                    border: n.is_read ? '1px solid var(--dc-border)' : '1.5px solid rgba(108,92,231,0.2)',
-                    cursor: n.route ? 'pointer' : 'default',
-                    display: 'flex', alignItems: 'flex-start', gap: 12,
-                    transition: 'opacity 0.15s',
-                  }}
-                >
-                  {/* Unread dot */}
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%', marginTop: 6, flexShrink: 0,
-                    background: n.is_read ? 'transparent' : 'var(--dc-primary)',
-                    transition: 'background 0.2s',
-                  }} />
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <div style={{ fontWeight: n.is_read ? 600 : 800, fontSize: 14, color: 'var(--dc-text)' }}>
-                        {n.title}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--dc-text-muted)', flexShrink: 0 }}>
-                        {timeAgo(n.created_at)}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--dc-text-light)', marginTop: 3, lineHeight: 1.4 }}>
-                      {n.body}
-                    </div>
-                  </div>
-
-                  {n.is_read && (
-                    <Check size={14} color="var(--dc-text-muted)" strokeWidth={2} style={{ marginTop: 4, flexShrink: 0 }} />
-                  )}
-                </div>
-              ))
-            )}
-          </div>
         </div>
-      </IonContent>
-    </IonPage>
+
+        <div style={{ padding: '18px 22px 140px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '50px 0', color: 'var(--rk-text3)', fontSize: 14 }}>Chargement…</div>
+          ) : items.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 16px' }}>
+              <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--rk-text)', marginBottom: 6 }}>Aucune notification</div>
+              <div style={{ fontSize: 14, color: 'var(--rk-text3)', lineHeight: 1.5 }}>
+                Vous serez prévenu des activités terminées, des validations à faire et des récompenses à remettre.
+              </div>
+            </div>
+          ) : groups.map(group => (
+            <div key={group.label}>
+              <div style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: '.12em',
+                color: 'var(--rk-text3)', marginBottom: 11,
+              }}>{group.label}</div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+                {group.items.map(n => {
+                  const action = isActionRequired(n);
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() => open(n)}
+                      style={{
+                        display: 'flex', gap: 12, background: 'var(--rk-surface)',
+                        border: action && !n.is_read ? '1.5px solid var(--rk-amber)' : '1px solid var(--rk-border)',
+                        borderRadius: 18, padding: '14px 15px',
+                        opacity: n.is_read ? .72 : 1,
+                        cursor: n.route ? 'pointer' : 'default',
+                      }}
+                    >
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 11, flexShrink: 0, background: tintOf(n),
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+                      }}>{n.icon}</div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>{n.title}</div>
+                        <div style={{ fontSize: 13, color: 'var(--rk-text2)', marginTop: 3, lineHeight: 1.45 }}>{n.body}</div>
+                        <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 6 }}>{shortTime(n.created_at)}</div>
+                      </div>
+
+                      {!n.is_read && (
+                        <div style={{
+                          width: 8, height: 8, borderRadius: '50%', background: 'var(--rk-accent)',
+                          flexShrink: 0, marginTop: 5,
+                        }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </IonContent></IonPage>
   );
 };
 

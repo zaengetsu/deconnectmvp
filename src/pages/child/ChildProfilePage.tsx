@@ -4,229 +4,213 @@ import { useHistory } from 'react-router-dom';
 import { useAppStore } from '../../stores/app.store';
 import { childrenService } from '../../features/children/children.service';
 import { gamificationService } from '../../features/gamification/gamification.service';
-import { CheckCircle2 } from 'lucide-react';
+import { childSession } from '../../features/auth/child.session';
+import { useRk, RkSheet, type RkTheme } from '../../components/rk/RkShell';
+import { LEVEL_NAMES } from '../../lib/constants';
 
-// Les 14 avatars uniformisés (400×400, fond #EDE7FF)
-const AVATARS = Array.from({ length: 14 }, (_, i) =>
-  `/images/avatars/avatar_${String(i + 1).padStart(2, '0')}.png`
-);
+/** Profil & thème — porté de la maquette Rekonect (écran cProfile). */
 
-const isImageUrl = (url: string | null | undefined) =>
-  !!url && url.startsWith('/images/avatars/');
+const AVATARS = Array.from({ length: 14 }, (_, i) => `/images/avatars/avatar_${String(i + 1).padStart(2, '0')}.png`);
+
+/** Un thème se débloque tous les deux niveaux : c'est la récompense de la progression. */
+const THEMES: { key: RkTheme; label: string; color: string; level: number }[] = [
+  { key: 'peach', label: 'Pêche',    color: '#FF9469', level: 1 },
+  { key: 'ocean', label: 'Océan',    color: '#3FA0C9', level: 3 },
+  { key: 'mint',  label: 'Menthe',   color: '#5CB88F', level: 5 },
+  { key: 'berry', label: 'Myrtille', color: '#7C6BD4', level: 7 },
+  { key: 'sun',   label: 'Soleil',   color: '#E8B33F', level: 9 },
+  { key: 'rasp',  label: 'Framboise',color: '#E2607F', level: 10 },
+];
 
 const ChildProfilePage: React.FC = () => {
-  const { selectedChild, setSelectedChild } = useAppStore();
+  const { selectedChild, setSelectedChild, clearChild } = useAppStore();
+  const { theme, setTheme, dark, setDark, sheet, openSheet, closeSheet } = useRk();
   const history = useHistory();
-
-  const [saving, setSaving] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
   const [tempAvatar, setTempAvatar] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  if (!selectedChild) return null;
+  if (!selectedChild) {
+    return <IonPage><IonContent><div className="rk-app" style={{ padding: 40 }}>Aucun profil</div></IonContent></IonPage>;
+  }
 
-  const progress = gamificationService.getLevelProgress(selectedChild.total_points);
-  const currentAvatar = tempAvatar ?? selectedChild.avatar_url;
-  const hasImage = isImageUrl(currentAvatar);
+  const level = gamificationService.calculateLevel(selectedChild.total_points);
+  const levelName = LEVEL_NAMES[level - 1]?.name ?? 'Graine';
+  const currentTheme = THEMES.find(t => t.key === theme);
+  const isImg = selectedChild.avatar_url?.startsWith('/images/avatars/');
 
   const handleSaveAvatar = async () => {
-    if (!tempAvatar || tempAvatar === selectedChild.avatar_url) {
-      setShowPicker(false);
-      return;
-    }
+    if (!tempAvatar || tempAvatar === selectedChild.avatar_url) { closeSheet(); return; }
     setSaving(true);
     try {
-      const updated = await childrenService.updateChild(selectedChild.id, {
-        avatar_url: tempAvatar,
-      });
+      const updated = await childrenService.updateChild(selectedChild.id, { avatar_url: tempAvatar });
       setSelectedChild(updated);
       setTempAvatar(null);
-      setShowPicker(false);
+      closeSheet();
     } catch (e) {
-      console.error('Avatar update error:', e);
+      console.error('[ChildProfile] avatar:', e);
     } finally {
       setSaving(false);
     }
   };
 
+  const handleExit = async () => {
+    await childSession.end();
+    clearChild();
+    history.replace('/login');
+  };
+
   return (
-    <IonPage>
-      <IonContent fullscreen>
-        <div className="dc-page-header">
-          <div className="dc-header-row">
-            <img src="/images/menu/profile.png" alt="profil" style={{ width: 26, height: 26, objectFit: 'contain' }} />
-            <h1>Mon Profil</h1>
-          </div>
+    <IonPage><IonContent fullscreen>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
+
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
+          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
+        }}>
+          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+            Mon profil
+          </h1>
         </div>
 
-        <div style={{ padding: '20px 20px 100px' }}>
+        <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 22 }}>
 
-          {/* ── Carte profil ── */}
-          <div className="dc-card" style={{ textAlign: 'center', padding: 32, marginBottom: 24 }}>
-
-            {/* Avatar actuel */}
-            <div
-              style={{
-                width: 96, height: 96, borderRadius: '50%',
-                margin: '0 auto 12px',
-                overflow: 'hidden',
-                background: '#EDE7FF',
+          {/* ── Carte profil ──────────────────────────────────── */}
+          <div style={{
+            background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+            borderRadius: 22, padding: 26, textAlign: 'center',
+          }}>
+            {isImg ? (
+              <img src={selectedChild.avatar_url!} alt="" style={{
+                width: 92, height: 92, borderRadius: '50%', objectFit: 'cover',
+                marginBottom: 14, background: '#EDE7FF', border: '3px solid var(--rk-accent)',
+              }} />
+            ) : (
+              <div style={{
+                width: 92, height: 92, borderRadius: '50%', margin: '0 auto 14px',
+                background: 'var(--rk-accentsoft)', border: '3px solid var(--rk-accent)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 20px rgba(108,92,231,0.2)',
-                border: '3px solid rgba(108,92,231,0.15)',
-                position: 'relative',
-              }}
-            >
-              {hasImage ? (
-                <img
-                  src={currentAvatar!}
-                  alt="avatar"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                />
-              ) : (
-                <span style={{ fontSize: 32, fontWeight: 900, color: 'var(--dc-primary)' }}>
-                  {selectedChild.display_name?.[0]?.toUpperCase() || '?'}
-                </span>
-              )}
+                fontSize: 36, fontWeight: 800, color: 'var(--rk-text)',
+              }}>{selectedChild.display_name[0]?.toUpperCase()}</div>
+            )}
+
+            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-.03em', color: 'var(--rk-text)' }}>
+              {selectedChild.display_name}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--rk-text3)', marginTop: 3 }}>
+              {selectedChild.age} ans · {levelName} · niveau {level}
             </div>
 
-            <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 4px' }}>
-              {selectedChild.display_name}
-            </h2>
-            <p style={{ color: 'var(--dc-text-light)', margin: '0 0 16px' }}>
-              {selectedChild.age} ans
-            </p>
-
             <button
-              onClick={() => { setTempAvatar(currentAvatar ?? null); setShowPicker(true); }}
-              className="dc-btn"
+              onClick={() => { setTempAvatar(selectedChild.avatar_url ?? null); openSheet('avatar'); }}
               style={{
-                padding: '10px 24px', borderRadius: 50, fontSize: 14, fontWeight: 700,
-                background: 'rgba(108,92,231,0.1)', color: 'var(--dc-primary)', border: 'none',
-                cursor: 'pointer',
+                height: 42, padding: '0 22px', borderRadius: 999, background: 'var(--rk-accentsoft)',
+                color: 'var(--rk-text)', fontSize: 14, fontWeight: 700, marginTop: 18,
+                display: 'inline-flex', alignItems: 'center',
               }}
             >
-              Changer mon avatar
+              Changer d'avatar
             </button>
           </div>
 
-          {/* ── Progression ── */}
-          <div className="dc-card" style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontWeight: 700 }}>Niveau {selectedChild.level}</span>
-              <span style={{ color: 'var(--dc-primary)', fontWeight: 700 }}>
-                {selectedChild.total_points} pts
-              </span>
+          {/* ── Thème ─────────────────────────────────────────── */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: 'var(--rk-text3)', marginBottom: 6 }}>
+              MON THÈME
             </div>
-            <div className="dc-progress-bar">
-              <div className="dc-progress-fill" style={{ width: `${progress}%` }} />
+            <p style={{ fontSize: 13, color: 'var(--rk-text2)', margin: '0 0 14px', lineHeight: 1.55 }}>
+              Tu débloques une nouvelle couleur tous les deux niveaux. Actuellement : {currentTheme?.label ?? 'Pêche'}.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
+              {THEMES.map(t => {
+                const unlocked = level >= t.level;
+                const picked = theme === t.key;
+                return unlocked ? (
+                  <button key={t.key} onClick={() => setTheme(t.key)} style={{
+                    background: 'var(--rk-surface)',
+                    border: `2.5px solid ${picked ? t.color : 'transparent'}`,
+                    borderRadius: 18, padding: 12, textAlign: 'center',
+                  }}>
+                    <div style={{ width: '100%', height: 44, borderRadius: 12, background: t.color, marginBottom: 9 }} />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--rk-text)' }}>{t.label}</div>
+                  </button>
+                ) : (
+                  <div key={t.key} style={{
+                    background: 'var(--rk-surface2)', border: '2.5px solid transparent',
+                    borderRadius: 18, padding: 12, textAlign: 'center', opacity: .55,
+                  }}>
+                    <div style={{ width: '100%', height: 44, borderRadius: 12, background: t.color, marginBottom: 9, opacity: .35 }} />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--rk-text3)' }}>Niveau {t.level}</div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          <button
-            className="dc-btn dc-btn-outline dc-btn-full"
-            style={{ marginTop: 16 }}
-            onClick={() => history.replace('/parent')}
-          >
-            ← Retour à l'espace parent
+          {/* ── Mode sombre ───────────────────────────────────── */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12, background: 'var(--rk-surface)',
+            border: '1px solid var(--rk-border)', borderRadius: 20, padding: 16,
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Mode sombre</div>
+              <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>Plus doux le soir</div>
+            </div>
+            <button
+              onClick={() => setDark(!dark)}
+              role="switch"
+              aria-checked={dark}
+              style={{
+                width: 46, height: 28, borderRadius: 999, position: 'relative', flexShrink: 0,
+                background: dark ? 'var(--rk-indigo)' : 'var(--rk-track)',
+              }}
+            >
+              <div style={{
+                position: 'absolute', top: 3, left: dark ? 21 : 3, width: 22, height: 22,
+                borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)',
+                transition: 'left .18s',
+              }} />
+            </button>
+          </div>
+
+          <button onClick={handleExit} style={{
+            width: '100%', height: 50, borderRadius: 999, border: '1.5px solid var(--rk-border)',
+            color: 'var(--rk-text2)', fontSize: 14, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            Retour à l'espace parent
           </button>
         </div>
 
-        {/* ── Picker d'avatars (bottom sheet) ── */}
-        {showPicker && (
-          <div
-            style={{
-              position: 'fixed', inset: 0, zIndex: 9999,
-              background: 'rgba(0,0,0,0.55)',
-              display: 'flex', alignItems: 'flex-end',
-              backdropFilter: 'blur(4px)',
-            }}
-            onClick={() => setShowPicker(false)}
-          >
-            <div
-              onClick={e => e.stopPropagation()}
-              style={{
-                background: 'white', borderRadius: '24px 24px 0 0',
-                padding: '24px 20px 40px', width: '100%',
-                maxHeight: '80vh', overflowY: 'auto',
-              }}
-            >
-              {/* Handle */}
-              <div style={{ width: 40, height: 4, background: '#E5E7EB', borderRadius: 99, margin: '0 auto 20px' }} />
-
-              <h3 style={{ fontSize: 18, fontWeight: 900, margin: '0 0 6px', textAlign: 'center' }}>
-                Choisis ton avatar
-              </h3>
-              <p style={{ fontSize: 13, color: 'var(--dc-text-muted)', textAlign: 'center', margin: '0 0 20px' }}>
-                Appuie sur un personnage pour le sélectionner
-              </p>
-
-              {/* Grille 4 colonnes */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 12,
-                marginBottom: 24,
-              }}>
-                {AVATARS.map(src => {
-                  const selected = tempAvatar === src;
-                  return (
-                    <button
-                      key={src}
-                      type="button"
-                      onClick={() => setTempAvatar(src)}
-                      style={{
-                        background: selected ? 'rgba(108,92,231,0.12)' : '#F8F8FA',
-                        border: `2.5px solid ${selected ? 'var(--dc-primary)' : 'transparent'}`,
-                        borderRadius: 16, padding: 6,
-                        cursor: 'pointer', position: 'relative',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      <img
-                        src={src}
-                        alt="avatar"
-                        style={{
-                          width: '100%', aspectRatio: '1',
-                          borderRadius: 12, objectFit: 'cover',
-                          display: 'block',
-                        }}
-                      />
-                      {selected && (
-                        <div style={{
-                          position: 'absolute', bottom: 4, right: 4,
-                          background: 'var(--dc-primary)', borderRadius: '50%',
-                          width: 20, height: 20,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <CheckCircle2 size={13} color="white" strokeWidth={2.5} />
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <button
-                onClick={handleSaveAvatar}
-                disabled={saving || !tempAvatar}
-                style={{
-                  width: '100%', padding: '16px', borderRadius: 16,
-                  fontSize: 16, fontWeight: 900,
-                  background: saving || !tempAvatar
-                    ? '#D1D5DB'
-                    : 'linear-gradient(135deg, #6C5CE7, #A29BFE)',
-                  color: 'white', border: 'none',
-                  cursor: saving || !tempAvatar ? 'not-allowed' : 'pointer',
-                  boxShadow: saving || !tempAvatar ? 'none' : '0 6px 20px rgba(108,92,231,0.3)',
-                }}
-              >
-                {saving ? 'Enregistrement...' : 'Valider mon avatar'}
-              </button>
-            </div>
+        {/* ── Choix d'avatar ──────────────────────────────────── */}
+        <RkSheet open={sheet === 'avatar'} onClose={closeSheet} title="Choisis ton avatar">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 18 }}>
+            {AVATARS.map(src => {
+              const picked = tempAvatar === src;
+              return (
+                <button key={src} onClick={() => setTempAvatar(src)} style={{
+                  borderRadius: '50%', padding: 0, border: `3px solid ${picked ? 'var(--rk-accent)' : 'transparent'}`,
+                }}>
+                  <img src={src} alt="" style={{ width: '100%', aspectRatio: '1', borderRadius: '50%', objectFit: 'cover', background: '#EDE7FF', display: 'block' }} />
+                </button>
+              );
+            })}
           </div>
-        )}
-      </IonContent>
-    </IonPage>
+          <button
+            onClick={handleSaveAvatar}
+            disabled={saving || !tempAvatar}
+            style={{
+              width: '100%', height: 50, borderRadius: 999,
+              background: saving || !tempAvatar ? 'var(--rk-surface2)' : 'var(--rk-accent)',
+              color: saving || !tempAvatar ? 'var(--rk-text3)' : 'var(--rk-accentink)',
+              fontSize: 15, fontWeight: 800,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            {saving ? 'Enregistrement…' : 'Valider mon avatar'}
+          </button>
+        </RkSheet>
+      </div>
+    </IonContent></IonPage>
   );
 };
 

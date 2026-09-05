@@ -1,137 +1,131 @@
-import React, { useState } from 'react';
+import RkEmpty from '../../components/rk/RkEmpty';
+import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { childrenService } from '../../features/children/children.service';
+import { gamificationService, getRealStreak } from '../../features/gamification/gamification.service';
 import type { Child } from '../../types/database.types';
 
-const LEVEL_NAMES = ['', 'Explorateur', 'Aventurier', 'Champion', 'Héros', 'Légende', 'Super Héros', 'Maître', 'Expert', 'Prodige', 'Légende'];
-
-const isHexColor = (v?: string | null) => !!v && /^#[0-9A-Fa-f]{3,8}$/.test(v);
-const isImageUrl = (v?: string | null) => !!v && v.startsWith('/images/avatars/');
-
-const ChildAvatar = ({ child, size = 60 }: { child: { avatar_url?: string | null; display_name: string }; size?: number }) => {
-  const url = child.avatar_url;
-  if (isImageUrl(url)) {
-    return (
-      <div style={{
-        width: size, height: size, borderRadius: '50%', flexShrink: 0,
-        overflow: 'hidden', background: '#EDE7FF',
-        boxShadow: '0 2px 10px rgba(108,92,231,0.2)',
-      }}>
-        <img src={url!} alt={child.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-      </div>
-    );
-  }
-  const isColor = isHexColor(url);
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      background: isColor ? url! : 'linear-gradient(135deg, rgba(108,92,231,0.15), rgba(0,206,201,0.15))',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.38, fontWeight: 900, color: isColor ? 'white' : undefined,
-      boxShadow: isColor ? `0 2px 10px ${url}60` : undefined,
-    }}>
-      {isColor ? child.display_name[0]?.toUpperCase() ?? '?' : '?'}
-    </div>
-  );
-};
-
+/** Mes enfants — porté de la maquette Rekonect (écran pKids). */
 
 const ChildrenListPage: React.FC = () => {
-  const history = useHistory();
   const { user } = useAuthStore();
+  const history = useHistory();
   const [children, setChildren] = useState<Child[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const fetchChildren = () => {
-    if (!user) { setLoading(false); return; }
-    childrenService.getChildren(user.id)
-      .then(setChildren)
-      .catch(err => console.error('[ChildrenList] fetch error:', err))
-      .finally(() => setLoading(false));
+  const load = () => {
+    if (!user) return;
+    childrenService.getChildren(user.id).then(setChildren).catch(e => console.error('[pKids]', e));
   };
 
-  // useIonViewWillEnter covers both initial mount AND subsequent returns
-  useIonViewWillEnter(fetchChildren);
+  useEffect(load, [user?.id]);
+  useIonViewWillEnter(load);
+
+  const stat = (value: React.ReactNode, label: string, color = 'var(--rk-text)') => (
+    <div style={{ flex: 1, background: 'var(--rk-surface2)', borderRadius: 14, padding: '10px 12px' }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--rk-text3)', marginTop: 1 }}>{label}</div>
+    </div>
+  );
 
   return (
-    <IonPage>
-      <IonContent fullscreen>
-        <div style={{ background: 'var(--dc-bg)', minHeight: '100vh', padding: '0 0 100px' }}>
-          {/* Header */}
-          <div className="dc-page-header">
-            <div className="dc-header-row">
-              <img src="/images/menu/team-management.png" alt="enfants" style={{ width: 26, height: 26, objectFit: 'contain' }} />
-              <h1>Mes enfants</h1>
-            </div>
-            <p>{loading ? '...' : `${children.length} profil${children.length > 1 ? 's' : ''}`}</p>
-          </div>
+    <IonPage><IonContent fullscreen>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-          <div style={{ padding: '20px 20px 0' }}>
-            {/* Add button */}
-            <button
-              className="dc-btn dc-btn-primary dc-btn-full"
-              style={{ marginBottom: 20, fontSize: 15 }}
-              onClick={() => history.push('/parent/create-child')}
-            >
-              + Ajouter un enfant
-            </button>
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
+          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
+        }}>
+          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+            Mes enfants
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>
+            {children.length} profil{children.length > 1 ? 's' : ''}
+          </p>
+        </div>
 
-            {/* Loading */}
-            {loading && (
-              <div style={{ textAlign: 'center', padding: 40, color: 'var(--dc-text-light)' }}>
-                Chargement...
-              </div>
-            )}
+        <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {children.length === 0 && (
+            <RkEmpty
+              img="/images/categories/family.png"
+              tint="var(--rk-accentsoft)"
+              title="Aucun profil enfant"
+              text="Créez un profil par enfant : il aura son propre espace, ses activités, ses points et ses récompenses."
+              cta={{ label: 'Ajouter un enfant', onClick: () => history.push('/parent/create-child') }}
+            />
+          )}
+          {children.map(child => {
+            const level = gamificationService.calculateLevel(child.total_points);
+            const streak = getRealStreak(child.streak_days || 0, child.last_activity_date);
+            const linked = !!child.auth_user_id;
+            const isImg = child.avatar_url?.startsWith('/images/avatars/');
 
-            {/* Empty state */}
-            {!loading && children.length === 0 && (
-              <div className="dc-empty-state">
-                <div style={{ width: 56, height: 56, borderRadius: 18, background: 'rgba(108,92,231,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                  <img src="/images/menu/team-management.png" alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} />
-                </div>
-                <h3>Aucun profil enfant</h3>
-                <p>Créez le premier profil pour commencer l'aventure !</p>
-              </div>
-            )}
+            return (
+              <button
+                key={child.id}
+                onClick={() => history.push(`/parent/children/${child.id}`)}
+                style={{
+                  display: 'block', width: '100%', background: 'var(--rk-surface)',
+                  border: '1px solid var(--rk-border)', borderRadius: 20, padding: 18,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  {isImg ? (
+                    <img src={child.avatar_url!} alt="" style={{
+                      width: 54, height: 54, borderRadius: '50%', objectFit: 'cover',
+                      flexShrink: 0, background: '#EDE7FF',
+                    }} />
+                  ) : (
+                    <div style={{
+                      width: 54, height: 54, borderRadius: '50%', flexShrink: 0,
+                      background: /^#[0-9A-Fa-f]{3,8}$/.test(child.avatar_url || '') ? child.avatar_url! : '#EDE7FF',
+                      color: 'var(--rk-indigo)', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: 21, fontWeight: 800,
+                    }}>{child.display_name[0]?.toUpperCase()}</div>
+                  )}
 
-            {/* Children list */}
-            {children.map(child => {
-              const progress = Math.min(100, (child.total_points % 100));
-              return (
-                <div key={child.id} className="dc-card dc-animate-in"
-                  style={{ marginBottom: 14, cursor: 'pointer' }}
-                  onClick={() => history.push(`/parent/children/${child.id}`)}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    {/* Avatar */}
-                    <ChildAvatar child={child} size={60} />
-
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 2 }}>{child.display_name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--dc-text-light)', marginBottom: 6 }}>
-                        {child.age} ans • Niveau {child.level} — {LEVEL_NAMES[child.level] || 'Pro'}
-                      </div>
-                      {/* Progress bar */}
-                      <div className="dc-progress-bar" style={{ height: 6 }}>
-                        <div className="dc-progress-fill" style={{ width: `${progress}%` }} />
-                      </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-.02em', color: 'var(--rk-text)' }}>
+                      {child.display_name}
                     </div>
-
-                    {/* Points badge */}
-                    <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--dc-primary)' }}>{child.total_points}</div>
-                      <div style={{ fontSize: 10, color: 'var(--dc-text-muted)', fontWeight: 600 }}>pts</div>
+                    <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 3 }}>
+                      {child.age} ans · appareil {linked ? 'lié' : 'non lié'}
                     </div>
                   </div>
+
+                  <div style={{
+                    height: 26, padding: '0 10px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0,
+                    background: linked ? 'var(--rk-sagesoft)' : 'var(--rk-ambersoft)',
+                    color: linked ? 'var(--rk-sage)' : 'var(--rk-amber)',
+                    fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center',
+                  }}>
+                    {linked ? 'Actif' : 'À lier'}
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                  {stat(child.total_points, 'POINTS')}
+                  {stat(level, 'NIVEAU')}
+                  {stat(streak, 'SÉRIE', streak > 0 ? 'var(--rk-accent)' : 'var(--rk-text3)')}
+                </div>
+              </button>
+            );
+          })}
+
+          <button
+            onClick={() => history.push('/parent/create-child')}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+              width: '100%', height: 56, borderRadius: 20, border: '1.5px dashed var(--rk-border)',
+              color: 'var(--rk-text2)', fontSize: 14, fontWeight: 700, marginTop: 6,
+            }}
+          >
+            <span style={{ fontSize: 19, fontWeight: 700, lineHeight: 1 }}>+</span> Ajouter un enfant
+          </button>
         </div>
-      </IonContent>
-    </IonPage>
+      </div>
+    </IonContent></IonPage>
   );
 };
 

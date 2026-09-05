@@ -1,362 +1,205 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useRkBack } from '../../hooks/useRkBack';
+import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { activitiesService } from '../../features/activities/activities.service';
 import type { ActivityCategory } from '../../types/database.types';
-import { AlertCircle, Star, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
-const DIFFICULTY = [
-  { value: 'easy',   label: 'Facile',    color: '#22C55E', bg: '#F0FDF4' },
-  { value: 'medium', label: 'Moyen',     color: '#F59E0B', bg: '#FFFBEB' },
-  { value: 'hard',   label: 'Difficile', color: '#EF4444', bg: '#FEF2F2' },
+/** Nouvelle activité — porté de la maquette Rekonect (écran pNewAct). */
+
+const DIFFICULTIES = [
+  { key: 'easy',   label: 'Facile',   tint: 'var(--rk-sagesoft)',  ink: 'var(--rk-sage)' },
+  { key: 'medium', label: 'Moyen',    tint: 'var(--rk-ambersoft)', ink: 'var(--rk-amber)' },
+  { key: 'hard',   label: 'Difficile',tint: 'var(--rk-raspsoft)',  ink: 'var(--rk-rasp)' },
 ] as const;
 
-const QUICK_POINTS = [5, 10, 20, 30, 50, 75, 100];
-
-/* ─── Section wrapper ─── */
-const Section: React.FC<{ title: string; subtitle?: string; children: React.ReactNode }> = ({ title, subtitle, children }) => (
-  <div style={{
-    background: 'white',
-    borderRadius: 20,
-    padding: '20px',
-    marginBottom: 16,
-    boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
-    border: '1px solid rgba(0,0,0,0.06)',
-  }}>
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--dc-text)' }}>{title}</div>
-      {subtitle && <div style={{ fontSize: 12, color: 'var(--dc-text-muted)', marginTop: 2 }}>{subtitle}</div>}
-    </div>
-    {children}
-  </div>
-);
-
 const CreateActivityPage: React.FC = () => {
-  const history = useHistory();
   const { user } = useAuthStore();
-  const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const history = useHistory();
+  const back = useRkBack('/parent/activities');
 
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
+  const [instructions, setInstructions] = useState('');
+  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [categoryId, setCategoryId] = useState<string | undefined>();
   const [points, setPoints] = useState(10);
-  const [duration, setDuration] = useState<number | undefined>(undefined);
+  const [duration, setDuration] = useState(10);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    activitiesService.getCategories()
-      .then(c => { if (mounted.current) setCategories(c); })
-      .catch(console.error);
+    activitiesService.getCategories().then(c => {
+      setCategories(c);
+      if (c[0]) setCategoryId(c[0].id);
+    }).catch(() => {});
   }, []);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) { setError('Le titre est requis'); return; }
-    if (title.trim().length < 3) { setError('Le titre doit faire au moins 3 caractères'); return; }
-    if (points < 1 || points > 100) { setError('Les points doivent être entre 1 et 100'); return; }
-    if (!user) { setError('Session introuvable — veuillez vous reconnecter'); return; }
-
-    setLoading(true);
+  const submit = async () => {
+    if (!user || title.trim().length < 3) return;
+    setSaving(true);
     setError(null);
     try {
       await activitiesService.createCustomActivity(user.id, {
         title: title.trim(),
-        description: description.trim() || undefined,
-        category_id: categoryId || undefined,
+        instructions: instructions.trim() || undefined,
         points,
         duration_minutes: duration,
         difficulty,
+        category_id: categoryId,
       });
-      if (mounted.current) history.replace('/parent/activities');
+      history.replace('/parent/activities');
     } catch (e) {
-      if (mounted.current) {
-        const msg = e instanceof Error ? e.message : JSON.stringify(e);
-        setError(`Erreur : ${msg}`);
-      }
+      setError(e instanceof Error ? e.message : 'Erreur inconnue');
     } finally {
-      if (mounted.current) setLoading(false);
+      setSaving(false);
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '13px 16px',
-    borderRadius: 12,
-    border: '1.5px solid var(--dc-border)',
-    fontSize: 15,
-    background: '#FAFAFA',
-    outline: 'none',
-    boxSizing: 'border-box',
-    fontFamily: 'var(--dc-font)',
-    color: 'var(--dc-text)',
-  };
+  const label: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: 'var(--rk-text2)', marginBottom: 7 };
+  const stepper = (v: number, set: (n: number) => void, step: number, min: number, max: number, suffix = '') => (
+    <div style={{
+      height: 50, borderRadius: 14, border: '1.5px solid var(--rk-border)', background: 'var(--rk-surface)',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px',
+    }}>
+      <button onClick={() => set(Math.max(min, v - step))} style={{
+        width: 30, height: 30, borderRadius: 9, background: 'var(--rk-surface2)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 17, fontWeight: 700, color: 'var(--rk-text2)',
+      }}>−</button>
+      <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--rk-text)' }}>{v}{suffix}</span>
+      <button onClick={() => set(Math.min(max, v + step))} style={{
+        width: 30, height: 30, borderRadius: 9, background: 'var(--rk-surface2)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 17, fontWeight: 700, color: 'var(--rk-text2)',
+      }}>+</button>
+    </div>
+  );
 
   return (
-    <IonPage>
-      <IonContent fullscreen>
-        <div style={{ minHeight: '100vh', background: '#F4F5F9', paddingBottom: 32 }}>
+    <IonPage><IonContent fullscreen>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-          {/* ── Header ── */}
-          <div style={{
-            background: 'linear-gradient(135deg, #6C5CE7 0%, #00B894 100%)',
-            padding: '56px 24px 36px',
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden',
-          }}>
-            <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
-            <div style={{ position: 'absolute', bottom: -20, left: -20, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
-
-            <button
-              onClick={() => history.goBack()}
-              style={{
-                background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12,
-                padding: '8px 14px', color: 'white', fontSize: 14, cursor: 'pointer',
-                marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6,
-                backdropFilter: 'blur(8px)',
-              }}
-            >
-              <ArrowLeft size={14} strokeWidth={2.5} /> Retour
-            </button>
-
-            <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0 }}>Nouvelle activité</h1>
-            <p style={{ opacity: 0.85, fontSize: 13, margin: '4px 0 0' }}>Créez une activité personnalisée</p>
-          </div>
-
-          {/* ── Form ── */}
-          <div style={{ padding: '24px 20px 0' }}>
-            <form onSubmit={onSubmit}>
-
-              {/* Titre */}
-              <Section title="Titre de l'activité" subtitle="Donnez un nom clair et motivant">
-                <input
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="Ex : Faire son lit, Lire 20 minutes..."
-                  style={inputStyle}
-                  autoFocus
-                />
-              </Section>
-
-              {/* Description */}
-              <Section title="Description" subtitle="Optionnel — expliquez ce que l'enfant doit faire">
-                <textarea
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  placeholder="Décrivez ce que l'enfant doit faire..."
-                  rows={3}
-                  style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
-                />
-              </Section>
-
-              {/* Catégorie */}
-              {categories.length > 0 && (
-                <Section title="Catégorie" subtitle="Classez l'activité par thème">
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => setCategoryId(undefined)}
-                      style={{
-                        padding: '8px 14px', borderRadius: 50, fontSize: 13, fontWeight: 600,
-                        border: `1.5px solid ${!categoryId ? '#6C5CE7' : 'var(--dc-border)'}`,
-                        background: !categoryId ? 'rgba(108,92,231,0.1)' : 'white',
-                        color: !categoryId ? '#6C5CE7' : 'var(--dc-text-light)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Aucune
-                    </button>
-                    {categories.map(c => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setCategoryId(c.id)}
-                        style={{
-                          padding: '8px 14px', borderRadius: 50, fontSize: 13, fontWeight: 600,
-                          border: `1.5px solid ${categoryId === c.id ? '#6C5CE7' : 'var(--dc-border)'}`,
-                          background: categoryId === c.id ? 'rgba(108,92,231,0.1)' : 'white',
-                          color: categoryId === c.id ? '#6C5CE7' : 'var(--dc-text-light)',
-                          cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', gap: 6,
-                        }}
-                      >
-                        <span>{c.icon}</span> {c.name}
-                      </button>
-                    ))}
-                  </div>
-                </Section>
-              )}
-
-              {/* Difficulté */}
-              <Section title="Difficulté" subtitle="Quel effort cela demande à l'enfant ?">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                  {DIFFICULTY.map(d => (
-                    <button
-                      key={d.value}
-                      type="button"
-                      onClick={() => setDifficulty(d.value)}
-                      style={{
-                        padding: '14px 8px', borderRadius: 14,
-                        border: `2px solid ${difficulty === d.value ? d.color : 'var(--dc-border)'}`,
-                        background: difficulty === d.value ? d.bg : 'white',
-                        cursor: 'pointer',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                      }}
-                    >
-                      <span style={{
-                        fontSize: 13, fontWeight: 700,
-                        color: difficulty === d.value ? d.color : 'var(--dc-text-light)',
-                      }}>
-                        {d.label}
-                      </span>
-                      {difficulty === d.value && (
-                        <CheckCircle2 size={14} color={d.color} strokeWidth={2.5} />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </Section>
-
-              {/* Points */}
-              <Section
-                title="Points récompensés"
-                subtitle="Combien de points l'enfant gagne ?"
-              >
-                {/* Presets */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
-                  {QUICK_POINTS.map(p => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setPoints(p)}
-                      style={{
-                        padding: '10px 4px', borderRadius: 12, fontSize: 13, fontWeight: 700,
-                        border: `2px solid ${points === p ? '#6C5CE7' : 'var(--dc-border)'}`,
-                        background: points === p ? '#6C5CE7' : 'white',
-                        color: points === p ? 'white' : 'var(--dc-text)',
-                        cursor: 'pointer', transition: 'all 0.15s',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {p} pts
-                    </button>
-                  ))}
-                </div>
-
-                {/* Valeur affichée + input manuel */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  background: 'rgba(108,92,231,0.06)', borderRadius: 14, padding: '12px 16px',
-                }}>
-                  <div style={{
-                    width: 52, height: 52, borderRadius: 14, flexShrink: 0,
-                    background: 'linear-gradient(135deg, #6C5CE7, #A29BFE)',
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center',
-                    color: 'white', fontWeight: 900, fontSize: 18, lineHeight: 1,
-                  }}>
-                    <Star size={16} color="rgba(255,255,255,0.8)" strokeWidth={2} fill="rgba(255,255,255,0.5)" />
-                    <span style={{ fontSize: 11, fontWeight: 600, marginTop: 2 }}>{points} pts</span>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--dc-text-muted)', marginBottom: 6 }}>
-                      Valeur personnalisée (1–100)
-                    </div>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={points}
-                      onChange={e => {
-                        const v = parseInt(e.target.value) || 1;
-                        setPoints(Math.min(100, Math.max(1, v)));
-                      }}
-                      style={{
-                        ...inputStyle,
-                        padding: '10px 14px',
-                        fontSize: 18,
-                        fontWeight: 800,
-                        textAlign: 'center',
-                        color: '#6C5CE7',
-                        background: 'white',
-                        border: '2px solid rgba(108,92,231,0.25)',
-                      }}
-                    />
-                  </div>
-                </div>
-              </Section>
-
-              {/* Durée */}
-              <Section title="Durée estimée" subtitle="Optionnel — en minutes">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 10 }}>
-                  {[15, 30, 45, 60].map(m => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setDuration(duration === m ? undefined : m)}
-                      style={{
-                        padding: '10px 4px', borderRadius: 12, fontSize: 13, fontWeight: 700,
-                        border: `2px solid ${duration === m ? '#A29BFE' : 'var(--dc-border)'}`,
-                        background: duration === m ? 'rgba(162,155,254,0.15)' : 'white',
-                        color: duration === m ? '#6C5CE7' : 'var(--dc-text-light)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {m} min
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="number"
-                  min={5} max={180}
-                  value={duration || ''}
-                  onChange={e => setDuration(e.target.value ? parseInt(e.target.value) : undefined)}
-                  placeholder="Ou entrez une durée personnalisée..."
-                  style={inputStyle}
-                />
-              </Section>
-
-              {/* Erreur */}
-              {error && (
-                <div style={{
-                  background: '#FEF2F2', color: '#DC2626',
-                  padding: '14px 16px', borderRadius: 14,
-                  marginBottom: 16, fontSize: 14,
-                  border: '1px solid #FECACA',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                }}>
-                  <AlertCircle size={16} strokeWidth={2} /> {error}
-                </div>
-              )}
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  width: '100%', padding: '18px', borderRadius: 18,
-                  fontSize: 16, fontWeight: 900,
-                  background: loading ? '#D1D5DB' : 'linear-gradient(135deg, #6C5CE7 0%, #00B894 100%)',
-                  color: 'white', border: 'none',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  boxShadow: loading ? 'none' : '0 8px 24px rgba(108,92,231,0.35)',
-                  transition: 'all 0.2s',
-                }}
-              >
-                {loading ? 'Création en cours...' : "Créer l'activité"}
-              </button>
-
-            </form>
-          </div>
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
+          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
+        }}>
+          <button onClick={() => back()} style={{
+            fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
+          }}>← Catalogue</button>
+          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+            Nouvelle activité
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>
+            Visible uniquement par votre famille
+          </p>
         </div>
-      </IonContent>
-    </IonPage>
+
+        <div style={{ padding: '20px 22px 140px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+          <div>
+            <div style={label}>Titre</div>
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Vider le lave-vaisselle"
+              style={{
+                width: '100%', height: 50, borderRadius: 14,
+                border: `1.5px solid ${title ? 'var(--rk-accent)' : 'var(--rk-border)'}`,
+                background: 'var(--rk-surface)', padding: '0 15px',
+                fontSize: 15, fontWeight: 600, fontFamily: 'inherit', color: 'var(--rk-text)',
+              }}
+            />
+          </div>
+
+          <div>
+            <div style={label}>Consigne pour l'enfant</div>
+            <textarea
+              value={instructions}
+              onChange={e => setInstructions(e.target.value)}
+              placeholder="Range la vaisselle propre dans les placards, puis referme la porte."
+              style={{
+                width: '100%', height: 88, borderRadius: 14, border: '1.5px solid var(--rk-border)',
+                background: 'var(--rk-surface)', padding: '13px 15px', fontSize: 14,
+                fontFamily: 'inherit', color: 'var(--rk-text)', lineHeight: 1.5, resize: 'none',
+              }}
+            />
+          </div>
+
+          {categories.length > 0 && (
+            <div>
+              <div style={{ ...label, marginBottom: 9 }}>Catégorie</div>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {categories.map(c => {
+                  const on = categoryId === c.id;
+                  return (
+                    <button key={c.id} onClick={() => setCategoryId(c.id)} style={{
+                      height: 36, padding: '0 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+                      display: 'flex', alignItems: 'center',
+                      background: on ? 'var(--rk-indigo)' : 'var(--rk-surface)',
+                      border: on ? 'none' : '1px solid var(--rk-border)',
+                      color: on ? 'var(--rk-indigofg)' : 'var(--rk-text2)',
+                    }}>{c.name}</button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={label}>Points</div>
+              {stepper(points, setPoints, 5, 5, 100)}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={label}>Durée</div>
+              {stepper(duration, setDuration, 5, 5, 180, ' min')}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ ...label, marginBottom: 9 }}>Difficulté</div>
+            <div style={{ display: 'flex', gap: 7 }}>
+              {DIFFICULTIES.map(d => {
+                const on = difficulty === d.key;
+                return (
+                  <button key={d.key} onClick={() => setDifficulty(d.key)} style={{
+                    flex: 1, height: 42, borderRadius: 12, fontSize: 13, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: on ? d.tint : 'var(--rk-surface)',
+                    border: on ? 'none' : '1px solid var(--rk-border)',
+                    color: on ? d.ink : 'var(--rk-text3)',
+                  }}>{d.label}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          {error && (
+            <div style={{
+              background: 'var(--rk-raspsoft)', borderRadius: 16, padding: '14px 15px',
+              fontSize: 12, color: 'var(--rk-rasp)', lineHeight: 1.55,
+            }}>{error}</div>
+          )}
+
+          <button
+            onClick={submit}
+            disabled={saving || title.trim().length < 3}
+            style={{
+              width: '100%', height: 52, borderRadius: 999, marginTop: 4,
+              background: title.trim().length >= 3 ? 'var(--rk-indigo)' : 'var(--rk-surface2)',
+              color: title.trim().length >= 3 ? 'var(--rk-indigofg)' : 'var(--rk-text3)',
+              fontSize: 15, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: saving ? .6 : 1,
+            }}
+          >
+            {saving ? 'Création…' : "Créer l'activité"}
+          </button>
+        </div>
+      </div>
+    </IonContent></IonPage>
   );
 };
 

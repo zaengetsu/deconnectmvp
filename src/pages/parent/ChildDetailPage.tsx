@@ -1,434 +1,386 @@
+import { pauseCircleOutline, qrCodeOutline } from 'ionicons/icons';
+import RkTile from '../../components/rk/RkTile';
+import { useRkBack } from '../../hooks/useRkBack';
+import { buildChildLinkUrl } from '../../lib/childLink';
 import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useParams, useHistory } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import { supabase } from '../../lib/supabase';
 import { childrenService } from '../../features/children/children.service';
 import { activitiesService } from '../../features/activities/activities.service';
-import { gamificationService } from '../../features/gamification/gamification.service';
-import { supabase } from '../../lib/supabase';
-import { Smartphone, QrCode, CheckCircle, RefreshCw, Clock, Trophy, ArrowLeft, CheckCircle2, BookPlus, Pencil, Trash2, X } from 'lucide-react';
+import { gamificationService, getRealStreak } from '../../features/gamification/gamification.service';
+import { useRk, RkSheet } from '../../components/rk/RkShell';
+import { LEVEL_NAMES } from '../../lib/constants';
 import type { Child, ChildActivity, ChildBadge } from '../../types/database.types';
+
+/** Fiche enfant — porté de la maquette Rekonect (écran pKid). */
+
+const BADGE_TINTS = ['var(--rk-ambersoft)', 'var(--rk-sagesoft)', 'var(--rk-accentsoft)', 'var(--rk-indigosoft)'];
+
+const isWithinLastDay = (iso?: string | null) =>
+  !!iso && Date.now() - new Date(iso).getTime() < 24 * 3600 * 1000;
 
 const ChildDetailPage: React.FC = () => {
   const { childId } = useParams<{ childId: string }>();
   const history = useHistory();
+  const back = useRkBack('/parent/children');
+  const { sheet, openSheet, closeSheet } = useRk();
+
   const [child, setChild] = useState<Child | null>(null);
   const [activities, setActivities] = useState<ChildActivity[]>([]);
   const [badges, setBadges] = useState<ChildBadge[]>([]);
-  const [weeklyStats, setWeeklyStats] = useState({ activitiesCompleted: 0, pointsEarned: 0, badgesEarned: 0 });
-  const [allTimeStats, setAllTimeStats] = useState({ totalEarned: 0, totalSpent: 0, activitiesValidated: 0 });
+  const [stats, setStats] = useState<{ totalEarned: number; totalSpent: number; activitiesValidated: number } | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [code, setCode] = useState<string | null>(null);
+  const [pin, setPin] = useState<string | null>(null);
 
-  // QR Code state
-  const [showQR, setShowQR] = useState(false);
-  const [qrToken, setQrToken] = useState<string | null>(null);
-  const [qrLoading, setQrLoading] = useState(false);
-  const [qrExpiry, setQrExpiry] = useState<Date | null>(null);
-
-  // Edit child state
-  const [showEdit, setShowEdit] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editAge, setEditAge] = useState<number>(10);
-  const [editAvatar, setEditAvatar] = useState('');
-  const [editSaving, setEditSaving] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-
-  const fetchAll = () => {
-    if (!childId) return;
-    setLoading(true);
-    setLoadError(false);
-    const timer = setTimeout(() => { setLoading(false); setLoadError(true); }, 8000);
-
-    Promise.all([
-      childrenService.getChild(childId),
-      activitiesService.getChildActivities(childId),
-      gamificationService.getChildBadges(childId),
-      gamificationService.getWeeklyStats(childId),
-      gamificationService.getAllTimeStats(childId),
-    ])
-      .then(([c, acts, bdgs, stats, allTime]) => {
-        setChild(c);
-        setEditName(c.display_name);
-        setEditAge(c.age);
-        setEditAvatar(c.avatar_url || '');
-        setActivities(acts);
-        setBadges(bdgs);
-        setWeeklyStats(stats);
-        setAllTimeStats(allTime);
-      })
-      .catch(err => { console.error('[ChildDetail] fetch error:', err); setLoadError(true); })
-      .finally(() => { clearTimeout(timer); setLoading(false); });
+  const load = () => {
+    childrenService.getChild(childId).then(setChild).catch(e => console.error('[pKid]', e));
+    activitiesService.getChildActivities(childId).then(a => setActivities(a.slice(0, 6))).catch(() => {});
+    gamificationService.getChildBadges(childId).then(b => setBadges(b.slice(0, 8))).catch(() => {});
+    gamificationService.getAllTimeStats(childId).then(setStats).catch(() => {});
   };
 
-  // useEffect for param changes (navigating between child profiles)
-  // useIonViewWillEnter for returning to the page from deeper navigation
-  useEffect(fetchAll, [childId]);
-  useIonViewWillEnter(fetchAll);
+  useEffect(load, [childId]);
+  useIonViewWillEnter(load);
 
-  const generateQR = async () => {
-    if (!childId) return;
-    setQrLoading(true);
+  const createLink = async () => {
     try {
       const { data, error } = await supabase.rpc('create_child_link_token', { p_child_id: childId });
       if (error) throw error;
-      setQrToken(data);
-      setQrExpiry(new Date(Date.now() + 15 * 60 * 1000));
-      setShowQR(true);
+      const payload = typeof data === 'string' ? { token: data } : (data as { token?: string; code?: string } | null);
+      setToken(payload?.token ?? null);
+      setCode(payload?.code ?? null);
+      setPin(String(Math.floor(1000 + Math.random() * 9000)));
+      openSheet('qr');
     } catch (e) {
-      console.error('QR generation error:', e);
-    } finally {
-      setQrLoading(false);
+      console.error('[pKid] link:', e);
     }
   };
 
-  const handleSaveEdit = async () => {
-    if (!child || !editName.trim()) return;
-    setEditSaving(true);
-    try {
-      const updated = await childrenService.updateChild(child.id, {
-        display_name: editName.trim(),
-        age: editAge,
-        avatar_url: editAvatar || null,
-      });
-      setChild(updated);
-      setShowEdit(false);
-    } finally {
-      setEditSaving(false);
-    }
-  };
+  if (!child) {
+    return <IonPage><IonContent><div className="rk-app" style={{ padding: 40 }}>Chargement…</div></IonContent></IonPage>;
+  }
 
-  const handleDelete = async () => {
-    if (!child) return;
-    await childrenService.deactivateChild(child.id);
-    history.replace('/parent/children');
-  };
-
-  if (loading || !child) return (
-    <IonPage><IonContent>
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--dc-text-light)' }}>
-        {loadError
-          ? <>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>Impossible de charger le profil</div>
-              <button className="dc-btn dc-btn-primary" onClick={fetchAll}>Réessayer</button>
-            </>
-          : 'Chargement...'}
-      </div>
-    </IonContent></IonPage>
-  );
-
+  const level = gamificationService.calculateLevel(child.total_points);
+  const levelName = LEVEL_NAMES[level - 1]?.name ?? 'Graine';
+  const nextThreshold = gamificationService.getNextLevelThreshold(child.total_points);
   const progress = gamificationService.getLevelProgress(child.total_points);
-  const isLinked = !!(child as any).pin_hash;
+  const streak = getRealStreak(child.streak_days || 0, child.last_activity_date);
+  const linked = !!child.auth_user_id;
+  // La confirmation « Appareil lié » n'est mise en avant que dans les 24 h qui
+  // suivent la liaison ; ensuite, un simple statut discret dans l'en-tête.
+  const justLinked = linked && isWithinLastDay(child.device_linked_at);
+  const isImg = child.avatar_url?.startsWith('/images/avatars/');
 
-  const COLOR_OPTIONS = ['#6C5CE7', '#00B894', '#E17055', '#0984E3', '#FDCB6E', '#A29BFE', '#FD79A8', '#2D3436'];
+  const eyebrow: React.CSSProperties = {
+    fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: 'var(--rk-text3)', marginBottom: 12,
+  };
+
+  const statusOf = (ca: ChildActivity) => {
+    if (ca.status === 'submitted') return { dot: 'var(--rk-amber)', label: 'En attente de validation', points: `${ca.activity?.points ?? 0} pts`, color: 'var(--rk-text3)' };
+    if (ca.status === 'validated') return { dot: 'var(--rk-sage)', label: 'Validée', points: `+${ca.earned_points ?? 0} pts`, color: 'var(--rk-sage)' };
+    if (ca.status === 'rejected') return { dot: 'var(--rk-rasp)', label: 'Non validée', points: '—', color: 'var(--rk-text3)' };
+    return { dot: 'var(--rk-text3)', label: 'En cours', points: `${ca.activity?.points ?? 0} pts`, color: 'var(--rk-text3)' };
+  };
 
   return (
-    <IonPage>
-      {/* ── Edit Modal ── */}
-      {showEdit && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', backdropFilter: 'blur(6px)' }}
-          onClick={() => setShowEdit(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '24px 24px 0 0', padding: '28px 24px 40px', width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>Modifier {child?.display_name}</h2>
-              <button onClick={() => setShowEdit(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={22} color="var(--dc-text-muted)" /></button>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Prénom</label>
-              <input className="dc-input" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Prénom de l'enfant" />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Âge</label>
-              <input className="dc-input" type="number" min={4} max={18} value={editAge} onChange={e => setEditAge(Number(e.target.value))} />
-            </div>
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 10 }}>Couleur de l'avatar</label>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {COLOR_OPTIONS.map(c => (
-                  <button key={c} onClick={() => setEditAvatar(c)} style={{
-                    width: 36, height: 36, borderRadius: '50%', background: c, border: editAvatar === c ? '3px solid #2D3436' : '3px solid transparent', cursor: 'pointer',
-                  }} />
-                ))}
+    <IonPage><IonContent fullscreen>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
+
+        {/* ── En-tête indigo ──────────────────────────────────── */}
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 12px) 22px 26px',
+          background: 'var(--rk-indigo)',
+          backgroundImage:
+            'radial-gradient(circle at 15% 120%, rgba(255,255,255,.14) 0 44%, transparent 45%),' +
+            'radial-gradient(circle at 15% 120%, rgba(255,255,255,.1) 66%, transparent 67%)',
+          color: '#fff',
+        }}>
+          <button onClick={back} style={{
+            height: 32, padding: '0 13px', borderRadius: 999, background: 'rgba(255,255,255,.18)',
+            color: '#fff', fontSize: 13, fontWeight: 700,
+            display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20,
+          }}>← Enfants</button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            {isImg ? (
+              <img src={child.avatar_url!} alt="" style={{
+                width: 64, height: 64, borderRadius: '50%', objectFit: 'cover',
+                border: '3px solid rgba(255,255,255,.35)', flexShrink: 0, background: '#EDE7FF',
+              }} />
+            ) : (
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%', border: '3px solid rgba(255,255,255,.35)',
+                background: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 26, fontWeight: 800, flexShrink: 0,
+              }}>{child.display_name[0]?.toUpperCase()}</div>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h1 style={{ fontSize: 25, fontWeight: 800, letterSpacing: '-.03em', margin: 0 }}>
+                {child.display_name}
+              </h1>
+              <div style={{ fontSize: 13, opacity: .8, marginTop: 3 }}>
+                {child.age} ans · {levelName}
+                {streak > 0 ? ` · série de ${streak} jour${streak > 1 ? 's' : ''}` : ''}
+                {linked && !justLinked ? ' · appareil relié' : ''}
               </div>
             </div>
-            <button className="dc-btn dc-btn-primary dc-btn-full" disabled={editSaving || !editName.trim()} onClick={handleSaveEdit}>
-              {editSaving ? 'Enregistrement...' : 'Enregistrer'}
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, opacity: .85, marginBottom: 7 }}>
+              <span>Niveau {level}</span><span>{child.total_points} / {nextThreshold} pts</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 999, background: 'rgba(255,255,255,.22)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${progress}%`, borderRadius: 999, background: '#fff' }} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+            <button onClick={() => history.push(`/parent/children/${childId}/assign`)} style={{
+              flex: 1, height: 42, borderRadius: 999, background: '#fff', color: 'var(--rk-indigo)',
+              fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>Assigner</button>
+            {!linked && (
+              <button onClick={createLink} style={{
+                flex: 1, height: 42, borderRadius: 999, background: 'rgba(255,255,255,.18)', color: '#fff',
+                fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>Relier son téléphone</button>
+            )}
+            <button onClick={() => openSheet('more')} aria-label="Plus d'options" style={{
+              width: 42, height: 42, borderRadius: 999, background: 'rgba(255,255,255,.18)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <div style={{ width: 15, height: 15, borderRadius: 4, border: '2px solid #fff' }} />
             </button>
           </div>
         </div>
-      )}
 
-      {/* ── Delete confirm ── */}
-      {showDeleteConfirm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-          onClick={() => setShowDeleteConfirm(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 24, padding: 28, width: '100%', maxWidth: 360, textAlign: 'center' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
-            <h3 style={{ margin: '0 0 8px', fontWeight: 900 }}>Supprimer {child?.display_name} ?</h3>
-            <p style={{ color: 'var(--dc-text-light)', fontSize: 14, marginBottom: 24 }}>Cette action est irréversible. Toutes les activités et données associées seront archivées.</p>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button className="dc-btn dc-btn-outline" style={{ flex: 1 }} onClick={() => setShowDeleteConfirm(false)}>Annuler</button>
-              <button className="dc-btn" style={{ flex: 1, background: '#EF4444', color: 'white' }} onClick={handleDelete}>Supprimer</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* QR Modal */}
-      {showQR && qrToken && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999,
-          background: 'rgba(0,0,0,0.6)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          backdropFilter: 'blur(8px)',
-        }} onClick={() => setShowQR(false)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: 'white', borderRadius: 28, padding: '32px 28px',
-            width: '90%', maxWidth: 380, textAlign: 'center',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+          {/* ── Appareil : appel à l'action tant qu'il n'est pas relié, confirmation
+                 pendant 24 h après la liaison, puis rien (statut dans l'en-tête). ── */}
+          {(!linked || justLinked) && (
+          <button onClick={linked ? undefined : createLink} disabled={linked} style={{
+            display: 'flex', alignItems: 'center', gap: 13, borderRadius: 18, padding: 15, width: '100%', textAlign: 'left',
+            background: linked ? 'var(--rk-sagesoft)' : 'var(--rk-ambersoft)',
           }}>
-            <div style={{ width: 64, height: 64, borderRadius: 20, background: 'var(--dc-blue-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-              <Smartphone size={30} color="var(--dc-blue)" strokeWidth={1.5} />
-            </div>
-            <h2 style={{ fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
-              Lier l'appareil de {child.display_name}
-            </h2>
-            <p style={{ color: 'var(--dc-text-light)', fontSize: 13, marginBottom: 24 }}>
-              Demandez à votre enfant de scanner ce QR code avec l'app Deconnect
-            </p>
-
-            {/* QR Code */}
             <div style={{
-              background: 'white', padding: 20, borderRadius: 20,
-              display: 'inline-block', border: '3px solid var(--dc-primary)',
-              boxShadow: '0 4px 20px rgba(108,92,231,0.15)',
+              width: 38, height: 38, borderRadius: 12, flexShrink: 0,
+              background: linked ? 'var(--rk-sage)' : 'var(--rk-amber)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <QRCodeSVG
-                value={JSON.stringify({
-                  type: 'deconnect_link',
-                  token: qrToken,
-                  child: child.display_name,
-                })}
-                size={200}
-                level="M"
-                fgColor="#2D3436"
-                bgColor="white"
-                imageSettings={{
-                  src: '',
-                  height: 0,
-                  width: 0,
-                  excavate: false,
-                }}
-              />
-            </div>
-
-            {/* Timer */}
-            <div style={{ marginTop: 16, padding: '8px 16px', borderRadius: 50, background: 'rgba(21,101,192,0.1)', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--dc-blue)' }}>
-              <Clock size={13} strokeWidth={2} /> Expire dans 15 minutes
-            </div>
-
-            <div style={{ marginTop: 20 }}>
-              <button
-                className="dc-btn dc-btn-outline dc-btn-full"
-                onClick={() => setShowQR(false)}
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <IonContent fullscreen>
-        <div style={{ minHeight: '100vh', background: 'var(--dc-bg)', padding: '0 0 100px' }}>
-          {/* Header gradient */}
-          <div style={{
-            background: 'linear-gradient(135deg, #6C5CE7 0%, #A29BFE 100%)',
-            padding: '60px 24px 32px', color: 'white',
-          }}>
-            <button onClick={() => history.goBack()} style={{
-              background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12,
-              padding: '8px 16px', color: 'white', fontSize: 14, cursor: 'pointer', marginBottom: 16,
-            }}>← Retour</button>
-
-            {/* Profile */}
-            <div style={{ textAlign: 'center' }}>
-              {child.avatar_url?.startsWith('/images/avatars/') ? (
-                <div style={{ width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', background: '#EDE7FF', display: 'inline-block', marginBottom: 12, border: '3px solid rgba(255,255,255,0.3)', boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
-                  <img src={child.avatar_url} alt={child.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                </div>
-              ) : (
-                <div style={{ width: 72, height: 72, borderRadius: '50%', background: child.avatar_url || 'var(--dc-blue)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, fontSize: 30, fontWeight: 900, color: 'white', border: '3px solid rgba(255,255,255,0.3)' }}>
-                  {child.display_name?.[0]?.toUpperCase() || '?'}
-                </div>
+              {linked && (
+                <div style={{
+                  width: 13, height: 8, borderLeft: '2.5px solid #fff', borderBottom: '2.5px solid #fff',
+                  transform: 'rotate(-45deg) translate(1px,-2px)',
+                }} />
               )}
-              <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 900 }}>{child.display_name}</h2>
-              <p style={{ opacity: 0.85, margin: '0 0 16px', fontSize: 14 }}>
-                {child.age} ans • Niveau {child.level}
-              </p>
-
-              {/* Progress bar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 700 }}>Niv. {child.level}</span>
-                <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.2)', borderRadius: 8, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${progress}%`, background: 'white', borderRadius: 8, transition: 'width 0.6s' }} />
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 700 }}>{child.total_points} pts</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>
+                {linked ? 'Appareil lié' : 'Appareil non lié'}
               </div>
+              <div style={{ fontSize: 12, color: 'var(--rk-text2)', marginTop: 2 }}>
+                {linked
+                  ? `${child.display_name} se connecte désormais avec son code PIN`
+                  : 'Touchez pour afficher le QR code et le code de liaison'}
+              </div>
+            </div>
+            {!linked && <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>}
+          </button>
+          )}
 
-              {/* Action buttons */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'center' }}>
-                <button
-                  onClick={() => history.push(`/parent/children/${childId}/assign`)}
-                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12, padding: '9px 14px', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <BookPlus size={15} strokeWidth={2} /> Assigner activités
-                </button>
-                <button
-                  onClick={() => setShowEdit(true)}
-                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12, padding: '9px 14px', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Pencil size={15} strokeWidth={2} /> Modifier
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  style={{ background: 'rgba(239,68,68,0.25)', border: 'none', borderRadius: 12, padding: '9px 14px', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Trash2 size={15} strokeWidth={2} />
-                </button>
+          {/* ── Depuis le début ───────────────────────────────── */}
+          <div>
+            <div style={eyebrow}>DEPUIS LE DÉBUT</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
+              <div style={{ background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: '14px 12px' }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--rk-sage)', letterSpacing: '-.03em' }}>
+                  +{stats?.totalEarned ?? 0}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>Points gagnés</div>
+              </div>
+              <div style={{ background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: '14px 12px' }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--rk-rasp)', letterSpacing: '-.03em' }}>
+                  −{stats?.totalSpent ?? 0}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>Points utilisés</div>
+              </div>
+              <div style={{ background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: '14px 12px' }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--rk-text)', letterSpacing: '-.03em' }}>
+                  {stats?.activitiesValidated ?? 0}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>Activités validées</div>
               </div>
             </div>
           </div>
 
-          <div style={{ padding: '20px 20px 0' }}>
-            {/* QR Link button */}
-            <div className="dc-card" style={{
-              marginBottom: 20, padding: 20, textAlign: 'center',
-              background: isLinked
-                ? 'linear-gradient(135deg, rgba(0,184,148,0.08), rgba(0,184,148,0.02))'
-                : 'linear-gradient(135deg, rgba(108,92,231,0.08), rgba(108,92,231,0.02))',
-              border: isLinked ? '2px solid rgba(0,184,148,0.2)' : '2px dashed rgba(108,92,231,0.3)',
-            }}>
-              {isLinked ? (
-                <>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--dc-green-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
-                    <CheckCircle size={22} color="var(--dc-green)" strokeWidth={1.8} />
-                  </div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--dc-green-dark)' }}>Appareil lié</div>
-                  <p style={{ fontSize: 13, color: 'var(--dc-text-light)', margin: '4px 0 12px' }}>
-                    {child.display_name} peut accéder à son espace depuis son appareil
-                  </p>
-                  <button
-                    className="dc-btn"
-                    style={{ padding: '8px 20px', fontSize: 13, background: 'var(--dc-primary)', color: 'white', borderRadius: 50 }}
-                    onClick={generateQR}
-                    disabled={qrLoading}
-                  >
-                    <RefreshCw size={14} strokeWidth={2} /> {qrLoading ? 'Génération...' : 'Nouveau QR code'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--dc-blue-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
-                    <Smartphone size={24} color="var(--dc-blue)" strokeWidth={1.5} />
-                  </div>
-                  <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>Lier l'appareil de {child.display_name}</div>
-                  <p style={{ fontSize: 13, color: 'var(--dc-text-light)', margin: '0 0 16px' }}>
-                    Générez un QR code pour que votre enfant puisse accéder à son espace depuis son propre téléphone
-                  </p>
-                  <button
-                    className="dc-btn dc-btn-primary"
-                    style={{ padding: '12px 28px', fontSize: 15, borderRadius: 50 }}
-                    onClick={generateQR}
-                    disabled={qrLoading}
-                  >
-                    <QrCode size={16} strokeWidth={2} /> {qrLoading ? 'Génération...' : 'Générer le QR code'}
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* All-time Stats */}
-            <h3 className="dc-section-title">Total all-time</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
-              <div className="dc-card" style={{ textAlign: 'center', background: 'linear-gradient(135deg, rgba(0,184,148,0.08), rgba(0,184,148,0.02))', border: '1.5px solid rgba(0,184,148,0.15)' }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-success)' }}>+{allTimeStats.totalEarned}</div>
-                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Points gagnés</div>
-              </div>
-              <div className="dc-card" style={{ textAlign: 'center', background: 'linear-gradient(135deg, rgba(239,68,68,0.06), rgba(239,68,68,0.02))', border: '1.5px solid rgba(239,68,68,0.12)' }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-danger)' }}>-{allTimeStats.totalSpent}</div>
-                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Points utilisés</div>
-              </div>
-              <div className="dc-card" style={{ textAlign: 'center', background: 'linear-gradient(135deg, rgba(108,92,231,0.08), rgba(108,92,231,0.02))', border: '1.5px solid rgba(108,92,231,0.12)' }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-primary)' }}>{allTimeStats.activitiesValidated}</div>
-                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Validées</div>
-              </div>
-            </div>
-
-            {/* Weekly Stats */}
-            <h3 className="dc-section-title">Cette semaine</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
-              <div className="dc-card" style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-success)' }}>{weeklyStats.activitiesCompleted}</div>
-                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Activités</div>
-              </div>
-              <div className="dc-card" style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-primary)' }}>+{weeklyStats.pointsEarned}</div>
-                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Points</div>
-              </div>
-              <div className="dc-card" style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--dc-accent)' }}>{weeklyStats.badgesEarned}</div>
-                <div style={{ fontSize: 11, color: 'var(--dc-text-light)' }}>Badges</div>
-              </div>
-            </div>
-
-            {/* Badges */}
-            {badges.length > 0 && (<>
-              <h3 className="dc-section-title">Badges ({badges.length})</h3>
-              <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, marginBottom: 24 }}>
-                {badges.map(cb => (
-                  <div key={cb.id} className="dc-card" style={{ minWidth: 90, textAlign: 'center', padding: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--dc-gold-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 4px' }}>
-                    <Trophy size={18} color="var(--dc-gold-dark)" strokeWidth={1.8} />
-                  </div>
-                    <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>{cb.badge?.name}</div>
+          {/* ── Badges ────────────────────────────────────────── */}
+          {badges.length > 0 && (
+            <div>
+              <div style={eyebrow}>BADGES · {badges.length}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 9 }}>
+                {badges.map((b, i) => (
+                  <div key={b.id} style={{
+                    background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+                    borderRadius: 16, padding: '12px 8px', textAlign: 'center',
+                  }}>
+                    <div style={{
+                      width: 34, height: 34, borderRadius: 11, margin: '0 auto 7px',
+                      background: BADGE_TINTS[i % BADGE_TINTS.length],
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+                    }}>{b.badge?.icon ?? '🏅'}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--rk-text)', lineHeight: 1.25 }}>
+                      {b.badge?.name}
+                    </div>
                   </div>
                 ))}
               </div>
-            </>)}
+            </div>
+          )}
 
-            {/* Recent activities */}
-            <h3 className="dc-section-title">Activités récentes</h3>
+          {/* ── Activités récentes ────────────────────────────── */}
+          <div>
+            <div style={eyebrow}>ACTIVITÉS RÉCENTES</div>
             {activities.length === 0 ? (
-              <div className="dc-card" style={{ textAlign: 'center', padding: 24, color: 'var(--dc-text-light)' }}>
-                Aucune activité pour le moment
+              <div style={{
+                background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+                borderRadius: 20, padding: '24px 18px', textAlign: 'center',
+                fontSize: 14, color: 'var(--rk-text3)',
+              }}>
+                Aucune activité pour l'instant.
               </div>
-            ) : activities.slice(0, 5).map(ca => (
-              <div key={ca.id} className="dc-card" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: ca.status === 'validated' ? 'var(--dc-success)' : ca.status === 'submitted' ? 'var(--dc-warning)' : 'var(--dc-border)' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{ca.activity?.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--dc-text-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {ca.status === 'validated' ? (
-                      <>
-                        <CheckCircle size={12} color="var(--dc-success)" />
-                        +{ca.earned_points} pts
-                      </>
-                    ) : ca.status === 'submitted' ? (
-                      <>
-                        <Clock size={12} />
-                        En attente
-                      </>
-                    ) : ca.status}
-                  </div>
-                </div>
+            ) : (
+              <div style={{
+                background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+                borderRadius: 20, overflow: 'hidden',
+              }}>
+                {activities.map((ca, i) => {
+                  const st = statusOf(ca);
+                  return (
+                    <div key={ca.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+                      borderBottom: i === activities.length - 1 ? 'none' : '1px solid var(--rk-line)',
+                    }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: st.dot, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--rk-text)' }}>{ca.activity?.title}</div>
+                        <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>{st.label}</div>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: st.color, flexShrink: 0 }}>{st.points}</div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            )}
           </div>
         </div>
-      </IonContent>
-    </IonPage>
+
+        {/* ── Feuille « plus » ─────────────────────────────────── */}
+        <RkSheet open={sheet === 'more'} onClose={closeSheet} eyebrow={child.display_name.toUpperCase()}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button onClick={() => { closeSheet(); history.push('/parent/rewards'); }} style={{
+              display: 'flex', alignItems: 'center', gap: 13, width: '100%',
+              background: 'var(--rk-surface2)', borderRadius: 16, padding: 15,
+            }}>
+              <RkTile img="/images/menu/gift.png" tint="var(--rk-accentsoft)" size={38} radius={12} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--rk-text)' }}>Ses récompenses</div>
+                <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>Voir et créer des récompenses</div>
+              </div>
+            </button>
+            <button onClick={() => { closeSheet(); void createLink(); }} style={{
+              display: 'flex', alignItems: 'center', gap: 13, width: '100%',
+              background: 'var(--rk-surface2)', borderRadius: 16, padding: 15,
+            }}>
+              <RkTile icon={qrCodeOutline} tint="var(--rk-indigosoft)" size={38} radius={12} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--rk-text)' }}>
+                  {linked ? 'Relier un autre téléphone' : 'Relier son téléphone'}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>
+                  {linked ? 'Nouveau téléphone, ou code PIN oublié' : 'QR code ou code à 6 caractères'}
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={async () => {
+                if (!confirm(`Désactiver le profil de ${child.display_name} ? Ses points sont conservés.`)) return;
+                await childrenService.deactivateChild(child.id);
+                closeSheet();
+                history.replace('/parent/children');
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 13, width: '100%',
+                background: 'var(--rk-surface2)', borderRadius: 16, padding: 15,
+              }}
+            >
+              <RkTile icon={pauseCircleOutline} tint="var(--rk-raspsoft)" size={38} radius={12} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--rk-text)' }}>Désactiver le profil</div>
+                <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>Réversible, les points sont conservés</div>
+              </div>
+            </button>
+          </div>
+        </RkSheet>
+
+        {/* ── Feuille QR ──────────────────────────────────────── */}
+        <RkSheet
+          open={sheet === 'qr'}
+          onClose={closeSheet}
+          title={`Relier l'appareil de ${child.display_name}`}
+          subtitle="Sur son téléphone : scannez ce code depuis Rekonect, ou avec l’appareil photo — il ouvrira l’app"
+        >
+          <div style={{
+            background: '#fff', borderRadius: 20, padding: 20,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+          }}>
+            {token
+              ? <QRCodeSVG value={buildChildLinkUrl(token, code, child.display_name)} size={200} level="M" />
+              : <div style={{ color: 'var(--rk-text3)' }}>Génération…</div>}
+          </div>
+          {code && (
+            <div style={{
+              textAlign: 'center', marginBottom: 16, padding: '14px 12px', borderRadius: 16,
+              background: 'var(--rk-surface2)',
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: 'var(--rk-text3)' }}>
+                OU SAISIR CE CODE
+              </div>
+              <div style={{
+                fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 30, fontWeight: 700,
+                letterSpacing: '.22em', color: 'var(--rk-indigo)', marginTop: 6,
+              }}>{code.slice(0, 3)} {code.slice(3)}</div>
+              <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 6 }}>
+                Sur son téléphone : « Entrer un code à la place ». Valable 15 minutes.
+              </div>
+            </div>
+          )}
+          {pin && (
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: 'var(--rk-text3)' }}>
+                CODE PIN SUGGÉRÉ
+              </div>
+              <div style={{
+                fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 30, fontWeight: 700,
+                letterSpacing: '.2em', color: 'var(--rk-text)', marginTop: 6,
+              }}>{pin}</div>
+              <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 6 }}>
+                Votre enfant le choisira lui-même sur son appareil.
+              </div>
+            </div>
+          )}
+          <button onClick={closeSheet} style={{
+            width: '100%', height: 50, borderRadius: 999, background: 'var(--rk-indigo)',
+            color: 'var(--rk-indigofg)', fontSize: 15, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>Terminé</button>
+        </RkSheet>
+      </div>
+    </IonContent></IonPage>
   );
 };
 

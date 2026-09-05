@@ -1,120 +1,66 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { IonContent, IonPage } from '@ionic/react';
+import { useHistory } from 'react-router-dom';
 
-const SplashPage: React.FC = () => (
-  <div style={{
-    height: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'var(--dc-bg)',
-    overflow: 'hidden',
-    position: 'relative',
-  }}>
-    <style>{`
-      @keyframes splash-ring {
-        0%   { transform: scale(0.6); opacity: 0.6; }
-        100% { transform: scale(2.4); opacity: 0; }
-      }
-      @keyframes splash-logo-in {
-        0%   { opacity: 0; transform: translateY(14px) scale(0.9); }
-        100% { opacity: 1; transform: translateY(0) scale(1); }
-      }
-      @keyframes splash-tagline-in {
-        0%   { opacity: 0; transform: translateY(8px); }
-        100% { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes splash-bar {
-        0%   { width: 0%; }
-        60%  { width: 70%; }
-        100% { width: 100%; }
-      }
-    `}</style>
-
-    {/* Decorative orbs */}
-    <div style={{
-      position: 'absolute', top: '10%', left: '-5%',
-      width: 260, height: 260, borderRadius: '50%',
-      background: 'radial-gradient(circle, rgba(108,92,231,0.12) 0%, transparent 65%)',
-      pointerEvents: 'none',
-    }} />
-    <div style={{
-      position: 'absolute', bottom: '15%', right: '-8%',
-      width: 200, height: 200, borderRadius: '50%',
-      background: 'radial-gradient(circle, rgba(21,101,192,0.08) 0%, transparent 65%)',
-      pointerEvents: 'none',
-    }} />
-
-    {/* Pulsing rings */}
-    {[1, 2, 3].map(i => (
-      <div key={i} style={{
-        position: 'absolute',
-        width: 130, height: 130,
-        borderRadius: '50%',
-        border: `1.5px solid rgba(108,92,231,${0.35 - i * 0.08})`,
-        animation: `splash-ring ${1.8 + i * 0.4}s ease-out infinite`,
-        animationDelay: `${i * 0.3}s`,
-      }} />
-    ))}
-
-    {/* Logo */}
-    <div style={{
-      width: 80, height: 80, borderRadius: 24,
-      background: 'linear-gradient(135deg, #6C5CE7, #A29BFE)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: '0 8px 32px rgba(108,92,231,0.3)',
-      animation: 'splash-logo-in 0.6s ease both',
-      animationDelay: '0.1s',
-      marginBottom: 24,
-      zIndex: 1,
-    }}>
-      <span style={{
-        fontSize: 40, fontWeight: 900, color: 'white',
-        fontFamily: 'Nunito, -apple-system, sans-serif',
-        letterSpacing: -1,
-        userSelect: 'none',
-      }}>D</span>
+/**
+ * Splash — porté de la maquette Rekonect (écran splash).
+ * Deux usages : écran d'attente pendant l'initialisation (`waiting`), et
+ * premier écran d'un visiteur non connecté (« Toucher pour continuer » → onboarding,
+ * avec avance automatique après 2,8 s).
+ */
+const Art: React.FC<{ waiting?: boolean; onTap?: () => void }> = ({ waiting, onTap }) => (
+  <div
+    className="rk-app rk-screen"
+    onClick={onTap}
+    style={{
+      height: '100%', minHeight: '100vh', width: '100%', position: 'relative',
+      background: '#3C41A8',
+      backgroundImage:
+        'radial-gradient(circle at 50% 118%, rgba(255,148,105,.5) 0 30%, transparent 31%),' +
+        'radial-gradient(circle at 50% 118%, rgba(255,255,255,.13) 32%, transparent 33%),' +
+        'radial-gradient(circle at 50% 118%, rgba(255,255,255,.13) 52%, transparent 53%),' +
+        'radial-gradient(circle at 50% 118%, rgba(255,255,255,.13) 72%, transparent 73%)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      gap: 22, color: '#fff',
+    }}
+  >
+    <div style={{ width: 62, height: 62, position: 'relative' }}>
+      <div style={{ position: 'absolute', left: 0, top: 16, width: 34, height: 34, borderRadius: '50%', border: '3.5px solid #fff' }} />
+      <div style={{ position: 'absolute', left: 22, top: 16, width: 34, height: 34, borderRadius: '50%', border: '3.5px solid #FF9469' }} />
     </div>
 
-    {/* App name */}
-    <h1 style={{
-      color: 'var(--dc-text)', fontSize: 30, fontWeight: 900,
-      margin: 0, letterSpacing: -0.8,
-      animation: 'splash-logo-in 0.6s ease both',
-      animationDelay: '0.25s',
-      zIndex: 1,
-    }}>
-      Deconnect
-    </h1>
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-.04em' }}>Rekonect</div>
+      <div style={{ fontSize: 14, fontWeight: 600, opacity: .7, marginTop: 6 }}>Moins d'écran, plus de vrai</div>
+    </div>
 
-    {/* Tagline */}
-    <p style={{
-      color: 'var(--dc-text-muted)', fontSize: 14,
-      marginTop: 8, fontWeight: 600, letterSpacing: '0.04em',
-      animation: 'splash-tagline-in 0.6s ease both',
-      animationDelay: '0.4s',
-      zIndex: 1,
-    }}>
-      Vis la vraie vie
-    </p>
-
-    {/* Loading bar */}
-    <div style={{
-      position: 'absolute', bottom: 56,
-      width: 120, height: 3,
-      background: 'var(--dc-border)',
-      borderRadius: 3, overflow: 'hidden',
-      zIndex: 1,
-    }}>
+    {!waiting && (
       <div style={{
-        height: '100%',
-        background: 'linear-gradient(90deg, #6C5CE7, #A29BFE)',
-        borderRadius: 3,
-        animation: 'splash-bar 2s cubic-bezier(0.4,0,0.2,1) both',
-        animationDelay: '0.3s',
-      }} />
-    </div>
+        position: 'absolute', bottom: 'calc(56px + env(safe-area-inset-bottom))', left: 0, right: 0,
+        textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,.5)',
+      }}>Toucher pour continuer</div>
+    )}
   </div>
 );
+
+/** Version plein écran hors routeur, pendant l'initialisation de la session. */
+export const SplashWaiting: React.FC = () => <Art waiting />;
+
+const SplashPage: React.FC = () => {
+  const history = useHistory();
+  const go = () => history.replace('/onboarding');
+
+  useEffect(() => {
+    const t = window.setTimeout(go, 2800);
+    return () => window.clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <IonPage><IonContent fullscreen scrollY={false}>
+      <Art onTap={go} />
+    </IonContent></IonPage>
+  );
+};
 
 export default SplashPage;

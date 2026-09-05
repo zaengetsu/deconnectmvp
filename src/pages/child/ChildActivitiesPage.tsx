@@ -1,369 +1,392 @@
 import React, { useEffect, useState } from 'react';
-import { IonContent, IonPage } from '@ionic/react';
+import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useAppStore } from '../../stores/app.store';
+import { useAuthStore } from '../../stores/auth.store';
 import { activitiesService } from '../../features/activities/activities.service';
 import { storageService, type UploadedProof } from '../../features/storage/storage.service';
 import { emailService } from '../../features/notifications/email.service';
-import { useAuthStore } from '../../stores/auth.store';
 import ProofUpload from '../../components/ui/ProofUpload';
-import { getCategoryStyle, PointsBadge, DifficultyBadge } from '../../components/ui/ChildUIKit';
+import { getCategoryStyle } from '../../lib/categoryStyle';
+import { RkSheet } from '../../components/rk/RkShell';
+import RkSearch from '../../components/rk/RkSearch';
+import { useSwipe, stepSection } from '../../hooks/useSwipe';
+import { matches } from '../../lib/search';
 import type { Activity, ActivityCategory, ChildActivity } from '../../types/database.types';
-import { Search, ChevronDown, ChevronUp, CheckCircle, Clock, XCircle, ArrowDownCircle } from 'lucide-react';
 
-/* ─── Submit Modal ────────────────────────────────────────── */
-interface SubmitModalProps {
-  ca: ChildActivity;
-  childId: string;
-  onClose: () => void;
-  onSubmitted: () => void;
-}
+/** Mes défis — porté de la maquette Rekonect (écran cActs). */
 
-const SubmitModal: React.FC<SubmitModalProps> = ({ ca, childId, onClose, onSubmitted }) => {
+const ChildActivitiesPage: React.FC = () => {
+  const { selectedChild, refreshSelectedChild } = useAppStore();
   const { profile } = useAuthStore();
-  const { selectedChild } = useAppStore();
+
+  const [tab, setTab] = useState<'mine' | 'catalog'>('mine');
+  const SECTIONS = ['mine', 'catalog'] as const;
+  const swipe = useSwipe({
+    onLeft:  () => stepSection(SECTIONS, tab, 1, setTab),
+    onRight: () => stepSection(SECTIONS, tab, -1, setTab),
+  });
+  const [mine, setMine] = useState<ChildActivity[]>([]);
+  const [catalog, setCatalog] = useState<Activity[]>([]);
+  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [cat, setCat] = useState<string>('all');
+  const [query, setQuery] = useState('');
+  const [taking, setTaking] = useState<string | null>(null);
+
+  // Feuille d'envoi (note + preuve)
+  const [submitTarget, setSubmitTarget] = useState<ChildActivity | null>(null);
   const [note, setNote] = useState('');
   const [proof, setProof] = useState<UploadedProof | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    try {
-      await activitiesService.submitActivity(ca.id, note || undefined, proof?.url, proof?.type);
-      if (profile?.email && profile?.full_name && selectedChild) {
-        emailService.sendActivitySubmitted(profile.email, profile.full_name, selectedChild.display_name, ca.activity?.title || 'une activité');
-      }
-      if (selectedChild) {
-        const { notificationService } = await import('../../features/notifications/notification.service');
-        notificationService.createNotification(
-          'parent', selectedChild.parent_id,
-          'Activité à valider',
-          `${selectedChild.display_name} a terminé "${ca.activity?.title || 'une activité'}"`,
-          'check', '/parent/validations',
-          { type: 'activity_submitted', child_id: childId }
-        ).catch(() => {});
-      }
-      onSubmitted();
-    } catch (e) { console.error(e); }
-    setSubmitting(false);
-  };
-
-  const { accent, imgSrc } = getCategoryStyle(ca.activity?.category?.slug);
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '28px 28px 0 0', padding: '24px 24px 40px', width: '100%', maxWidth: 600, animation: 'dc-slide-up 0.35s ease' }}>
-        <div style={{ width: 40, height: 4, background: 'var(--dc-border)', borderRadius: 4, margin: '0 auto 20px' }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: `${accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={imgSrc} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
-          </div>
-          <div>
-            <h2 style={{ fontSize: 18, fontWeight: 900, margin: 0 }}>Activité terminée !</h2>
-            <p style={{ color: 'var(--dc-text-light)', fontSize: 13, margin: 0 }}>{ca.activity?.title}</p>
-          </div>
-        </div>
-
-        <ProofUpload childId={childId} childActivityId={ca.id} onUploadComplete={setProof} onRemove={async () => { if (proof) { await storageService.deleteActivityProof(proof.path).catch(() => {}); setProof(null); } }} currentProof={proof} />
-
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
-            Commentaire <span style={{ color: 'var(--dc-text-muted)', fontWeight: 400 }}>(optionnel)</span>
-          </label>
-          <textarea
-            value={note} onChange={e => setNote(e.target.value)}
-            placeholder="Dis à tes parents comment ça s'est passé..."
-            rows={3} maxLength={200}
-            style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '2px solid var(--dc-border)', background: 'var(--dc-bg)', outline: 'none', resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
-          />
-        </div>
-
-        <button className="dc-btn dc-btn-green dc-btn-full dc-btn-lg" disabled={submitting} onClick={handleSubmit} style={{ opacity: submitting ? 0.6 : 1 }}>
-          {submitting ? 'Envoi...' : 'Envoyer pour validation'}
-        </button>
-        <button className="dc-btn dc-btn-ghost dc-btn-full" style={{ marginTop: 8 }} onClick={onClose}>Annuler</button>
-      </div>
-    </div>
-  );
-};
-
-/* ─── Main Page ───────────────────────────────────────────── */
-const ChildActivitiesPage: React.FC = () => {
-  const { selectedChild } = useAppStore();
-  const [activities, setActivities]         = useState<Activity[]>([]);
-  const [myActivities, setMyActivities]     = useState<ChildActivity[]>([]);
-  const [categories, setCategories]         = useState<ActivityCategory[]>([]);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [tab, setTab]                       = useState<'catalog' | 'mine'>('mine');
-  const [submitTarget, setSubmitTarget]     = useState<ChildActivity | null>(null);
-  const [search, setSearch]                 = useState('');
-  const [showHistory, setShowHistory]       = useState(false);
-
-  const loadMyActivities = () => {
-    if (selectedChild) activitiesService.getChildActivities(selectedChild.id).then(setMyActivities).catch(() => {});
-  };
-
-  useEffect(() => {
-    activitiesService.getCategories().then(setCategories).catch(() => {});
-    activitiesService.getActivities().then(setActivities).catch(() => {});
-    loadMyActivities();
-  }, [selectedChild?.id]);
-
-  const handleSelect = async (activity: Activity) => {
+  const load = () => {
     if (!selectedChild) return;
-    await activitiesService.selectActivity(selectedChild.id, activity.id);
-    loadMyActivities();
-    setTab('mine');
+    activitiesService.getChildActivities(selectedChild.id).then(setMine).catch(() => {});
+    activitiesService.getCategories().then(setCategories).catch(() => {});
+    activitiesService.getActivities({ min_age: selectedChild.age, max_age: selectedChild.age })
+      .then(setCatalog)
+      .catch(() => activitiesService.getActivities().then(setCatalog).catch(() => {}));
   };
 
-  const filtered = activities
-    .filter(a => !activeCategory || a.category_id === activeCategory)
-    .filter(a => !search || a.title.toLowerCase().includes(search.toLowerCase()));
+  useEffect(load, [selectedChild?.id]);
+  useIonViewWillEnter(load);
 
   if (!selectedChild) return null;
 
-  // Séparer : assignées, en cours, terminées
-  const assignedList = myActivities.filter(ca => ca.status === 'available');
-  const activeList = myActivities.filter(ca => ca.status === 'selected' || ca.status === 'submitted');
-  const doneList   = myActivities.filter(ca => ca.status === 'validated' || ca.status === 'rejected');
+  const assigned = mine.filter(ca => ca.status === 'available');
+  const chosen   = mine.filter(ca => ca.status === 'selected' || ca.status === 'submitted');
+  const finished = mine.filter(ca => ca.status === 'validated' || ca.status === 'rejected').slice(0, 3);
+  const inProgress = assigned.length + chosen.length;
+  const doneCount = mine.filter(ca => ca.status === 'validated').length;
 
-  const handleStart = async (ca: ChildActivity) => {
-    if (!selectedChild) return;
+  // Seules les activités EN COURS sortent du catalogue : une activité déjà
+  // réalisée (ou refusée) peut être refaite autant de fois qu'on veut.
+  const takenIds = new Set(
+    mine.filter(ca => ca.status === 'available' || ca.status === 'selected' || ca.status === 'submitted')
+        .map(ca => ca.activity_id),
+  );
+  const visibleCatalog = catalog
+    .filter(a => !takenIds.has(a.id))
+    .filter(a => cat === 'all' || a.category_id === cat)
+    .filter(a => matches(query, a.title, a.description, a.category?.name))
+    .slice(0, query ? 50 : 12);
+
+  const take = async (activity: Activity) => {
+    setTaking(activity.id);
     try {
-      await activitiesService.startAssignedActivity(ca.id);
-      loadMyActivities();
-    } catch (e) { console.error(e); }
+      await activitiesService.selectActivity(selectedChild.id, activity.id);
+      load();
+      setTab('mine');
+    } catch (e) { console.error('[cActs] select:', e); }
+    finally { setTaking(null); }
   };
 
+  const start = async (ca: ChildActivity) => {
+    try { await activitiesService.startAssignedActivity(ca.id); load(); }
+    catch (e) { console.error('[cActs] start:', e); }
+  };
+
+  const submit = async () => {
+    if (!submitTarget) return;
+    setSubmitting(true);
+    try {
+      await activitiesService.submitActivity(submitTarget.id, note || undefined, proof?.url, proof?.type);
+      if (profile?.email && profile?.full_name) {
+        emailService.sendActivitySubmitted(
+          profile.email, profile.full_name, selectedChild.display_name,
+          submitTarget.activity?.title || 'une activité',
+        );
+      }
+      setSubmitTarget(null); setNote(''); setProof(null);
+      await refreshSelectedChild();
+      load();
+    } catch (e) { console.error('[cActs] submit:', e); }
+    finally { setSubmitting(false); }
+  };
+
+  const eyebrow = (color = 'var(--rk-text3)'): React.CSSProperties => ({
+    fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color, marginBottom: 11,
+  });
+
   return (
-    <IonPage>
-      {submitTarget && (
-        <SubmitModal ca={submitTarget} childId={selectedChild.id}
-          onClose={() => setSubmitTarget(null)}
-          onSubmitted={() => { setSubmitTarget(null); loadMyActivities(); }}
-        />
-      )}
+    <IonPage><IonContent fullscreen>
+      <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }} {...swipe}>
 
-      <IonContent fullscreen scrollY>
-        {/* ── Header ── */}
-        <div className="dc-page-header">
-          <div className="dc-header-row">
-            <img src="/images/menu/account-activity.png" alt="activités" style={{ width: 26, height: 26, objectFit: 'contain' }} />
-            <h1>Activités</h1>
-          </div>
-          <p>
-            {tab === 'mine'
-              ? `${activeList.length + assignedList.length} défi${(activeList.length + assignedList.length) !== 1 ? 's' : ''} en cours`
-              : 'Choisis ton prochain défi !'}
+        {/* ── En-tête + bascule ───────────────────────────────── */}
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 18px',
+          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
+        }}>
+          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+            Mes défis
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 14px' }}>
+            {inProgress} en cours · {doneCount} terminé{doneCount > 1 ? 's' : ''}
           </p>
-        </div>
-
-        <div style={{ padding: '16px 20px 100px' }}>
-          {/* ── Tabs ── */}
-          <div className="dc-tab-selector">
-            {(['mine', 'catalog'] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)} className={tab === t ? 'active' : ''}>
-                {t === 'mine' ? (
-                  <>
-                    Mes défis
-                    {activeList.length > 0 && (
-                      <span style={{ background: tab === t ? 'rgba(108,92,231,0.15)' : 'rgba(0,0,0,0.06)', borderRadius: 50, padding: '1px 7px', fontSize: 12, marginLeft: 4 }}>
-                        {activeList.length}
-                      </span>
-                    )}
-                  </>
-                ) : 'Catalogue'}
+          <div style={{ display: 'flex', gap: 5, background: 'var(--rk-surface2)', padding: 4, borderRadius: 13 }}>
+            {(['mine', 'catalog'] as const).map(k => (
+              <button key={k} onClick={() => setTab(k)} style={{
+                flex: 1, height: 36, borderRadius: 10, fontSize: 13, fontWeight: 700, textAlign: 'center',
+                background: tab === k ? 'var(--rk-surface)' : 'transparent',
+                color: tab === k ? 'var(--rk-text)' : 'var(--rk-text3)',
+              }}>
+                {k === 'mine' ? 'En cours' : 'En choisir un'}
               </button>
             ))}
           </div>
+        </div>
 
-          {/* Search (catalog only) */}
-          {tab === 'catalog' && (
-            <div style={{ position: 'relative', marginBottom: 16 }}>
-              <Search size={15} color="var(--dc-text-muted)" strokeWidth={2}
-                style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-              <input
-                type="text" placeholder="Rechercher..." value={search}
-                onChange={e => setSearch(e.target.value)}
-                style={{ width: '100%', padding: '11px 14px 11px 38px', borderRadius: 12, border: '1.5px solid var(--dc-border)', background: 'white', color: 'var(--dc-text)', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
-              />
+        {/* ── En cours ────────────────────────────────────────── */}
+        {tab === 'mine' && (
+          <div style={{ padding: '18px 22px 140px' }}>
+            {assigned.length > 0 && (
+              <>
+                <div style={eyebrow('var(--rk-indigo)')}>ASSIGNÉS PAR TES PARENTS · {assigned.length}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 22 }}>
+                  {assigned.map(ca => {
+                    const st = getCategoryStyle(ca.activity?.category?.slug);
+                    return (
+                      <div key={ca.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 13, background: 'var(--rk-indigosoft)',
+                        border: '1.5px solid var(--rk-indigo)', borderRadius: 18, padding: 13,
+                      }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 14, background: 'var(--rk-surface)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        }}>
+                          <img src={st.imgSrc} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>{ca.activity?.title}</div>
+                          <div style={{ fontSize: 12, color: 'var(--rk-text2)', marginTop: 2 }}>
+                            {ca.activity?.points ?? 0} points
+                          </div>
+                        </div>
+                        <button onClick={() => start(ca)} style={{
+                          height: 36, padding: '0 15px', borderRadius: 999, background: 'var(--rk-indigo)',
+                          color: 'var(--rk-indigofg)', fontSize: 13, fontWeight: 700, flexShrink: 0,
+                          display: 'flex', alignItems: 'center',
+                        }}>Commencer</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {chosen.length > 0 && (
+              <>
+                <div style={eyebrow()}>TU LES AS CHOISIS · {chosen.length}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+                  {chosen.map(ca => {
+                    const st = getCategoryStyle(ca.activity?.category?.slug);
+                    const waiting = ca.status === 'submitted';
+                    return (
+                      <div key={ca.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 13, background: 'var(--rk-surface)',
+                        border: waiting ? '1.5px solid var(--rk-amber)' : '1px solid var(--rk-border)',
+                        borderRadius: 18, padding: 13,
+                      }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 14,
+                          background: waiting ? 'var(--rk-ambersoft)' : 'var(--rk-sagesoft)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        }}>
+                          {waiting
+                            ? <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid var(--rk-amber)' }} />
+                            : <img src={st.imgSrc} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>{ca.activity?.title}</div>
+                          <div style={{
+                            fontSize: 12, marginTop: 2,
+                            color: waiting ? 'var(--rk-amber)' : 'var(--rk-text3)',
+                            fontWeight: waiting ? 700 : 400,
+                          }}>
+                            {waiting ? 'Ton parent regarde ta demande' : `${ca.activity?.points ?? 0} points`}
+                          </div>
+                        </div>
+                        {!waiting && (
+                          <button onClick={() => { setSubmitTarget(ca); setNote(''); setProof(null); }} style={{
+                            height: 36, padding: '0 15px', borderRadius: 999, background: 'var(--rk-accent)',
+                            color: 'var(--rk-accentink)', fontSize: 13, fontWeight: 800, flexShrink: 0,
+                            display: 'flex', alignItems: 'center',
+                          }}>C'est fait</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {finished.length > 0 && (
+              <>
+                <div style={eyebrow()}>TERMINÉS · {finished.length} DERNIERS</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {finished.map(ca => {
+                    const ok = ca.status === 'validated';
+                    return (
+                      <div key={ca.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 12, background: 'var(--rk-surface)',
+                        border: '1px solid var(--rk-border)', borderRadius: 16, padding: '11px 13px', opacity: .75,
+                      }}>
+                        <div style={{
+                          width: 36, height: 36, borderRadius: 11, flexShrink: 0,
+                          background: ok ? 'var(--rk-sagesoft)' : 'var(--rk-raspsoft)',
+                        }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--rk-text)' }}>{ca.activity?.title}</div>
+                          <div style={{
+                            fontSize: 11, marginTop: 2,
+                            fontWeight: ok ? 700 : 600,
+                            color: ok ? 'var(--rk-sage)' : 'var(--rk-rasp)',
+                          }}>
+                            {ok
+                              ? `+${ca.earned_points ?? ca.activity?.points ?? 0} points gagnés`
+                              : `Pas validé${ca.rejection_reason ? ` : « ${ca.rejection_reason} »` : ''}`}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {inProgress === 0 && finished.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '50px 12px' }}>
+                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--rk-text)', marginBottom: 6 }}>Aucun défi en cours</div>
+                <div style={{ fontSize: 14, color: 'var(--rk-text3)', lineHeight: 1.5 }}>
+                  Va en choisir un dans l'onglet « En choisir un ».
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Catalogue ───────────────────────────────────────── */}
+        {tab === 'catalog' && (
+          <div style={{ padding: '16px 0 140px' }}>
+            <div style={{ padding: '0 22px 14px' }}>
+              <RkSearch value={query} onChange={setQuery} placeholder="Chercher une activité" />
             </div>
-          )}
-
-          {/* ══════════════ CATALOGUE ══════════════ */}
-          {tab === 'catalog' && (<>
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8, marginBottom: 16, scrollbarWidth: 'none' }}>
-              <button onClick={() => setActiveCategory(null)} style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 50, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', background: !activeCategory ? 'var(--dc-blue)' : 'white', color: !activeCategory ? 'white' : 'var(--dc-text-light)', boxShadow: !activeCategory ? '0 3px 12px rgba(21,101,192,0.3)' : 'var(--dc-shadow)' }}>Tout</button>
-              {categories.map(c => {
-                const { accent } = getCategoryStyle(c.slug);
-                const isActive = activeCategory === c.id;
+            <div className="rk-sc" style={{ display: 'flex', gap: 7, overflowX: 'auto', padding: '0 22px 16px' }}>
+              {[{ id: 'all', name: 'Tout' }, ...categories].map(c => {
+                const active = cat === c.id;
                 return (
-                  <button key={c.id} onClick={() => setActiveCategory(isActive ? null : c.id)} style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 50, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', background: isActive ? accent : 'white', color: isActive ? 'white' : 'var(--dc-text)', boxShadow: isActive ? `0 3px 12px ${accent}44` : 'var(--dc-shadow)' }}>{c.name}</button>
+                  <button key={c.id} onClick={() => setCat(c.id)} style={{
+                    height: 34, padding: '0 15px', borderRadius: 999, flexShrink: 0, whiteSpace: 'nowrap',
+                    fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center',
+                    background: active ? 'var(--rk-accent)' : 'var(--rk-surface)',
+                    border: active ? 'none' : '1px solid var(--rk-border)',
+                    color: active ? 'var(--rk-accentink)' : 'var(--rk-text2)',
+                  }}>{c.name}</button>
                 );
               })}
             </div>
 
-            {filtered.length === 0 ? (
-              <div className="dc-empty-state">
-                <h3>Aucune activité trouvée</h3>
-                <p>{search ? `Aucun résultat pour "${search}"` : 'Essaie une autre catégorie !'}</p>
-              </div>
-            ) : filtered.map(a => {
-              const { bg, accent, imgSrc } = getCategoryStyle(a.category?.slug);
-              return (
-                <div key={a.id} className="dc-animate-in" style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10, background: 'white', borderRadius: 16, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1.5px solid rgba(0,0,0,0.04)' }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 14, flexShrink: 0, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <img src={imgSrc} alt="" style={{ width: 26, height: 26, objectFit: 'contain' }} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--dc-text)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <PointsBadge points={a.points} size="sm" />
-                      <DifficultyBadge difficulty={a.difficulty} />
-                    </div>
-                  </div>
-                  <button onClick={() => handleSelect(a)} style={{ background: accent, color: 'white', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                    Choisir
-                  </button>
-                </div>
-              );
-            })}
-          </>)}
-
-          {/* ══════════════ MES DÉFIS ══════════════ */}
-          {tab === 'mine' && (<>
-
-            {/* ── Assignées par le parent ── */}
-            {assignedList.length > 0 && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <ArrowDownCircle size={16} color="var(--dc-blue)" strokeWidth={2} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--dc-blue)', letterSpacing: '0.06em' }}>
-                    ASSIGNÉES PAR TON PARENT ({assignedList.length})
-                  </span>
-                </div>
-                {assignedList.map(ca => {
-                  const { bg, imgSrc } = getCategoryStyle(ca.activity?.category?.slug);
-                  return (
-                    <div key={ca.id} className="dc-animate-in" style={{
-                      display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10,
-                      background: 'linear-gradient(135deg, rgba(21,101,192,0.04), rgba(21,101,192,0.01))',
-                      borderRadius: 16, padding: '12px 14px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                      border: '1.5px solid rgba(21,101,192,0.15)',
+            <div style={{ padding: '0 22px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {visibleCatalog.map(a => {
+                const st = getCategoryStyle(a.category?.slug);
+                return (
+                  <div key={a.id} style={{
+                    background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
+                    borderRadius: 20, padding: 14,
+                  }}>
+                    <div style={{
+                      height: 70, borderRadius: 14, background: 'var(--rk-accentsoft)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12,
                     }}>
-                      <div style={{ width: 48, height: 48, borderRadius: 14, flexShrink: 0, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <img src={imgSrc} alt="" style={{ width: 26, height: 26, objectFit: 'contain' }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {ca.activity?.title || ''}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                          <PointsBadge points={ca.activity?.points || 0} size="sm" />
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--dc-blue)', background: 'rgba(21,101,192,0.1)', borderRadius: 50, padding: '1px 8px' }}>Assignée</span>
-                        </div>
-                      </div>
-                      <button onClick={() => handleStart(ca)} style={{ background: 'var(--dc-blue)', color: 'white', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                        Commencer
-                      </button>
+                      <img src={st.imgSrc} alt="" style={{ width: 34, height: 34, objectFit: 'contain' }} />
                     </div>
-                  );
-                })}
-                <div style={{ height: 16 }} />
-              </>
-            )}
-
-            {/* En cours */}
-            {activeList.length === 0 ? (
-              <div className="dc-empty-state">
-                <h3>Aucun défi en cours</h3>
-                <p>Va dans le catalogue et choisis ton premier défi !</p>
-                <button className="dc-btn dc-btn-primary" style={{ marginTop: 12 }} onClick={() => setTab('catalog')}>
-                  Voir le catalogue
-                </button>
-              </div>
-            ) : activeList.map(ca => {
-              const { bg, imgSrc } = getCategoryStyle(ca.activity?.category?.slug);
-              const isSubmitted = ca.status === 'submitted';
-              return (
-                <div key={ca.id} className="dc-animate-in" style={{
-                  display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10,
-                  background: 'white', borderRadius: 16, padding: '12px 14px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  border: isSubmitted ? '1.5px solid var(--dc-gold)' : '1.5px solid rgba(0,0,0,0.04)',
-                }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 14, flexShrink: 0, background: isSubmitted ? 'rgba(253,196,0,0.12)' : bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {isSubmitted
-                      ? <Clock size={24} color="var(--dc-gold)" strokeWidth={1.8} />
-                      : <img src={imgSrc} alt="" style={{ width: 26, height: 26, objectFit: 'contain' }} />
-                    }
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {ca.activity?.title || ''}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--rk-text)', lineHeight: 1.3, minHeight: 34 }}>
+                      {a.title}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                      <PointsBadge points={ca.activity?.points || 0} size="sm" />
-                      {isSubmitted && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--dc-gold)' }}>En attente de validation</span>}
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--rk-text)', margin: '6px 0 10px' }}>
+                      {a.points} points
                     </div>
-                  </div>
-                  {ca.status === 'selected' && (
-                    <button onClick={() => setSubmitTarget(ca)} style={{ background: 'var(--dc-green)', color: 'white', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                      C'est fait !
+                    <button onClick={() => take(a)} disabled={taking === a.id} style={{
+                      width: '100%', height: 36, borderRadius: 999, background: 'var(--rk-accent)',
+                      color: 'var(--rk-accentink)', fontSize: 13, fontWeight: 800,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      opacity: taking === a.id ? .6 : 1,
+                    }}>
+                      {taking === a.id ? '…' : 'Je le prends'}
                     </button>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-            {/* ── Terminées (repliées par défaut) ── */}
-            {doneList.length > 0 && (
-              <div style={{ marginTop: 28 }}>
-                <button
-                  onClick={() => setShowHistory(h => !h)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '10px 4px', marginBottom: 6 }}
-                >
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--dc-text-muted)', letterSpacing: '0.08em' }}>
-                    TERMINÉES ({doneList.length})
-                  </span>
-                  {showHistory
-                    ? <ChevronUp size={16} color="var(--dc-text-muted)" strokeWidth={2} />
-                    : <ChevronDown size={16} color="var(--dc-text-muted)" strokeWidth={2} />
-                  }
+        {/* ── Feuille « Bien joué ! » (maquette sh_submit) ─────── */}
+        <RkSheet open={!!submitTarget} onClose={() => setSubmitTarget(null)}>
+          {submitTarget && (() => {
+            const st = getCategoryStyle(submitTarget.activity?.category?.slug);
+            return (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 13, marginBottom: 18 }}>
+                  <div style={{
+                    width: 46, height: 46, borderRadius: 14, background: st.bg, flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <img src={st.imgSrc} alt="" style={{ width: 26, height: 26, objectFit: 'contain' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-.02em', color: 'var(--rk-text)' }}>
+                      Bien joué !
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--rk-text3)', marginTop: 2 }}>
+                      {submitTarget.activity?.title} · {submitTarget.activity?.points ?? 0} points
+                    </div>
+                  </div>
+                </div>
+
+                <ProofUpload
+                  childId={selectedChild.id}
+                  childActivityId={submitTarget.id}
+                  onUploadComplete={setProof}
+                  onRemove={async () => {
+                    if (proof) { await storageService.deleteActivityProof(proof.path).catch(() => {}); setProof(null); }
+                  }}
+                  currentProof={proof}
+                  hint="conseillé pour cette activité"
+                />
+
+                <textarea
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  placeholder="Raconte comment ça s'est passé (optionnel)"
+                  style={{
+                    width: '100%', height: 78, borderRadius: 16, border: '1.5px solid var(--rk-border)',
+                    background: 'var(--rk-surface)', padding: '13px 15px', fontSize: 14,
+                    fontFamily: 'inherit', color: 'var(--rk-text)', lineHeight: 1.5, resize: 'none',
+                    marginBottom: 16,
+                  }}
+                />
+
+                <button onClick={submit} disabled={submitting} style={{
+                  width: '100%', height: 52, borderRadius: 999, background: 'var(--rk-accent)',
+                  color: 'var(--rk-accentink)', fontSize: 15, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: submitting ? .6 : 1,
+                }}>
+                  {submitting ? 'Envoi…' : 'Envoyer à mes parents'}
                 </button>
 
-                {showHistory && doneList.map(ca => {
-                  const { bg, imgSrc } = getCategoryStyle(ca.activity?.category?.slug);
-                  const isValidated = ca.status === 'validated';
-                  return (
-                    <div key={ca.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8,
-                      background: 'white', borderRadius: 14, padding: '10px 14px', opacity: 0.72,
-                      border: isValidated ? '1.5px solid rgba(0,184,148,0.25)' : '1.5px solid rgba(255,107,107,0.2)',
-                    }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <img src={imgSrc} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {ca.activity?.title || ''}
-                        </div>
-                        <div style={{ fontSize: 12, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          {isValidated
-                            ? <><CheckCircle size={12} color="var(--dc-green)" strokeWidth={2.5} /><span style={{ color: 'var(--dc-green)', fontWeight: 700 }}>+{ca.earned_points} pts gagnés</span></>
-                            : <><XCircle size={12} color="var(--dc-danger)" strokeWidth={2.5} /><span style={{ color: 'var(--dc-danger)', fontWeight: 600 }}>{ca.rejection_reason || 'Non validé'}</span></>
-                          }
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>)}
-        </div>
-      </IonContent>
-    </IonPage>
+                <button onClick={() => setSubmitTarget(null)} style={{
+                  display: 'block', width: '100%', textAlign: 'center', padding: '16px 0 0',
+                  fontSize: 14, fontWeight: 700, color: 'var(--rk-text3)',
+                }}>
+                  Annuler
+                </button>
+              </>
+            );
+          })()}
+        </RkSheet>
+      </div>
+    </IonContent></IonPage>
   );
 };
 

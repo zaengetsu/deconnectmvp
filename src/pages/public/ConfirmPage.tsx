@@ -46,87 +46,55 @@ const ConfirmPage: React.FC = () => {
   return (
     <IonPage>
       <IonContent fullscreen>
-        <div style={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '40px 32px',
-          background: 'var(--dc-bg)',
-          textAlign: 'center',
+        <div className="rk-app rk-screen" style={{
+          minHeight: '100vh', background: 'var(--rk-bg)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', padding: 32, textAlign: 'center',
         }}>
+          <div style={{ width: 52, height: 52, position: 'relative', marginBottom: 26 }}>
+            <div style={{ position: 'absolute', left: 0, top: 13, width: 29, height: 29, borderRadius: '50%', border: '3px solid var(--rk-indigo)' }} />
+            <div style={{ position: 'absolute', left: 19, top: 13, width: 29, height: 29, borderRadius: '50%', border: '3px solid var(--rk-accent)' }} />
+          </div>
 
-          {/* Loading */}
-          {status === 'loading' && (
-            <>
-              <div style={{
-                width: 72, height: 72, borderRadius: 22,
-                background: 'var(--dc-blue-light)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                marginBottom: 24,
-                animation: 'pulse 1.5s ease-in-out infinite',
-              }}>
-                <Loader size={32} color="var(--dc-blue)" strokeWidth={1.8}
-                  style={{ animation: 'spin 1s linear infinite' }} />
-              </div>
-              <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
-                Confirmation en cours...
-              </h1>
-              <p style={{ color: 'var(--dc-text-light)', fontSize: 15 }}>
-                Veuillez patienter un instant.
-              </p>
-            </>
-          )}
+          <div style={{
+            width: 72, height: 72, borderRadius: 24, marginBottom: 22,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: status === 'success' ? 'var(--rk-sagesoft)'
+              : status === 'error' ? 'var(--rk-raspsoft)' : 'var(--rk-indigosoft)',
+          }}>
+            {status === 'loading' && <Loader size={30} color="var(--rk-indigo)" strokeWidth={2} />}
+            {status === 'success' && <CheckCircle size={30} color="var(--rk-sage)" strokeWidth={2} />}
+            {status === 'error' && <XCircle size={30} color="var(--rk-rasp)" strokeWidth={2} />}
+          </div>
 
-          {/* Success */}
-          {status === 'success' && (
-            <>
-              <div style={{
-                width: 72, height: 72, borderRadius: 22,
-                background: 'var(--dc-green-light)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                marginBottom: 24,
-              }}>
-                <CheckCircle size={36} color="var(--dc-green)" strokeWidth={1.8} />
-              </div>
-              <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
-                Compte confirmé !
-              </h1>
-              <p style={{ color: 'var(--dc-text-light)', fontSize: 15, lineHeight: 1.6 }}>
-                Votre adresse email a été vérifiée.<br />
-                Vous allez être redirigé automatiquement.
-              </p>
-            </>
-          )}
+          <h1 style={{
+            fontSize: 25, fontWeight: 800, letterSpacing: '-.03em',
+            margin: 0, color: 'var(--rk-text)',
+          }}>
+            {status === 'loading' && 'Vérification…'}
+            {status === 'success' && 'Compte confirmé'}
+            {status === 'error' && 'Lien invalide'}
+          </h1>
 
-          {/* Error */}
+          <p style={{
+            fontSize: 14, color: 'var(--rk-text2)', lineHeight: 1.55,
+            margin: '10px 0 0', maxWidth: '30ch',
+          }}>
+            {status === 'loading' && 'Un instant, nous validons votre lien.'}
+            {status === 'success' && 'Bienvenue dans Rekonect. Redirection en cours…'}
+            {status === 'error' && (errorMsg || 'Ce lien a expiré. Demandez-en un nouveau depuis la connexion.')}
+          </p>
+
           {status === 'error' && (
-            <>
-              <div style={{
-                width: 72, height: 72, borderRadius: 22,
-                background: 'var(--dc-danger-light)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                marginBottom: 24,
-              }}>
-                <XCircle size={36} color="var(--dc-danger)" strokeWidth={1.8} />
-              </div>
-              <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
-                Lien invalide
-              </h1>
-              <p style={{ color: 'var(--dc-text-light)', fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
-                {errorMsg || 'Ce lien de confirmation est invalide ou a expiré.'}
-              </p>
-              <button
-                className="dc-btn dc-btn-primary"
-                style={{ width: '100%', maxWidth: 280 }}
-                onClick={() => history.replace('/register')}
-              >
-                Recommencer l'inscription
-              </button>
-            </>
+            <button onClick={() => history.replace('/login')} style={{
+              width: '100%', maxWidth: 300, height: 54, borderRadius: 999, marginTop: 26,
+              background: 'var(--rk-indigo)', color: 'var(--rk-indigofg)',
+              fontSize: 15, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              Retour à la connexion
+            </button>
           )}
-
         </div>
       </IonContent>
     </IonPage>
