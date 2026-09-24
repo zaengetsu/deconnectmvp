@@ -18,21 +18,22 @@ export function buildGallery(): { html: string; count: number } {
   });
   const groups = ['any', 'parent', 'partner', 'admin'].map((a) => ({ a, list: items.filter((i) => i.audience === a) }));
   const html = `<title>Emails Rekonect</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
 <style>
 :root{--bg:#F6F4F1;--card:#fff;--ink:#16182B;--muted:#8A8FA6;--line:#ECE9E4;--indigo:#3C41A8;--coral:#FF9469}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#121320;--card:#1C1D2E;--ink:#F2F2F7;--muted:#9A9DB3;--line:#2A2C40}}
 :root[data-theme="dark"]{--bg:#121320;--card:#1C1D2E;--ink:#F2F2F7;--muted:#9A9DB3;--line:#2A2C40}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif}
+*{box-sizing:border-box}body{margin:0;padding-inline:0;background:var(--bg);color:var(--ink);font-family:Manrope,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif}
 header{padding:28px 16px 8px;max-width:1180px;margin:0 auto}h1{font-size:28px;letter-spacing:-.03em;margin:0}
 .lead{color:var(--muted);margin:6px 0 0;font-size:14px;line-height:1.5}
-nav{position:sticky;top:0;z-index:2;background:var(--bg);border-bottom:1px solid var(--line)}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:2;background:var(--bg);border-bottom:1px solid var(--line)}
 nav div{max-width:1180px;margin:0 auto;padding:10px 16px;display:flex;gap:8px;flex-wrap:wrap}
 nav a{font-size:13px;font-weight:700;color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:var(--card)}
 main{max-width:1180px;margin:0 auto;padding:8px 16px 48px}
 h2{font-size:18px;margin:28px 0 12px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:14px}
 details{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
-summary{list-style:none;cursor:pointer;padding:14px 16px}summary::-webkit-details-marker{display:none}
+summary{list-style:none;cursor:pointer;padding:14px 16px}summary:focus-visible{outline:2px solid var(--indigo);outline-offset:-2px}summary::-webkit-details-marker{display:none}
 .id{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--muted)}
 .subj{font-weight:800;font-size:14px;margin:4px 0 2px;line-height:1.35}.pre{font-size:12px;color:var(--muted);line-height:1.4}
 .tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.tag{font-size:11px;font-weight:700;border-radius:999px;padding:3px 8px;background:var(--bg);color:var(--muted)}
