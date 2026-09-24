@@ -5,6 +5,7 @@ import { Route, Redirect, useHistory } from 'react-router-dom';
 import { App as CapApp } from '@capacitor/app';
 import { appPathFromUrl, LINK_SCHEME, parseChildLink } from './lib/childLink';
 import { useAuthStore } from './stores/auth.store';
+import { hideNativeSplash } from './lib/nativeSplash';
 import { useAppStore } from './stores/app.store';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { childSession } from './features/auth/child.session';
@@ -118,7 +119,14 @@ const App: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isChildSession, selectedChild]);
 
-  if (!isInitialized || (isChildSession && !selectedChild && childRestore !== 'done')) {
+  const booting = !isInitialized || (isChildSession && !selectedChild && childRestore !== 'done');
+  // Le splash natif couvre tout le démarrage ; on le retire quand le premier
+  // vrai écran est rendu (après le commit React, donc sans flash).
+  useEffect(() => {
+    if (!booting) hideNativeSplash();
+  }, [booting]);
+
+  if (booting) {
     // Splash de la maquette (indigo) en attendant l'initialisation de la session.
     return <SplashWaiting />;
   }

@@ -14,8 +14,11 @@ const config: CapacitorConfig = {
   plugins: {
     // ─── Splash Screen ──────────────────────────────────────
     SplashScreen: {
-      launchShowDuration: 1500,
-      launchAutoHide: true,
+      // Un seul splash : le natif reste affiché jusqu'à ce que l'app soit prête
+      // (masqué par hideNativeSplash, src/lib/nativeSplash.ts), puis fondu.
+      launchShowDuration: 0,
+      launchAutoHide: false,
+      launchFadeOutDuration: 250,
       backgroundColor: '#3C41A8', // splash Rekonect : indigo, comme la maquette
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
