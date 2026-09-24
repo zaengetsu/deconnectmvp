@@ -11,6 +11,5 @@ onlyBuiltDependencies:
   - '@nestjs/core'
   - esbuild
   - bcrypt
-  - argon2
   - sharp
   - unrs-resolver

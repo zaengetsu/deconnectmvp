@@ -5,7 +5,7 @@
 import { config as loadDotenv } from 'dotenv';
 loadDotenv({ quiet: true });
 import { PrismaPg } from '@prisma/adapter-pg';
-import * as argon2 from 'argon2';
+import { hashSecret } from '../src/platform/crypto';
 import { PrismaClient } from '../src/generated/prisma/client';
 import data from './seed-data.json';
 
@@ -35,7 +35,7 @@ export async function seed(prisma: PrismaClient, opts: { adminEmail?: string; ad
     const email = opts.adminEmail.trim().toLowerCase();
     await prisma.user.upsert({
       where: { email },
-      create: { email, role: 'admin', fullName: 'Admin Rekonect', passwordHash: await argon2.hash(opts.adminPassword, { type: argon2.argon2id }), emailVerifiedAt: new Date() },
+      create: { email, role: 'admin', fullName: 'Admin Rekonect', passwordHash: await hashSecret(opts.adminPassword), emailVerifiedAt: new Date() },
       update: {},
     });
   }

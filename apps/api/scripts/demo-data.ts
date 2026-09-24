@@ -5,7 +5,7 @@
 import { config as loadDotenv } from 'dotenv';
 loadDotenv({ quiet: true });
 import { PrismaPg } from '@prisma/adapter-pg';
-import * as argon2 from 'argon2';
+import { hashSecret } from '../src/platform/crypto';
 import { PrismaClient } from '../src/generated/prisma/client';
 
 const API = (process.env.API_URL ?? 'http://localhost:3000').replace(/\/$/, '');
@@ -49,7 +49,7 @@ async function main() {
     return;
   }
   // ─── Équipe Rekonect ───
-  await prisma.user.create({ data: { email: 'admin@rekonect.app', fullName: 'Camille Rousseau', role: 'admin', passwordHash: await argon2.hash(PASSWORD, { type: argon2.argon2id }), emailVerifiedAt: new Date() } });
+  await prisma.user.create({ data: { email: 'admin@rekonect.app', fullName: 'Camille Rousseau', role: 'admin', passwordHash: await hashSecret(PASSWORD), emailVerifiedAt: new Date() } });
   const admin = (await call('POST', '/v1/auth/login', { email: 'admin@rekonect.app', password: PASSWORD })).accessToken as string;
 
   // ─── Familles ───

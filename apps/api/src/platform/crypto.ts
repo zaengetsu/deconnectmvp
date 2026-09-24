@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
-import * as argon2 from 'argon2';
+// Liaison Rust précompilée pour chaque plateforme (macOS Intel/ARM, Linux, Windows) : aucune compilation native à l'installation.
+import { hash as argonHash, verify as argonVerify } from '@node-rs/argon2';
 import * as bcrypt from 'bcryptjs';
 
 export function sha256(value: string): string {
@@ -39,7 +40,7 @@ export function safeEqual(a: string, b: string): boolean {
 // puis re-hachés en argon2 à la connexion suivante.
 
 export function hashSecret(secret: string): Promise<string> {
-  return argon2.hash(secret, { type: argon2.argon2id, memoryCost: 19_456, timeCost: 2, parallelism: 1 });
+  return argonHash(secret, { memoryCost: 19_456, timeCost: 2, parallelism: 1 }); // argon2id par défaut
 }
 
 export function isLegacyHash(hash: string): boolean {
@@ -50,7 +51,7 @@ export async function verifySecret(hash: string | null | undefined, secret: stri
   if (!hash) return false;
   try {
     if (isLegacyHash(hash)) return await bcrypt.compare(secret, hash);
-    return await argon2.verify(hash, secret);
+    return await argonVerify(hash, secret);
   } catch {
     return false;
   }
