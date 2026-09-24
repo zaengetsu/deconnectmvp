@@ -3,7 +3,7 @@ import { IonApp, IonRouterOutlet, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import { Route, Redirect, useHistory } from 'react-router-dom';
 import { App as CapApp } from '@capacitor/app';
-import { LINK_SCHEME, parseChildLink } from './lib/childLink';
+import { appPathFromUrl, LINK_SCHEME, parseChildLink } from './lib/childLink';
 import { useAuthStore } from './stores/auth.store';
 import { useAppStore } from './stores/app.store';
 import { usePushNotifications } from './hooks/usePushNotifications';
@@ -39,6 +39,12 @@ const DeepLinkHandler: React.FC = () => {
   useEffect(() => {
     const route = (url: string | undefined | null) => {
       if (!url) return;
+      // Retours Stripe et liens de notification : rekonect://parent/subscription?checkout=success
+      const internal = appPathFromUrl(url);
+      if (internal) {
+        history.replace(internal);
+        return;
+      }
       const parsed = parseChildLink(url);
       if (!parsed) return;
       const q = new URLSearchParams();

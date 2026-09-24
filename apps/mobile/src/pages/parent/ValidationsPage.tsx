@@ -1,3 +1,4 @@
+import { api } from '../../lib/api';
 import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
@@ -25,7 +26,31 @@ const timeAgo = (iso?: string | null) => {
   return `${d.toLocaleDateString('fr-FR', { weekday: 'long' })} à ${time}`;
 };
 
+type ReportReason = 'duplicate' | 'unclear' | 'unsafe' | 'inappropriate' | 'other';
+const REPORT_REASONS: [ReportReason, string][] = [
+  ['unclear', 'Consigne peu claire'],
+  ['duplicate', 'Doublon'],
+  ['unsafe', 'Pas sûr pour un enfant'],
+  ['inappropriate', 'Contenu inadapté'],
+  ['other', 'Autre'],
+];
+
 const ValidationsPage: React.FC = () => {
+  const [reportTarget, setReportTarget] = useState<ChildActivity | null>(null);
+  const [reportReason, setReportReason] = useState<ReportReason>('unclear');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportDone, setReportDone] = useState<string | null>(null);
+  const sendReport = async () => {
+    if (!reportTarget?.activity_id) return;
+    try {
+      await api('POST', `/v1/activities/${reportTarget.activity_id}/report`, { reason: reportReason, details: reportDetails.trim() || undefined });
+      setReportDone('Merci, l’équipe Rekonect va vérifier cette activité.');
+    } catch (e) {
+      setReportDone((e as Error).message);
+    }
+    setReportTarget(null);
+    setReportDetails('');
+  };
   const { user } = useAuthStore();
   const history = useHistory();
   const [pending, setPending] = useState<ChildActivity[]>([]);
@@ -184,6 +209,11 @@ const ValidationsPage: React.FC = () => {
                     Refuser
                   </button>
                 </div>
+                {ca.activity?.activity_type !== 'custom_parent' && (
+                  <button onClick={() => { setReportTarget(ca); setReportReason('unclear'); }} style={{ display: 'block', margin: '-6px 16px 14px auto', fontSize: 12, fontWeight: 700, color: 'var(--rk-text3)' }}>
+                    Signaler cette activité
+                  </button>
+                )}
               </div>
             );
           })}
@@ -306,6 +336,42 @@ const ValidationsPage: React.FC = () => {
             Envoyer et refuser
           </button>
         </RkSheet>
+
+        {/* ── Signalement d'une activité du catalogue ─────────── */}
+        <RkSheet open={!!reportTarget} onClose={() => setReportTarget(null)} title="Signaler cette activité" subtitle="L’équipe Rekonect relit le catalogue à partir de vos retours.">
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 14 }}>
+            {REPORT_REASONS.map(([id, label]) => (
+              <button key={id} onClick={() => setReportReason(id)} style={{
+                height: 34, padding: '0 13px', borderRadius: 999,
+                background: reportReason === id ? 'var(--rk-indigosoft)' : 'var(--rk-surface2)',
+                color: reportReason === id ? 'var(--rk-indigo)' : 'var(--rk-text2)',
+                fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center',
+              }}>{label}</button>
+            ))}
+          </div>
+          <textarea
+            value={reportDetails}
+            onChange={e => setReportDetails(e.target.value)}
+            placeholder="Précisez si besoin (facultatif)"
+            style={{
+              width: '100%', height: 80, borderRadius: 16, border: '1.5px solid var(--rk-border)',
+              background: 'var(--rk-surface)', padding: '13px 15px', fontSize: 14,
+              fontFamily: 'inherit', color: 'var(--rk-text)', lineHeight: 1.5, marginBottom: 18, resize: 'none',
+            }}
+          />
+          <button onClick={() => void sendReport()} style={{
+            width: '100%', height: 52, borderRadius: 999, background: 'var(--rk-indigo)',
+            color: 'var(--rk-indigofg)', fontSize: 15, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            Envoyer le signalement
+          </button>
+        </RkSheet>
+        {reportDone && (
+          <div role="status" onClick={() => setReportDone(null)} style={{ position: 'fixed', left: 22, right: 22, bottom: 'calc(env(safe-area-inset-bottom) + 100px)', background: 'var(--rk-text)', color: 'var(--rk-bg)', borderRadius: 16, padding: '13px 16px', fontSize: 14, fontWeight: 600, zIndex: 50 }}>
+            {reportDone}
+          </div>
+        )}
       </div>
     </IonContent></IonPage>
   );

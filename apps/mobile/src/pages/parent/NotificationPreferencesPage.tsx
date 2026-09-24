@@ -61,6 +61,7 @@ const SECTIONS: { title: string; items: { key: PreferenceKey; label: string; hin
     items: [
       { key: 'tips',         label: 'Conseils Deconnect' },
       { key: 'product_news', label: 'Nouveautés produit' },
+      { key: 'partner_offers', label: 'Avantages partenaires', hint: 'Bons de magasins et équipements près de chez vous' },
     ],
   },
 ];

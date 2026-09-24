@@ -1,6 +1,6 @@
 # Rekonect — Architecture cible
 
-**Statut :** v1 — 24 septembre 2026
+**Statut :** v2 — 24 septembre 2026 (API, back-office, portail partenaires et alignements mobile livrés)
 **Décisions actées :** NestJS modulaire et événementiel · Postgres seul (Supabase ne sert plus qu'à héberger la base, et peut être remplacé) · Prisma · monorepo Turborepo · deux apps web Next.js (admin Rekonect, portail partenaires) · app mobile Ionic/Capacitor conservée.
 
 ---
@@ -23,9 +23,9 @@
                     │       PostgreSQL (Prisma)  ── LISTEN/NOTIFY ──► instances API     │
                     │                                                                  │
   packages/contracts ┤ événements versionnés + DTO zod partagés front/back             │
-  packages/api-client┤ client HTTP typé (web + mobile)                                 │
-  packages/ui-tokens ┤ jetons du design system Rekonect (couleurs, rayons, typo)       │
-  packages/config    ┤ tsconfig / eslint partagés                                      │
+  packages/api-client┤ client HTTP typé (sessions, erreurs, formats FR)                 │
+  packages/ui        ┤ composants web + jetons des maquettes Admin / Partenaire       │
+  e2e                ┤ parcours Playwright des deux portails sur l'API réelle          │
                     └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -174,8 +174,8 @@ Les règles RLS deviennent des **guards NestJS** : `@Roles()`, `ParentOwnsChild`
 
 | Phase | Contenu | État |
 |---|---|---|
-| 0 | Monorepo Turborepo · API NestJS · Prisma sur le schéma existant · outbox · notifications · partenaires · apps admin et partenaires | **en cours (cette livraison)** |
-| 1 | L'app mobile passe de `supabase-js` à `@rekonect/api-client`, écran par écran (≈ 60 appels `.from()` et 9 RPC à remplacer) | à faire |
+| 0 | Monorepo Turborepo · API NestJS · Prisma sur le schéma existant · outbox · notifications · partenaires · abonnements Stripe · apps admin et partenaires | **livré** |
+| 1 | L'app mobile passe de `supabase-js` à l'API, écran par écran (≈ 60 appels `.from()` et 9 RPC à remplacer). Déjà sur l'API : abonnement, bons partenaires, consentement, signalements | **commencé** |
 | 2 | Import des comptes (`auth.users` → `users`), bascule de l'auth mobile, suppression de Supabase Auth | à faire |
 | 3 | Désactivation des triggers, crons (`pg_cron`) et Edge Functions Supabase, remplacés par le worker | à faire |
 | 4 | Base Postgres déplacée hors de Supabase si souhaité (`pg_dump` / `pg_restore`) | optionnel |
@@ -194,7 +194,7 @@ Pendant les phases 1 à 3, **les triggers SQL et le worker ne doivent pas tourne
 
 ---
 
-## 9. Inventaire des écrans web : brief pour le design
+## 9. Inventaire des écrans web (brief initial, désormais livré — voir §12)
 
 ### Admin Rekonect (`apps/admin`)
 
@@ -224,3 +224,70 @@ Pendant les phases 1 à 3, **les triggers SQL et le worker ne doivent pas tourne
 | Statistiques d'une offre | courbe des déblocages et utilisations, sans donnée personnelle |
 | Organisation | profil (nom, logo, site), membres et rôles |
 | Compte | mot de passe, sessions |
+
+---
+
+## 10. Abonnements et facturation (Stripe)
+
+- Table `plans` (familles : `free`, `family`, `family_plus` ; partenaires : `partner_local`, `partner_network`, `partner_public`), avec les **limites en JSON** (`maxChildren`, `maxCoParents`, `maxPlaces`, `maxRadiusKm`, `nationalTargeting`…) et les fonctionnalités affichées. L'admin modifie prix et limites ; les prix Stripe sont recréés automatiquement, les abonnés gardent leur tarif jusqu'au renouvellement.
+- `BillingGateway` isole Stripe (API 2026-08-26) : Checkout, portail client, changement de plan au prorata, résiliation en fin de période, codes promo. Un faux gateway sert aux tests.
+- Webhooks idempotents (`stripe_webhook_events`) → `subscriptions`, `invoices`, `subscription_events` (historique affiché dans l'admin) et événements `billing.subscription_changed` / `billing.payment_failed` (notification + email au parent ou au responsable partenaire).
+- **Codes** : remise (`percent`, `amount`, appliquée au paiement), mois offerts (`free_months`) et licences payées par un partenaire (`sponsored`, ex. CSE ou mairie), avec compteur verrouillé en transaction.
+- `EntitlementsService` applique les limites partout (enfants, activités personnalisées, co-parents, lieux, offres actives, ciblage). **Une baisse de plan ne supprime rien** : les profils au-delà passent en lecture seule.
+- Indicateurs : MRR familles / partenaires, conversion gratuit → payant, churn mensuel, paiements échoués.
+
+## 11. Partenaires v2
+
+- **Réseau enseigne → magasins** (`parent_partner_id`) : l'enseigne crée ses magasins (chacun avec son responsable invité), valide leurs offres locales (`pending_brand`) avant la modération Rekonect, et voit leurs statistiques. Les magasins héritent du plan de l'enseigne.
+- **Rôles** : `owner` (admin), `editor`, `viewer`, `reception` (caisse / accueil : validation des bons uniquement).
+- **Lieux** (`partner_places`) géolocalisés (géocodage Base adresse nationale dans le portail).
+- **Ciblage** : national (familles « premium » uniquement), rayon autour d'un lieu, codes postaux, code d'accès (CSE, mairie). Éligibilité calculée côté serveur : consentement + plan + zone + âge.
+- **Déclencheurs** : points (récompense enfant), N activités d'une catégorie ou d'une activité sur une fenêtre de jours, série de jours d'affilée, niveau atteint, objectif familial. Une récompense enfant peut aussi s'obtenir « après des activités », sans dépenser de points.
+- **Codes** : code RK généré par Rekonect (`RKxx-xxxx`, encodé dans un QR code `rekonect:voucher:…`), code générique ou réserve de codes uniques importée. Vérification en caisse par saisie, douchette ou caméra ; panier déclaré facultatif.
+- **Anonymat** : aucun volume inférieur à 10 n'est affiché ; les audiences sont arrondies à la dizaine et masquées sous 20 familles.
+- **Visuels** : téléversés dans Postgres (`media_files`, 2 Mo, PNG/JPEG/WebP vérifiés sur leur contenu), servis par `GET /v1/media/:id`.
+
+## 12. Apps web livrées
+
+| App | Port | Écrans |
+|---|---|---|
+| `apps/admin` | 3001 | Vue d'ensemble (alertes, KPI, familles actives par mois, plans, top activités/récompenses, santé) · Activités (filtres, fiche éditable, import CSV, signalements) · Récompenses (natives + modération des offres) · Familles (filtres, export CSV, fiche, mois offerts, historique de paiement, suspension, suppression RGPD) · Plans & abonnements (plans, événements, codes promo) · Partenaires (invitation, statut) · recherche ⌘K |
+| `apps/partners` | 3002 | Tableau de bord (KPI, entonnoir, déclencheurs) · Offres (filtres, cartes, validation des offres magasins) · Nouvelle offre / édition (5 étapes, aperçu téléphone, audience estimée en direct, visuel) · Audience & zones · Lieux / Magasins / Équipements / Sites · Bons & échanges (caisse + export CSV) · Compte & facturation (plan, équipe, factures) · invitation, connexion, mot de passe oublié |
+
+Composants et jetons dans `packages/ui` (valeurs exactes des maquettes, police Manrope embarquée). Sessions : jeton d'accès court + refresh rotatif stocké côté navigateur, rafraîchi automatiquement.
+
+## 13. Alignements de l'app mobile
+
+- Client `src/lib/api.ts` : appelle l'API NestJS avec le jeton Supabase existant (pont de migration, variable `SUPABASE_JWT_SECRET` côté API).
+- **Mon abonnement** (`/parent/subscription`) : plan, limites utilisées, choix de plan mensuel/annuel via Stripe Checkout, portail de paiement, résiliation et reprise, code CSE/mairie, factures. Retour de paiement par lien profond `rekonect://parent/subscription?checkout=success`.
+- **Bons & avantages** (`/parent/vouchers`, `/parent/offers/:id` depuis la notification) : portefeuille des bons avec QR code, progression des bons en cours, activation du consentement avec code postal.
+- Préférence « Avantages partenaires » dans les préférences de notification ; **« Signaler cette activité »** sur les cartes de validation.
+
+## 14. Lancer le projet en local
+
+```bash
+pnpm install
+pnpm db:up                                   # Postgres 16 (docker compose)
+cp apps/api/.env.example apps/api/.env       # renseigner JWT_ACCESS_SECRET, STRIPE_*, SUPABASE_JWT_SECRET…
+pnpm db:migrate && pnpm db:seed
+pnpm --filter @rekonect/api dev              # API :3000
+pnpm --filter @rekonect/api dev:worker       # worker (outbox, notifications, crons) avec RUN_JOBS=true
+pnpm --filter @rekonect/api demo:data        # jeu de démonstration (mot de passe : rekonect-demo-2026)
+pnpm dev:admin                               # http://localhost:3001  — admin@rekonect.app
+pnpm dev:partners                            # http://localhost:3002  — julie.bernard@decathlonfrance.fr
+pnpm --filter @rekonect/e2e e2e              # parcours Playwright (API, worker et apps démarrés)
+```
+
+Sur la base Supabase existante : `pnpm --filter @rekonect/api prisma:resolve-baseline` une seule fois, puis `pnpm db:migrate`.
+
+## 15. Décisions produit prises pendant la réalisation
+
+- Consentement aux offres partenaires **désactivé par défaut** ; l'éligibilité d'une famille n'est jamais calculée côté partenaire.
+- Offres **nationales réservées aux familles Famille+** (« offres partenaires premium ») ; le plan gratuit voit les offres locales.
+- Baisse de plan : **lecture seule** au-delà des limites, jamais de suppression.
+- Trois signalements ouverts sur une activité du catalogue la passent en « Signalée ».
+- Les âges du catalogue importé (tous 9–14 ans) doivent être revus éditorialement ; le filtrage par âge du catalogue natif est derrière `CATALOG_AGE_FILTER`.
+
+## 16. Prochaine étape à cadrer : bons personnalisables
+
+Les récompenses partenaires sont déjà remises sous forme de bons avec QR code, dans un portefeuille côté parent. À cadrer ensuite : éditeur de bon côté partenaire (modèle, couleurs, logo, accroche, valeur, conditions), rendu du bon unique par famille, place du bon côté enfant (affichage sans code, remise par le parent), expiration et rappel avant expiration.

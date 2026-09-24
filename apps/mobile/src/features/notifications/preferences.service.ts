@@ -43,6 +43,9 @@ export interface NotificationPreferences {
   tips: boolean;
   product_news: boolean;
 
+  // Avantages partenaires (consentement explicite, désactivé par défaut)
+  partner_offers: boolean;
+
   // Quiet hours
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;

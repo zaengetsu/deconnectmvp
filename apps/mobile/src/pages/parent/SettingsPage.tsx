@@ -1,4 +1,4 @@
-import { notificationsOutline, optionsOutline, timeOutline, peopleOutline, swapHorizontalOutline } from 'ionicons/icons';
+import { cardOutline, giftOutline, notificationsOutline, optionsOutline, timeOutline, peopleOutline, swapHorizontalOutline } from 'ionicons/icons';
 import RkTile from '../../components/rk/RkTile';
 import { useRkBack } from '../../hooks/useRkBack';
 import React, { useEffect, useState } from 'react';
@@ -195,6 +195,24 @@ const SettingsPage: React.FC = () => {
                 <RkTile icon={timeOutline} tint="var(--rk-indigosoft)" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Historique des notifications</div>
+                </div>
+                <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
+              </button>
+
+              <button onClick={() => history.push('/parent/subscription')} style={{ ...row, borderBottom: '1px solid var(--rk-line)' }}>
+                <RkTile icon={cardOutline} tint="var(--rk-indigosoft)" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Mon abonnement</div>
+                  <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>Plan, limites, code CSE ou mairie</div>
+                </div>
+                <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
+              </button>
+
+              <button onClick={() => history.push('/parent/vouchers')} style={{ ...row, borderBottom: '1px solid var(--rk-line)' }}>
+                <RkTile icon={giftOutline} tint="var(--rk-accentsoft)" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Bons &amp; avantages</div>
+                  <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>Portefeuille de bons partenaires</div>
                 </div>
                 <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
               </button>

@@ -22,6 +22,8 @@ import ChildDetailPage from './ChildDetailPage';
 import AssignActivitiesPage from './AssignActivitiesPage';
 import NotificationsPage from './NotificationsPage';
 import NotificationPreferencesPage from './NotificationPreferencesPage';
+import SubscriptionPage from './SubscriptionPage';
+import VouchersPage from './VouchersPage';
 
 /**
  * Navigation parent — quatre onglets et un bouton central « + », comme dans
@@ -125,6 +127,9 @@ const ParentTabs: React.FC = () => (
       <Route exact path="/parent/account" component={AccountPage} />
       <Route exact path="/parent/notifications" component={NotificationsPage} />
       <Route exact path="/parent/notification-preferences" component={NotificationPreferencesPage} />
+      <Route exact path="/parent/subscription" component={SubscriptionPage} />
+      <Route exact path="/parent/vouchers" component={VouchersPage} />
+      <Route exact path="/parent/offers/:claimId" component={VouchersPage} />
       <Route exact path="/parent"><Redirect to="/parent/dashboard" /></Route>
     </IonRouterOutlet>
     <ParentChrome />
