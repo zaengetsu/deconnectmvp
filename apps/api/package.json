@@ -24,7 +24,8 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:resolve-baseline": "prisma migrate resolve --applied 20260924000000_baseline",
     "demo:data": "ts-node --transpile-only scripts/demo-data.ts",
-    "db:apply-migrations": "ts-node --transpile-only scripts/apply-migrations.ts"
+    "db:apply-migrations": "ts-node --transpile-only scripts/apply-migrations.ts",
+    "email:gallery": "ts-node --transpile-only scripts/email-gallery.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.6",

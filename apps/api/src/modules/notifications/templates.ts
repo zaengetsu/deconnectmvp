@@ -551,7 +551,7 @@ export const templates = {
     };
   },
 
-  /** Le récapitulatif hebdomadaire est l'événement type qui mérite un email (5.14). */
+  /** Récapitulatif hebdomadaire en push ; la version détaillée part par email (catalogue parent.weekly_report). */
   weeklySummary(parentId: string, count: number, minutes: number, week: string): NotificationDraft {
     const time = minutes > 0 ? ` et passé ${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, '0')} hors écran` : '';
     return {
@@ -564,7 +564,7 @@ export const templates = {
       route: '/parent/dashboard?view=week',
       data: { activities: count, minutes },
       priority: 'low',
-      channels: ['in_app', 'push', 'email'],
+      channels: PUSH,
       dedupKey: `weekly:${parentId}:${week}`,
     };
   },
@@ -638,9 +638,111 @@ export const templates = {
       route: '/parent/subscription',
       data: { invoiceId },
       priority: 'high',
-      channels: ['in_app', 'push', 'email'],
+      channels: PUSH, // l'email détaillé part via le catalogue (parent.payment_failed)
       entityType: 'subscription',
       dedupKey: `payment_failed:${invoiceId}`,
+    };
+  },
+
+  // ─── Séries & relances d'encouragement (moteur d'engagement) ───────────────
+  // Toutes : priorité basse, ton selon l'âge, jamais de reproche. Plafonnées par EngagementService.
+
+  streakMilestone(child: ChildRef, days: number, day: string): NotificationDraft {
+    const t = tone(child);
+    return {
+      recipientType: 'child',
+      recipientId: child.id,
+      type: 'streak_milestone',
+      title: t === 'teen' ? `🔥 ${days} jours d’affilée` : `🔥 ${days} jours de suite !`,
+      body: t === 'young' ? `Tu fais une activité tous les jours depuis ${days} jours. Tu es trop fort !` : t === 'teen' ? `${days} jours avec au moins une activité hors écran. Belle régularité.` : `Une activité par jour depuis ${days} jours. Continue comme ça !`,
+      icon: '🔥',
+      route: '/child/points',
+      data: { streak: days },
+      priority: 'normal',
+      channels: PUSH,
+      entityType: 'child',
+      entityId: child.id,
+      actorChildId: child.id,
+      dedupKey: `streak:${child.id}:${days}:${day}`,
+    };
+  },
+
+  /** Série de parents : le parent voit aussi le cap (in-app seulement, pas de push). */
+  streakMilestoneParent(child: ChildRef, days: number, day: string): NotificationDraft {
+    return {
+      recipientType: 'parent',
+      recipientId: child.parentId,
+      type: 'streak_milestone',
+      title: `🔥 ${child.displayName} : ${days} jours de suite`,
+      body: `${child.displayName} fait au moins une activité hors écran chaque jour depuis ${days} jours.`,
+      icon: '🔥',
+      route: `/parent/children/${child.id}`,
+      data: { childId: child.id, streak: days },
+      priority: 'low',
+      channels: ['in_app'],
+      entityType: 'child',
+      entityId: child.id,
+      actorChildId: child.id,
+      dedupKey: `streak_parent:${child.id}:${days}:${day}`,
+    };
+  },
+
+  nudge(child: ChildRef, n: NudgeCopyInput, day: string, at?: Date | null): NotificationDraft {
+    const copy = nudgeCopy(tone(child), n);
+    return {
+      recipientType: 'child',
+      recipientId: child.id,
+      type: n.kind,
+      title: copy.title,
+      body: copy.body,
+      icon: copy.icon,
+      route: copy.route,
+      data: { ...n, childId: child.id },
+      priority: 'low',
+      channels: PUSH,
+      entityType: 'child',
+      entityId: child.id,
+      actorChildId: child.id,
+      // Une relance par enfant et par jour, quel que soit son type.
+      dedupKey: `nudge:${child.id}:${day}`,
+      scheduledAt: at ?? null,
+    };
+  },
+
+  parentNudgeIdle(parentId: string, child: ChildRef, days: number, idea: { title: string } | null, week: string): NotificationDraft {
+    return {
+      recipientType: 'parent',
+      recipientId: parentId,
+      type: 'parent_nudge_idle',
+      title: `💡 Une idée pour ${child.displayName} ?`,
+      body: idea
+        ? `Pas d’activité depuis ${days} jours. Et pourquoi pas ${q(idea.title)} ? Quelques minutes suffisent pour relancer l’envie.`
+        : `Pas d’activité depuis ${days} jours. Proposer une activité courte suffit souvent à relancer l’envie.`,
+      icon: '💡',
+      route: `/parent/children/${child.id}/assign`,
+      data: { childId: child.id, days },
+      priority: 'low',
+      channels: PUSH,
+      entityType: 'child',
+      entityId: child.id,
+      actorChildId: child.id,
+      dedupKey: `parent_idle:${child.id}:${week}`,
+    };
+  },
+
+  validationBacklog(parentId: string, count: number, oldestChild: string, day: string): NotificationDraft {
+    return {
+      recipientType: 'parent',
+      recipientId: parentId,
+      type: 'validation_backlog',
+      title: count > 1 ? `👀 ${count} activités attendent votre validation` : `👀 ${oldestChild} attend votre validation`,
+      body: count > 1 ? `Vos enfants attendent leurs points. Un petit passage suffit.` : `Son activité est terminée depuis hier : validez-la pour qu’il reçoive ses points.`,
+      icon: '👀',
+      route: '/parent/validations',
+      data: { count },
+      priority: 'normal',
+      channels: PUSH,
+      dedupKey: `validation_backlog:${parentId}:${day}`,
     };
   },
 
@@ -650,3 +752,72 @@ export const templates = {
     return { title: `${count} nouvelles notifications`, body: '' };
   },
 };
+
+// ─── Textes des relances d'encouragement ─────────────────────────────────────
+
+export type NudgeCopyInput =
+  | { kind: 'nudge_resume'; activityTitle: string; childActivityId: string }
+  | { kind: 'nudge_streak'; streak: number }
+  | { kind: 'nudge_reward_close'; rewardTitle: string; missing: number }
+  | { kind: 'nudge_comeback'; activityTitle: string; days: number; categoryIcon: string | null; activityId: string }
+  | { kind: 'nudge_idle'; days: number; suggestion: { id: string; title: string; minutes: number | null } | null }
+  | { kind: 'nudge_goal'; remaining: number };
+
+/** Formulations par tranche d'âge : chaleureuses pour les petits, sobres pour les ados, jamais culpabilisantes. */
+export function nudgeCopy(t: AgeTone, n: NudgeCopyInput): { title: string; body: string; icon: string; route: string } {
+  switch (n.kind) {
+    case 'nudge_resume':
+      return {
+        icon: '▶️',
+        route: `/child/activities/${n.childActivityId}`,
+        title: t === 'teen' ? 'On reprend ?' : '▶️ On continue ?',
+        body: t === 'young' ? `Tu avais commencé ${q(n.activityTitle)}. On la termine ensemble ?` : `Tu avais commencé ${q(n.activityTitle)}. Tu veux reprendre ?`,
+      };
+    case 'nudge_streak':
+      return {
+        icon: '🔥',
+        route: '/child/activities',
+        title: t === 'teen' ? `🔥 Série de ${n.streak} jours` : `🔥 Ta série de ${n.streak} jours t’attend`,
+        body: t === 'young' ? 'Une petite activité aujourd’hui et ta série continue !' : t === 'teen' ? 'Une activité aujourd’hui pour la garder, même courte.' : 'Une activité aujourd’hui et ta série continue. Même 10 minutes, ça compte !',
+      };
+    case 'nudge_reward_close':
+      return {
+        icon: '🎁',
+        route: '/child/rewards',
+        title: t === 'teen' ? `Plus que ${n.missing} points` : `🎁 Plus que ${n.missing} points !`,
+        body: t === 'young' ? `Encore un effort et tu débloques ${q(n.rewardTitle)} 👀` : `${q(n.rewardTitle)} est à portée de main.`,
+      };
+    case 'nudge_comeback': {
+      const icon = n.categoryIcon ?? '✨';
+      return {
+        icon,
+        route: `/child/activities?activity=${n.activityId}`,
+        title: t === 'teen' ? `${icon} ${n.activityTitle}, ça te dit ?` : `${icon} Ça fait longtemps !`,
+        body:
+          t === 'young'
+            ? `Tu n’as pas fait ${q(n.activityTitle)} depuis ${n.days} jours. On s’y remet aujourd’hui ?`
+            : t === 'teen'
+              ? `Pas de ${q(n.activityTitle)} depuis ${n.days} jours. Un créneau aujourd’hui ?`
+              : `Ça fait ${n.days} jours que tu n’as pas fait ${q(n.activityTitle)}. Et si tu t’y remettais aujourd’hui ?`,
+      };
+    }
+    case 'nudge_idle':
+      return {
+        icon: '🌱',
+        route: n.suggestion ? `/child/activities?activity=${n.suggestion.id}` : '/child/activities',
+        title: t === 'teen' ? 'Une pause hors écran ?' : '🌱 Et si tu faisais une pause ?',
+        body: n.suggestion
+          ? `On a trouvé ${q(n.suggestion.title)}${n.suggestion.minutes ? ` (${n.suggestion.minutes} min)` : ''} pour toi.`
+          : t === 'young'
+            ? 'Choisis une activité et gagne des points !'
+            : 'Choisis une activité : quelques minutes suffisent.',
+      };
+    case 'nudge_goal':
+      return {
+        icon: '🔥',
+        route: '/child/activities',
+        title: t === 'teen' ? 'Objectif de la semaine' : '🔥 Presque !',
+        body: n.remaining <= 1 ? 'Plus qu’une activité pour l’objectif de la famille cette semaine.' : `Plus que ${n.remaining} activités pour l’objectif de la famille.`,
+      };
+  }
+}

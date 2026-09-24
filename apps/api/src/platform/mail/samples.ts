@@ -1,0 +1,65 @@
+// Données d'exemple de chaque email : aperçus (galerie, back-office) et tests de rendu.
+import type { EmailData, EmailTemplateId, PeriodStats } from './catalog';
+
+const stats: PeriodStats = { impressions: 1240, unlocked: 86, redeemed: 31, basketLabel: '42,50 €', redemptionRate: '36 % d’utilisation', topOffer: '-20 % sur le rayon vélo' };
+const children = [
+  { name: 'Lucas', activities: 5, minutes: 190, points: 220 },
+  { name: 'Emma', activities: 3, minutes: 70, points: 120 },
+];
+
+export const SAMPLE_EMAIL_DATA: { [K in EmailTemplateId]: EmailData<K> } = {
+  'auth.password_reset': { url: 'https://app.rekonect.app/reset-password?token=abc' },
+  'auth.password_changed': {},
+  'auth.new_login': { device: 'iPhone · Safari', when: '24 septembre 2026 à 18:42' },
+
+  'parent.welcome': { name: 'Camille Martin' },
+  'parent.child_added': { childName: 'Emma' },
+  'parent.device_linked': { childName: 'Emma' },
+  'parent.coparent_invitation': { inviterName: 'Camille Martin', role: 'co-parent', url: 'rekonect://join-family?token=3f9a1c', token: '3f9a1c' },
+  'parent.coparent_joined': { memberName: 'Thomas Martin' },
+  'parent.first_activity': { childName: 'Lucas', activityTitle: '30 minutes de vélo', points: 40 },
+  'parent.reward_waiting': { childName: 'Emma', rewardTitle: 'Choisir le film de ce soir', since: 'il y a 2 jours' },
+  'parent.weekly_report': { weekLabel: 'Semaine du 21 septembre', activities: 8, minutesLabel: '4 h 20', points: 340, pendingRewards: 1, children, highlight: 'Bravo à Lucas, le plus actif de la semaine avec 5 activités !' },
+  'parent.monthly_report': { monthLabel: 'septembre 2026', activities: 27, minutesLabel: '14 h 05', points: 1180, rewards: 4, children, trend: 'En progrès : 6 activités de plus que le mois précédent.' },
+  'parent.voucher_unlocked': { childName: 'Lucas', partnerName: 'Decathlon', offerTitle: '10 € dès 50 € d’achat', discountLabel: '10 €', expiresLabel: '31 décembre', claimId: 'claim-1' },
+  'parent.voucher_expiring': { partnerName: 'Decathlon', offerTitle: '10 € dès 50 € d’achat', expiresLabel: '27 septembre', claimId: 'claim-1' },
+  'parent.subscription_started': { planName: 'Famille+', amountLabel: '7,99 €', interval: 'par mois', features: ['Enfants illimités', 'Co-parents', 'Bilans détaillés'] },
+  'parent.subscription_changed': { planName: 'Famille+', previousPlanName: 'Famille', upgrade: true },
+  'parent.subscription_cancelled': { planName: 'Famille+', endLabel: '24 octobre' },
+  'parent.trial_ending': { planName: 'Famille+', endLabel: '27 septembre', amountLabel: '7,99 € par mois' },
+  'parent.payment_failed': { amountLabel: '7,99 €', planName: 'Famille+' },
+  'parent.payment_recovered': { amountLabel: '7,99 €', planName: 'Famille+' },
+  'parent.inactive_nudge': { childNames: ['Lucas', 'Emma'], days: 15, idea: 'Construire une cabane (20 min)' },
+  'parent.account_deleted': { name: 'Camille Martin' },
+  'parent.notification': { title: '💳 Paiement refusé', body: 'Votre paiement de 7,99 € n’a pas abouti.', route: '/parent/subscription' },
+
+  'partner.invitation': { partnerName: 'Decathlon Lyon', role: 'éditeur', url: 'https://partenaires.rekonect.app/invitation?token=abc', inviterName: 'Julie Bernard' },
+  'partner.welcome': { name: 'Julie Bernard', partnerName: 'Decathlon Lyon', role: 'administrateur', hasOffer: false },
+  'partner.member_joined': { partnerName: 'Decathlon Lyon', memberName: 'Karim Benali', memberEmail: 'karim@decathlon.fr', role: 'accueil (validation des bons)' },
+  'partner.member_role_changed': { partnerName: 'Decathlon Lyon', role: 'administrateur', previousRole: 'éditeur' },
+  'partner.member_revoked': { partnerName: 'Decathlon Lyon' },
+  'partner.status_changed': { partnerName: 'Decathlon Lyon', status: 'suspended' },
+  'partner.offer_submitted': { offerTitle: '-20 % sur le rayon vélo', offerId: 'offer-1' },
+  'partner.offer_published': { offerTitle: '-20 % sur le rayon vélo', offerId: 'offer-1', audienceLabel: 'Familles à moins de 10 km de vos 3 magasins' },
+  'partner.offer_rejected': { offerTitle: '-20 % sur le rayon vélo', offerId: 'offer-1', reason: 'Précisez l’âge minimum', changesOnly: true },
+  'partner.offer_expiring': { offerTitle: '-20 % sur le rayon vélo', offerId: 'offer-1', endLabel: '30 septembre', unlocked: 86 },
+  'partner.offer_ended': { offerTitle: '-20 % sur le rayon vélo', offerId: 'offer-1', unlocked: 120, redeemed: 47 },
+  'partner.stock_low': { offerTitle: '-20 % sur le rayon vélo', offerId: 'offer-1', remaining: 20, total: 100 },
+  'partner.sold_out': { offerTitle: '-20 % sur le rayon vélo', offerId: 'offer-1', total: 100 },
+  'partner.first_redemption': { offerTitle: '-20 % sur le rayon vélo', placeName: 'Decathlon Lyon Part-Dieu' },
+  'partner.milestone': { partnerName: 'Decathlon', count: 100 },
+  'partner.weekly_report': { partnerName: 'Decathlon', weekLabel: 'Semaine du 14 septembre', stats, liveOffers: 3, tip: null },
+  'partner.monthly_report': { partnerName: 'Decathlon', monthLabel: 'août 2026', stats, previousUnlocked: 64 },
+  'partner.onboarding_incomplete': { partnerName: 'Vélo Station', missing: ['Ajouter l’adresse d’au moins un lieu', 'Créer votre première offre'] },
+  'partner.no_live_offer': { partnerName: 'Vélo Station', days: 21, lastOffer: 'Révision vélo offerte' },
+  'partner.subscription_changed': { partnerName: 'Decathlon', planName: 'Réseau', previousPlanName: 'Local', status: 'active' },
+  'partner.trial_ending': { partnerName: 'Decathlon', planName: 'Réseau', endLabel: '30 septembre' },
+  'partner.payment_failed': { partnerName: 'Decathlon', amountLabel: '149,00 €' },
+  'partner.invoice_available': { partnerName: 'Decathlon', amountLabel: '149,00 €', label: 'Septembre 2026', url: 'https://invoice.stripe.com/i/abc', recovered: false },
+
+  'admin.offer_to_moderate': { partnerName: 'Decathlon', offerTitle: '-20 % sur le rayon vélo', kindLabel: 'Bon parent', pending: 3 },
+  'admin.activity_reported': { activityTitle: 'Escalade en falaise', reason: 'Pas adapté aux 8 ans', openReports: 2 },
+  'admin.partner_payment_failed': { partnerName: 'Decathlon', amountLabel: '149,00 €' },
+  'admin.partner_activated': { partnerName: 'Vélo Station', ownerEmail: 'contact@velostation.fr' },
+  'admin.daily_digest': { dateLabel: '24 septembre', pendingOffers: 3, openReports: 1, newFamilies: 12, paymentFailures: 0, activitiesValidated: 148 },
+};

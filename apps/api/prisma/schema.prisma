@@ -733,6 +733,8 @@ model NotificationPreference {
   timezone            String    @default("Europe/Paris")
   channelOverrides    Json      @default("{}") @map("channel_overrides")
   partnerOffers       Boolean   @default(false) @map("partner_offers")
+  /// Relances d'encouragement (reprendre une activité, série, récompense proche, « ça fait longtemps »).
+  encouragements      Boolean   @default(true)
   parent              Profile   @relation(fields: [parentId], references: [id], onDelete: Cascade)
   child               Child?    @relation(fields: [childId], references: [id], onDelete: Cascade)
 
@@ -1023,4 +1025,40 @@ model MediaFile {
 
   @@index([partnerId], map: "media_files_partner_idx")
   @@map("media_files")
+}
+
+/// File d'envoi et journal des emails automatiques : idempotence (dedup_key), reprises, désinscription.
+model EmailMessage {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  template      String
+  category      String
+  audience      String
+  toEmail       String    @map("to_email")
+  toName        String?   @map("to_name")
+  subject       String
+  data          Json      @default("{}")
+  recipientId   String?   @map("recipient_id") @db.Uuid
+  dedupKey      String?   @unique(map: "email_messages_dedup_key") @map("dedup_key")
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  providerId    String?   @map("provider_id")
+  lastError     String?   @map("last_error")
+  sentAt        DateTime? @map("sent_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status, nextAttemptAt], map: "email_messages_pending_idx")
+  @@index([toEmail, createdAt], map: "email_messages_to_idx")
+  @@map("email_messages")
+}
+
+/// Désinscriptions par adresse et catégorie (les emails de sécurité, compte et facturation ne sont pas concernés).
+model EmailSuppression {
+  email     String
+  category  String
+  source    String   @default("link")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([email, category])
+  @@map("email_suppressions")
 }

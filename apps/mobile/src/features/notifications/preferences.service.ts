@@ -46,6 +46,9 @@ export interface NotificationPreferences {
   // Avantages partenaires (consentement explicite, désactivé par défaut)
   partner_offers: boolean;
 
+  // Relances d'encouragement (enfants et parent), plafonnées côté serveur
+  encouragements: boolean;
+
   // Quiet hours
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;

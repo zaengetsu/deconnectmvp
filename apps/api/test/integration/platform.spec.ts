@@ -1,3 +1,6 @@
+import { EmailJobs } from '../../src/modules/emails/emails.jobs';
+import { EngagementService } from '../../src/modules/notifications/engagement.service';
+import { EmailService } from '../../src/platform/mail/email.service';
 import { createHmac, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { io, type Socket } from 'socket.io-client';
@@ -133,21 +136,25 @@ describe('Plateforme : outbox, verrous, worker, temps réel, pont Supabase', () 
         h.app.get(RitualsService),
         h.app.get(SocialService),
         h.app.get(OfferEngine),
+        h.app.get(EmailService),
+        h.app.get(EmailJobs),
+        h.app.get(EngagementService),
       );
       const f = await familyWithChild(h);
       await jobs.drainOutbox();
       expect(await h.prisma.outboxEvent.count({ where: { status: 'pending' } })).toBe(0);
       await jobs.deliver();
-      for (const job of ['releaseDue', 'housekeeping', 'parentReminders', 'familyGoals', 'dailySummaries', 'weeklySummaries', 'screenTime', 'generateRituals', 'closeRituals'] as const) {
+      for (const job of ['releaseDue', 'housekeeping', 'parentReminders', 'familyGoals', 'dailySummaries', 'weeklySummaries', 'screenTime', 'generateRituals', 'closeRituals', 'engagementNudges', 'emailDaily', 'emailAdminDigest', 'emailParentWeekly', 'emailPartnerWeekly', 'emailMonthly', 'sendEmails'] as const) {
         await jobs[job]();
       }
       await jobs.onApplicationBootstrap();
       // Un service en panne est journalisé, pas propagé.
-      const broken = new JobsService(env, { runExclusive: () => Promise.reject(new Error('base indisponible')) } as never, { drain: () => Promise.reject(new Error('x')) } as never, h.app.get(PgListener), {} as never, { processPending: () => Promise.reject(new Error('x')) } as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+      const broken = new JobsService(env, { runExclusive: () => Promise.reject(new Error('base indisponible')) } as never, { drain: () => Promise.reject(new Error('x')) } as never, h.app.get(PgListener), {} as never, { processPending: () => Promise.reject(new Error('x')) } as never, {} as never, {} as never, {} as never, {} as never, {} as never, { processPending: () => Promise.reject(new Error('x')) } as never, {} as never, {} as never);
       await expect(broken.releaseDue()).resolves.toBeUndefined();
+      await expect(broken.sendEmails()).resolves.toBeUndefined();
       await expect(broken.drainOutbox()).resolves.toBeUndefined();
       await expect(broken.deliver()).resolves.toBeUndefined();
-      const off = new JobsService({ ...env, RUN_JOBS: false }, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+      const off = new JobsService({ ...env, RUN_JOBS: false }, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
       await off.onApplicationBootstrap();
       await off.drainOutbox();
       await off.deliver();

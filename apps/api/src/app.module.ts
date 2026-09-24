@@ -4,6 +4,7 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { EmailsModule } from './modules/emails/emails.module';
 import { FamiliesModule } from './modules/families/families.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { IdentityModule } from './modules/identity/identity.module';
@@ -44,6 +45,7 @@ export const DOMAIN_MODULES = [
   PartnersModule,
   BillingModule,
   NotificationsModule,
+  EmailsModule,
   AdminModule,
   MediaModule,
 ];

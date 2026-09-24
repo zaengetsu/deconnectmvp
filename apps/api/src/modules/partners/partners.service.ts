@@ -1,15 +1,14 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { CreatePartnerInput, InvitePartnerMemberInput, PartnerMemberRole, PlaceInput, UpdatePartnerInput } from '@rekonect/contracts';
+import { Inject, Injectable } from '@nestjs/common';
+import { type CreatePartnerInput, type InvitePartnerMemberInput, PARTNER_ROLE_LABELS, type PartnerMemberRole, type PlaceInput, type UpdatePartnerInput } from '@rekonect/contracts';
 import { z } from 'zod';
 import { ENV, type Env } from '../../config/env';
 import { AccessService } from '../../platform/auth/access.service';
-import type { Principal, UserPrincipal } from '../../platform/auth/principal';
+import { actorOf, type Principal, type UserPrincipal } from '../../platform/auth/principal';
 import { Clock } from '../../platform/clock';
 import { randomToken, sha256 } from '../../platform/crypto';
 import { EventBus } from '../../platform/events/event-bus';
 import { conflict, forbidden, notFound } from '../../platform/http/errors';
-import { Mailer } from '../../platform/mail/mailer';
-import { mails } from '../../platform/mail/templates';
+import { EmailService } from '../../platform/mail/email.service';
 import { Prisma, PrismaService } from '../../platform/prisma/prisma.service';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { normalizeRk, slugify } from './offer-rules';
@@ -65,13 +64,12 @@ export function initials(name: string): string {
 
 @Injectable()
 export class PartnersService {
-  private readonly logger = new Logger('Partners');
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
     private readonly events: EventBus,
-    private readonly mailer: Mailer,
+    private readonly emails: EmailService,
     private readonly clock: Clock,
     private readonly entitlements: EntitlementsService,
     @Inject(ENV) private readonly env: Env,
@@ -214,7 +212,11 @@ export class PartnersService {
   /** Suspendre un partenaire met immédiatement ses offres (et celles de ses magasins) en pause. */
   async setStatus(partnerId: string, status: 'pending' | 'onboarding' | 'trial' | 'active' | 'suspended', setVisibility: (tx: Prisma.TransactionClient, offerId: string, visible: boolean) => Promise<void>) {
     return this.prisma.tx(async (tx) => {
+      const before = await tx.partner.findUniqueOrThrow({ where: { id: partnerId }, select: { status: true } });
       const partner = await tx.partner.update({ where: { id: partnerId }, data: { status } });
+      if (before.status !== status) {
+        await this.events.publish(tx, 'partner.status_changed', { aggregateType: 'partner', aggregateId: partnerId, payload: { partnerId, status, previousStatus: before.status }, actor: { kind: 'system', id: 'admin' } });
+      }
       if (status === 'suspended') {
         const ids = [partnerId, ...(await tx.partner.findMany({ where: { parentPartnerId: partnerId }, select: { id: true } })).map((s) => s.id)];
         const live = await tx.partnerOffer.findMany({ where: { partnerId: { in: ids }, status: 'published' }, select: { id: true } });
@@ -269,8 +271,11 @@ export class PartnersService {
       ? await this.prisma.partnerMember.update({ where: { id: existing.id }, data })
       : await this.prisma.partnerMember.create({ data: { partnerId, email: input.email, ...data } });
     const url = `${this.env.WEB_PARTNERS_URL.replace(/\/$/, '')}/invitation?token=${encodeURIComponent(token)}`;
-    const res = await this.mailer.send(mails.partnerInvitation(input.email, partner.name, url));
-    if (res.status === 'failed') this.logger.warn(`Invitation non envoyée à ${input.email} : ${res.error}`);
+    // Pas de dedup : une nouvelle invitation (nouveau jeton) doit toujours partir.
+    await this.emails.sendNow('partner.invitation', {
+      to: input.email,
+      data: { partnerName: partner.name, role: PARTNER_ROLE_LABELS[input.role] ?? input.role, url, inviterName: null },
+    });
     // Le lien est renvoyé à l'appelant : utile tant que l'email n'est pas configuré.
     return { memberId: member.id, email: member.email, role: member.role, url, expiresAt: data.inviteExpiresAt };
   }
@@ -280,7 +285,13 @@ export class PartnersService {
     const member = await this.prisma.partnerMember.findFirst({ where: { id: memberId, partnerId } });
     if (!member) throw notFound('MEMBER_NOT_FOUND', 'Membre introuvable');
     if (member.role === 'owner' && input.role && input.role !== 'owner') await this.assertNotLastOwner(partnerId);
-    const { inviteTokenHash: _h, ...updated } = await this.prisma.partnerMember.update({ where: { id: memberId }, data: input });
+    const { inviteTokenHash: _h, ...updated } = await this.prisma.tx(async (tx) => {
+      const row = await tx.partnerMember.update({ where: { id: memberId }, data: input });
+      if (input.role && input.role !== member.role && member.status === 'active') {
+        await this.events.publish(tx, 'partner.member_updated', { aggregateType: 'partner_member', aggregateId: memberId, payload: { partnerId, memberId, role: input.role, previousRole: member.role }, actor: actorOf(p) });
+      }
+      return row;
+    });
     return updated;
   }
 
@@ -294,7 +305,12 @@ export class PartnersService {
     const member = await this.prisma.partnerMember.findFirst({ where: { id: memberId, partnerId } });
     if (!member) throw notFound('MEMBER_NOT_FOUND', 'Membre introuvable');
     if (member.role === 'owner' && member.status === 'active') await this.assertNotLastOwner(partnerId);
-    await this.prisma.partnerMember.update({ where: { id: memberId }, data: { status: 'revoked', inviteTokenHash: null } });
+    await this.prisma.tx(async (tx) => {
+      await tx.partnerMember.update({ where: { id: memberId }, data: { status: 'revoked', inviteTokenHash: null } });
+      if (member.status === 'active') {
+        await this.events.publish(tx, 'partner.member_revoked', { aggregateType: 'partner_member', aggregateId: memberId, payload: { partnerId, memberId, email: member.email }, actor: actorOf(p) });
+      }
+    });
     return { success: true };
   }
 

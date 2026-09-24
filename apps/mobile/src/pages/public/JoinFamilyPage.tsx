@@ -1,7 +1,7 @@
 import { useRkBack, useBackSwipe } from '../../hooks/useRkBack';
 import React, { useRef, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 
 /** Rejoindre une famille — porté de la maquette Rekonect (écran join). */
@@ -12,7 +12,9 @@ const JoinFamilyPage: React.FC = () => {
   const history = useHistory();
   const back = useRkBack('/login');
   const backSwipe = useBackSwipe(back);
-  const [code, setCode] = useState('');
+  const location = useLocation();
+  // Lien reçu par email : rekonect://join-family?token=… pré-remplit le code.
+  const [code, setCode] = useState(() => new URLSearchParams(location.search).get('token')?.trim() ?? '');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);

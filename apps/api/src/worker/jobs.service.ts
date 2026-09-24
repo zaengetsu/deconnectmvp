@@ -6,7 +6,10 @@ import { OutboxRelay } from '../platform/events/outbox-relay';
 import { PgListener } from '../platform/events/pg-listener';
 import { ActivitiesService } from '../modules/activities/activities.service';
 import { DeliveryService } from '../modules/notifications/delivery.service';
+import { EmailJobs } from '../modules/emails/emails.jobs';
 import { DigestService } from '../modules/notifications/digest.service';
+import { EngagementService } from '../modules/notifications/engagement.service';
+import { EmailService } from '../platform/mail/email.service';
 import { NotificationScheduler } from '../modules/notifications/scheduler.service';
 import { OfferEngine } from '../modules/partners/offer-engine';
 import { RitualsService } from '../modules/rituals/rituals.service';
@@ -24,6 +27,7 @@ export class JobsService implements OnApplicationBootstrap {
   private readonly logger = new Logger('Jobs');
   private draining = false;
   private delivering = false;
+  private mailing = false;
 
   constructor(
     @Inject(ENV) private readonly env: Env,
@@ -37,12 +41,16 @@ export class JobsService implements OnApplicationBootstrap {
     private readonly rituals: RitualsService,
     private readonly social: SocialService,
     private readonly offers: OfferEngine,
+    private readonly emails: EmailService,
+    private readonly emailJobs: EmailJobs,
+    private readonly engagement: EngagementService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     if (!this.env.RUN_JOBS) return;
     await this.listener.listen('outbox', () => void this.drainOutbox());
     await this.listener.listen('deliveries', () => void this.deliver());
+    await this.listener.listen('emails', () => void this.sendEmails());
     void this.drainOutbox();
     this.logger.log('Worker prêt : outbox, livraisons et tâches planifiées actifs');
   }
@@ -70,6 +78,19 @@ export class JobsService implements OnApplicationBootstrap {
       this.logger.error(`Livraisons : ${(err as Error).message}`);
     } finally {
       this.delivering = false;
+    }
+  }
+
+  @Interval(10_000)
+  async sendEmails(): Promise<void> {
+    if (!this.env.RUN_JOBS || this.mailing) return;
+    this.mailing = true;
+    try {
+      while ((await this.emails.processPending(50)) === 50);
+    } catch (err) {
+      this.logger.error(`Emails : ${(err as Error).message}`);
+    } finally {
+      this.mailing = false;
     }
   }
 
@@ -115,6 +136,38 @@ export class JobsService implements OnApplicationBootstrap {
   @Cron('0 9 * * *', { timeZone: TZ })
   screenTime() {
     return this.run('notifications.screen-time', () => this.digests.screenTime());
+  }
+
+  // ─── Relances d'encouragement : chaque famille à son heure locale ───
+  @Cron('0 5 * * * *')
+  engagementNudges() {
+    return this.run('notifications.engagement', () => this.engagement.run());
+  }
+
+  // ─── Emails automatiques ───
+  @Cron('0 9 * * *', { timeZone: TZ })
+  emailDaily() {
+    return this.run('emails.daily', () => this.emailJobs.daily());
+  }
+
+  @Cron('0 8 * * *', { timeZone: TZ })
+  emailAdminDigest() {
+    return this.run('emails.admin-digest', () => this.emailJobs.adminDigest());
+  }
+
+  @Cron('15 18 * * 0', { timeZone: TZ })
+  emailParentWeekly() {
+    return this.run('emails.parent-weekly', () => this.emailJobs.parentWeekly());
+  }
+
+  @Cron('0 9 * * 1', { timeZone: TZ })
+  emailPartnerWeekly() {
+    return this.run('emails.partner-weekly', () => this.emailJobs.partnerWeekly());
+  }
+
+  @Cron('30 9 1 * *', { timeZone: TZ })
+  emailMonthly() {
+    return this.run('emails.monthly', async () => ({ partners: await this.emailJobs.partnerMonthly(), parents: await this.emailJobs.parentMonthly() }));
   }
 
   @Cron('0 4 * * *', { timeZone: TZ })

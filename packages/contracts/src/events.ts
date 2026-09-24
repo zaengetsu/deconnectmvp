@@ -62,6 +62,18 @@ export interface DomainEventMap {
   'billing.subscription_changed': { ownerKind: 'family' | 'partner'; ownerId: string; planId: string; previousPlanId: string; status: string };
   'billing.payment_failed': { ownerKind: 'family' | 'partner'; ownerId: string; amountCents: number; invoiceId: string };
   'activity.reported': { reportId: string; activityId: string; reason: string };
+
+  'family.invitation_created': { invitationId: string; ownerId: string; email: string | null; role: string };
+  'family.member_joined': { ownerId: string; memberId: string; role: string };
+
+  'partner.member_joined': { partnerId: string; memberId: string; userId: string; role: string };
+  'partner.member_updated': { partnerId: string; memberId: string; role: string; previousRole: string };
+  'partner.member_revoked': { partnerId: string; memberId: string; email: string };
+  'partner.status_changed': { partnerId: string; status: string; previousStatus: string };
+  'offer.stock_low': { offerId: string; partnerId: string; remaining: number; total: number };
+  'offer.sold_out': { offerId: string; partnerId: string; total: number };
+  'offer.expired': { offerId: string; partnerId: string };
+  'billing.invoice_paid': { ownerKind: 'family' | 'partner'; ownerId: string; invoiceId: string; amountCents: number; recovered: boolean };
 }
 
 export type DomainEventType = keyof DomainEventMap;

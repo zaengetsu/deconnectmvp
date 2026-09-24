@@ -142,10 +142,16 @@ describe('Abonnements : plans, limites, Stripe, codes, métriques', () => {
     await h.drain();
     const [notif] = await notificationsOf(h, parent.userId, 'billing');
     expect(notif).toMatchObject({ title: '💳 Paiement refusé', priority: 'high', route: '/parent/subscription' });
-    expect(notif.channels).toEqual(['in_app', 'push', 'email']);
+    expect(notif.channels).toEqual(['in_app', 'push']);
+    // L'email détaillé part du catalogue, une seule fois même si l'événement est rejoué.
+    const failed = h.mailer.sent.filter((m) => m.to === parent.email && m.subject === 'Paiement refusé');
+    expect(failed).toHaveLength(1);
+    expect(failed[0].text).toContain('Mettre à jour le paiement');
 
     await webhook({ id: 'evt_inv3', type: 'invoice.paid', invoice: invoice('in_2', { periodStart: '2026-10-01T00:00:00Z' }) }).expect(200);
     expect((await h.http.get('/v1/billing/subscription').set(auth(parent.token))).body.status).toBe('active');
+    await h.drain();
+    expect(h.mailer.sent.some((m) => m.to === parent.email && m.subject === 'Paiement régularisé, merci !')).toBe(true);
     const types = (await h.prisma.subscriptionEvent.findMany({ where: { parentId: parent.userId } })).map((e) => e.type);
     expect(types).toEqual(expect.arrayContaining(['renewed', 'payment_failed', 'payment_succeeded']));
   });

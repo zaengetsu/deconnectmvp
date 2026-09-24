@@ -252,15 +252,23 @@ describe('Notifications : décision, centre, préférences, livraisons', () => {
   });
 
   describe('email', () => {
-    it('réservé aux événements importants des parents : récapitulatif hebdomadaire', async () => {
+    it('canal email du moteur : relayé par la file d’emails, avec lien vers l’app', async () => {
       const parent = await registerParent(h);
-      await h.prisma.$transaction((tx) => service.enqueue(tx, templates.weeklySummary(parent.userId, 8, 260, '2026-W39')));
+      const draft = { ...templates.weeklySummary(parent.userId, 8, 260, '2026-W39'), channels: ['in_app', 'email'] as ('in_app' | 'email')[] };
+      await h.prisma.$transaction((tx) => service.enqueue(tx, draft));
       await h.deliveries.processPending();
+      const d = await h.prisma.notificationDelivery.findFirstOrThrow({ where: { channel: 'email' } });
+      expect(d.status).toBe('sent');
+      await h.emails.processPending();
       const mail = h.mailer.sent.find((m) => m.subject === '📊 Votre semaine avec Rekonect');
       expect(mail?.to).toBe(parent.email);
       expect(mail?.text).toContain('8 activités et passé 4h20 hors écran');
-      const d = await h.prisma.notificationDelivery.findFirstOrThrow({ where: { channel: 'email' } });
-      expect(d.status).toBe('sent');
+      expect(mail?.text).toContain('Ouvrir Rekonect : rekonect://parent/dashboard?view=week');
+      // Rejouer la livraison ne renvoie pas l'email.
+      await h.prisma.notificationDelivery.update({ where: { id: d.id }, data: { status: 'pending', nextAttemptAt: h.clock.now() } });
+      await h.deliveries.processPending();
+      await h.emails.processPending();
+      expect(h.mailer.sent.filter((m) => m.subject === '📊 Votre semaine avec Rekonect')).toHaveLength(1);
     });
 
     it('aucun email pour un enfant ni pour une activité terminée', async () => {

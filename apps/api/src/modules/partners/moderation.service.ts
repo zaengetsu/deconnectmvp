@@ -4,8 +4,7 @@ import { actorOf, type UserPrincipal } from '../../platform/auth/principal';
 import { Clock } from '../../platform/clock';
 import { EventBus } from '../../platform/events/event-bus';
 import { conflict, notFound } from '../../platform/http/errors';
-import { Mailer } from '../../platform/mail/mailer';
-import { mails } from '../../platform/mail/templates';
+import { EmailService } from '../../platform/mail/email.service';
 import { PrismaService, type Tx } from '../../platform/prisma/prisma.service';
 import { initials } from './partners.service';
 import { offerInclude, OffersService, presentOffer } from './offers.service';
@@ -20,7 +19,7 @@ export class ModerationService {
     private readonly prisma: PrismaService,
     private readonly events: EventBus,
     private readonly offers: OffersService,
-    private readonly mailer: Mailer,
+    private readonly emails: EmailService,
     private readonly clock: Clock,
   ) {}
 
@@ -154,7 +153,14 @@ export class ModerationService {
       where: { id: offerId },
       include: { partner: { include: { members: { where: { status: 'active', role: { in: ['owner', 'editor'] } } } } } },
     });
-    const reason = decision === 'changes' ? `Modifications demandées : ${text}` : text;
-    for (const m of o.partner.members) await this.mailer.send(mails.offerDecision(m.email, o.title, decision === 'approved', reason));
+    const stamp = (o.reviewedAt ?? this.clock.now()).toISOString();
+    for (const m of o.partner.members) {
+      const input = { to: m.email, recipientId: m.userId, dedupKey: `offer_decision:${o.id}:${decision}:${stamp}:${m.email}` };
+      if (decision === 'approved') {
+        await this.emails.sendNow('partner.offer_published', { ...input, data: { offerTitle: o.title, offerId: o.id, audienceLabel: null } });
+      } else {
+        await this.emails.sendNow('partner.offer_rejected', { ...input, data: { offerTitle: o.title, offerId: o.id, reason: text ?? 'non précisé', changesOnly: decision === 'changes' } });
+      }
+    }
   }
 }

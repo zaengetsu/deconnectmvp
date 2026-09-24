@@ -145,8 +145,9 @@ export class OfferEngine implements OnModuleInit, PartnerRewardsPort {
       code = row.code;
     }
     await tx.offerClaim.update({ where: { id: claim.id }, data: { code } });
-    await tx.partnerOffer.update({ where: { id: offer.id }, data: { stockUsed: { increment: 1 } } });
+    const stock = await tx.partnerOffer.update({ where: { id: offer.id }, data: { stockUsed: { increment: 1 } }, select: { stockUsed: true, stockTotal: true } });
     await this.bumpMetric(tx, offer.id, 'unlocks');
+    await this.stockSignals(tx, offer.id, fresh.partnerId, stock.stockUsed, stock.stockTotal);
     await this.events.publish(tx, 'offer.unlocked', {
       aggregateType: 'offer_claim',
       aggregateId: claim.id,
@@ -154,6 +155,19 @@ export class OfferEngine implements OnModuleInit, PartnerRewardsPort {
       actor: { kind: 'system', id: 'partners' },
     });
     return { ...claim, code };
+  }
+
+  /** Prévient le partenaire quand il reste 20 % du stock, puis quand il est épuisé (une seule fois chacun). */
+  private async stockSignals(tx: Tx, offerId: string, partnerId: string, used: number, total: number | null) {
+    if (!total || total <= 0) return;
+    const remaining = total - used;
+    const threshold = Math.max(1, Math.ceil(total * 0.2));
+    if (remaining === threshold && remaining > 0) {
+      await this.events.publish(tx, 'offer.stock_low', { aggregateType: 'partner_offer', aggregateId: offerId, payload: { offerId, partnerId, remaining, total }, actor: { kind: 'system', id: 'partners' } });
+    }
+    if (remaining === 0) {
+      await this.events.publish(tx, 'offer.sold_out', { aggregateType: 'partner_offer', aggregateId: offerId, payload: { offerId, partnerId, total }, actor: { kind: 'system', id: 'partners' } });
+    }
   }
 
   private async bumpMetric(tx: Tx, offerId: string, field: 'views' | 'unlocks' | 'redemptions') {
@@ -276,11 +290,12 @@ export class OfferEngine implements OnModuleInit, PartnerRewardsPort {
   /** Offres arrivées à échéance → expirées et retirées des catalogues ; bons non utilisés → expirés. */
   async expire(): Promise<number> {
     const now = this.clock.now();
-    const ended = await this.prisma.partnerOffer.findMany({ where: { status: { in: ['published', 'paused'] }, endsAt: { lte: now } }, select: { id: true } });
-    for (const { id } of ended) {
+    const ended = await this.prisma.partnerOffer.findMany({ where: { status: { in: ['published', 'paused'] }, endsAt: { lte: now } }, select: { id: true, partnerId: true } });
+    for (const { id, partnerId } of ended) {
       await this.prisma.tx(async (tx) => {
         await this.offers.setVisibility(tx, id, false);
         await tx.partnerOffer.update({ where: { id }, data: { status: 'expired' } });
+        await this.events.publish(tx, 'offer.expired', { aggregateType: 'partner_offer', aggregateId: id, payload: { offerId: id, partnerId }, actor: { kind: 'system', id: 'offer-expiry' } });
       });
     }
     await this.prisma.offerClaim.updateMany({ where: { status: 'unlocked', expiresAt: { lte: now } }, data: { status: 'expired' } });

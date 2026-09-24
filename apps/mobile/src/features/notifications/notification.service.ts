@@ -1,3 +1,4 @@
+import { api } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 
 export interface AppNotification {
@@ -125,9 +126,17 @@ export const notificationService = {
     platform: 'ios' | 'android' | 'web',
     childId?: string | null
   ): Promise<void> {
-    // Un token appartient soit à un parent, soit à un enfant — jamais aux deux.
-    // Sans child_id, aucune notification enfant ne peut être routée vers le
-    // bon appareil (cf. migration 024).
+    // Enregistrement via l'API : un jeton appartient à un seul destinataire (repris si l'appareil
+    // change de compte), l'environnement APNs est mémorisé (sandbox en développement) et la date de
+    // dernière activité sert au nettoyage des jetons morts.
+    const environment = import.meta.env.DEV ? 'development' : 'production';
+    try {
+      await api('POST', '/v1/push-tokens', { token, platform, environment });
+      return;
+    } catch (e) {
+      console.warn('[NotificationService] API push-tokens indisponible, repli Supabase :', e);
+    }
+    // Repli : un token appartient soit à un parent, soit à un enfant — jamais aux deux.
     const { error } = await supabase
       .from('push_tokens')
       .upsert(
@@ -136,7 +145,9 @@ export const notificationService = {
           child_id: childId ?? null,
           token,
           platform,
+          environment,
           updated_at: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
         },
         { onConflict: 'token' }
       );

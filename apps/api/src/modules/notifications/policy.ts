@@ -20,6 +20,7 @@ export interface PreferenceFlags {
   screenTimeSummary: boolean;
   tips: boolean;
   productNews: boolean;
+  encouragements?: boolean;
   quietHoursStart: Date | null;
   quietHoursEnd: Date | null;
   timezone: string;
@@ -50,6 +51,15 @@ const TYPE_TO_FLAG: Partial<Record<NotificationType, keyof PreferenceFlags>> = {
   screen_time_summary: 'screenTimeSummary',
   tip: 'tips',
   product_news: 'productNews',
+  nudge_resume: 'encouragements',
+  nudge_streak: 'encouragements',
+  nudge_reward_close: 'encouragements',
+  nudge_comeback: 'encouragements',
+  nudge_idle: 'encouragements',
+  nudge_goal: 'encouragements',
+  parent_nudge_idle: 'encouragements',
+  validation_backlog: 'activityValidation',
+  streak_milestone: 'goals',
 };
 
 /** Niveaux, badges, sécurité, appareil relié : toujours autorisés. */
@@ -108,17 +118,17 @@ export type NotificationCategory = 'action' | 'activity' | 'reward' | 'family' |
 export function categoryOf(type: string | null | undefined, priority?: string): NotificationCategory {
   if (priority === 'high' || priority === 'critical') return 'action';
   if (!type) return 'other';
-  if (type.startsWith('activity_')) return 'activity';
+  if (type.startsWith('activity_') || type.startsWith('nudge_') || type === 'parent_nudge_idle' || type === 'validation_backlog') return 'activity';
   if (type.startsWith('reward_') || type === 'partner_offer_unlocked') return 'reward';
   if (type.startsWith('family_') || type.startsWith('friend_')) return 'family';
-  if (['level_up', 'badge_earned', 'goal_progress', 'goal_completed', 'daily_summary', 'weekly_summary', 'screen_time_goal', 'screen_time_summary'].includes(type)) {
+  if (['level_up', 'badge_earned', 'streak_milestone', 'goal_progress', 'goal_completed', 'daily_summary', 'weekly_summary', 'screen_time_goal', 'screen_time_summary'].includes(type)) {
     return 'progress';
   }
   return 'other';
 }
 
 export const CATEGORY_TYPES: Record<Exclude<NotificationCategory, 'action'>, (t: string) => boolean> = {
-  activity: (t) => t.startsWith('activity_'),
+  activity: (t) => categoryOf(t) === 'activity',
   reward: (t) => t.startsWith('reward_') || t === 'partner_offer_unlocked',
   family: (t) => t.startsWith('family_') || t.startsWith('friend_'),
   progress: (t) => categoryOf(t) === 'progress',

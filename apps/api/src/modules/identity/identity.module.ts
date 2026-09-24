@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, Injectable, Module, OnModuleInit, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Module, Post } from '@nestjs/common';
 import {
   AcceptPartnerInvitationInput,
   ChildLinkInput,
@@ -11,11 +11,7 @@ import {
 } from '@rekonect/contracts';
 import { z } from 'zod';
 import { CurrentPrincipal, type Principal, Public } from '../../platform/auth/principal';
-import { EventRegistry } from '../../platform/events/event-registry';
 import { zod } from '../../platform/http/zod.pipe';
-import { Mailer } from '../../platform/mail/mailer';
-import { mails } from '../../platform/mail/templates';
-import { PrismaService } from '../../platform/prisma/prisma.service';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
 
@@ -92,32 +88,11 @@ export class AuthController {
   }
 }
 
-/** Email de bienvenue envoyé de façon asynchrone (retenté par l'outbox en cas d'échec fournisseur). */
-@Injectable()
-export class IdentityConsumers implements OnModuleInit {
-  constructor(
-    private readonly registry: EventRegistry,
-    private readonly mailer: Mailer,
-    private readonly prisma: PrismaService,
-  ) {}
-
-  onModuleInit(): void {
-    this.registry.on('user.registered', 'identity.welcome-email', async (event) => {
-      if (event.payload.role !== 'parent') return;
-      const user = await this.prisma.user.findUnique({ where: { id: event.payload.userId } });
-      if (!user) return;
-      const res = await this.mailer.send(mails.welcome(user.email, user.fullName));
-      if (res.status === 'failed' && res.retryable) throw new Error(res.error);
-    });
-  }
-}
-
 @Module({
   controllers: [AuthController],
   providers: [
     AuthService,
     TokenService,
-    IdentityConsumers,
   ],
   exports: [TokenService, AuthService],
 })

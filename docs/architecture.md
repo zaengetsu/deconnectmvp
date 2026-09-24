@@ -177,7 +177,7 @@ Les règles RLS deviennent des **guards NestJS** : `@Roles()`, `ParentOwnsChild`
 | 0 | Monorepo Turborepo · API NestJS · Prisma sur le schéma existant · outbox · notifications · partenaires · abonnements Stripe · apps admin et partenaires | **livré** |
 | 1 | L'app mobile passe de `supabase-js` à l'API, écran par écran (≈ 60 appels `.from()` et 9 RPC à remplacer). Déjà sur l'API : abonnement, bons partenaires, consentement, signalements | **commencé** |
 | 2 | Import des comptes (`auth.users` → `users`), bascule de l'auth mobile, suppression de Supabase Auth | à faire |
-| 3 | Désactivation des triggers, crons (`pg_cron`) et Edge Functions Supabase, remplacés par le worker | à faire |
+| 3 | Désactivation des triggers, crons (`pg_cron`) et Edge Functions Supabase, remplacés par le worker ; pont Supabase → outbox pour les écrans mobiles encore sur supabase-js (§17) | **livré** |
 | 4 | Base Postgres déplacée hors de Supabase si souhaité (`pg_dump` / `pg_restore`) | optionnel |
 | 5 | Extraction de `notifications` (puis `partners`) en services séparés, derrière NATS | quand la charge le justifie |
 
@@ -291,3 +291,38 @@ Sur la base Supabase existante : `pnpm --filter @rekonect/api prisma:resolve-bas
 ## 16. Prochaine étape à cadrer : bons personnalisables
 
 Les récompenses partenaires sont déjà remises sous forme de bons avec QR code, dans un portefeuille côté parent. À cadrer ensuite : éditeur de bon côté partenaire (modèle, couleurs, logo, accroche, valeur, conditions), rendu du bon unique par famille, place du bon côté enfant (affichage sans code, remise par le parent), expiration et rappel avant expiration.
+
+---
+
+## 17. Notifications v3 : emails automatiques, relances d'encouragement, un seul moteur
+
+### Un seul moteur, quel que soit le chemin d'écriture
+- **Seule l'API crée des notifications.** Un garde-fou sur la table `notifications` (migration `20260925000000_notifications_v3`) ignore toute insertion qui ne vient pas de `NotificationService` (marqueur `rekonect.notifications = 'api'` posé le temps de l'écriture). Les anciens triggers SQL, `pg_cron` et l'envoi push via `pg_net` ne peuvent donc plus doubler les notifications. L'app mobile peut toujours marquer lu / non lu ou supprimer.
+- **Pont Supabase → outbox.** Tant que l'app mobile écrit certaines tables via supabase-js, ces écritures (reconnues au jeton Supabase de la requête PostgREST) publient les mêmes événements que l'API : `activity.submitted/validated/…`, `reward.*`, `friend.requested`, `duo.*`, `ritual.*`, `child.created`, `child.device_linked`, `family.*`, `user.registered` (compte créé par Supabase Auth). Notifications, emails, **bons partenaires** et objectifs familiaux réagissent donc pareil, que l'action vienne de l'API ou de Supabase.
+- Les anciens triggers qui versent des points (duo, rituel) ne tournent plus que pour les écritures Supabase : quand l'API écrit, elle verse elle-même les points (plus de double comptage).
+- Les tâches `pg_cron` « deconnect_* » sont retirées ; le worker NestJS les exécute.
+
+### Emails automatiques (51 modèles)
+- Catalogue unique (`platform/mail/catalog.ts`), mise en page à la charte (`layout.ts`), version texte systématique, préheader, une action principale.
+- **File persistante** `email_messages` : écrite dans la transaction métier (pas d'email pour une action annulée), idempotente (`dedup_key`), reprises 1 min → 6 h sur erreur temporaire, journal consultable.
+- **Désinscription par catégorie** (lien signé + `List-Unsubscribe` en un clic) pour les bilans, bons et conseils ; jamais pour la sécurité, le compte ou la facturation. Côté parent, le canal email et les préférences (résumé hebdo, conseils) sont respectés.
+- Parents (20) : bienvenue, profil enfant, appareil relié, invitation et arrivée d'un co-parent, première activité, récompense en attente 48 h, bilans hebdo et mensuel, bon partenaire obtenu / qui expire, abonnement (démarré, changé, résilié, fin d'essai), paiement refusé / régularisé, relance douce après 14 jours sans activité (1 par mois au plus), suppression de compte, sécurité (réinitialisation, mot de passe modifié, nouvelle connexion).
+- Partenaires (23) : invitation, bienvenue, membre arrivé, rôle changé, accès retiré, compte suspendu / réactivé, offre soumise / publiée / à revoir, offre qui se termine / terminée, stock bas / épuisé, premier bon utilisé, caps (10, 50, 100… bons), bilans hebdo et mensuel (vues, bons obtenus, utilisés, panier moyen, offre la plus demandée), configuration incomplète, aucune offre en ligne, abonnement, fin d'essai, paiement refusé, facture disponible.
+- Équipe Rekonect (5) : offre à relire, activité signalée, paiement partenaire refusé, partenaire activé, point du jour.
+- Galerie de relecture : `pnpm --filter @rekonect/api email:gallery sortie.html`.
+
+### Relances d'encouragement (push)
+Moteur `EngagementService`, exécuté toutes les heures ; chaque famille est traitée à son heure locale (enfant : 16 h en semaine, 10 h le week-end ; parent : 18 h). Pour chaque enfant, **une seule relance, la plus utile** :
+1. série à protéger (« Ta série de 4 jours t'attend ») ;
+2. activité commencée la veille (« Tu avais commencé Lire 20 pages. Tu veux reprendre ? ») ;
+3. récompense proche (il manque ≤ 25 % des points) ;
+4. objectif familial de la semaine presque atteint ;
+5. activité favorite délaissée depuis 10 jours (« Ça fait 12 jours que tu n'as pas fait Vélo ») ;
+6. pause suggérée après 3 jours sans activité, avec une idée courte adaptée à l'âge.
+
+Garde-fous : **1 par jour, 4 par semaine**, rien si l'enfant a déjà agi ou a une activité prévue ce jour-là, rien pendant les heures silencieuses (pas de report au lendemain), préférence « Encouragements » (parent et enfant). Ton selon l'âge (petits / enfants / ados), jamais culpabilisant. Les caps de série (3, 7, 14, 21, 30, 50, 100 jours) sont fêtés à la validation (push enfant, in-app parent).
+
+Côté parent : activités en attente de validation depuis la veille (1 par jour), enfant sans activité depuis 5 jours avec une idée concrète (2 par semaine au plus).
+
+### Restent côté app (jusqu'à la phase 2)
+L'alerte « mot de passe modifié » et « nouvelle connexion » des comptes Supabase Auth restent envoyées par l'app : le serveur ne voit pas ces événements tant que l'authentification n'est pas passée sur l'API. Les emails de bienvenue, de profil enfant et « activité envoyée » ne partent plus de l'app.

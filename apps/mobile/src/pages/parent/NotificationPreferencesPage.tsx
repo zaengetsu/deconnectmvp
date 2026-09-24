@@ -45,6 +45,7 @@ const SECTIONS: { title: string; items: { key: PreferenceKey; label: string; hin
     title: 'Progression',
     items: [
       { key: 'goals',          label: 'Objectifs' },
+      { key: 'encouragements', label: 'Encouragements', hint: 'Petites relances pour vos enfants (série, récompense proche, activité à reprendre) : une par jour au plus' },
       { key: 'daily_summary',  label: 'Résumé quotidien', hint: 'En fin de journée, seulement s’il y a du nouveau' },
       { key: 'weekly_summary', label: 'Résumé hebdomadaire' },
     ],

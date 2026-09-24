@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ENV, type Env, loadEnv } from '../config/env';
 import { AccessService } from './auth/access.service';
 import { TokenVerifier } from './auth/token-verifier';
+import { EmailService } from './mail/email.service';
 import { BrevoMailer, Mailer } from './mail/mailer';
 import { Clock } from './clock';
 import { EventBus } from './events/event-bus';
@@ -38,7 +39,8 @@ import { PrismaService } from './prisma/prisma.service';
     AccessService,
     TokenVerifier,
     { provide: Mailer, useClass: BrevoMailer },
+    EmailService,
   ],
-  exports: [ENV, PrismaService, Clock, EventBus, EventRegistry, OutboxRelay, PgListener, JobLock, AccessService, TokenVerifier, Mailer],
+  exports: [ENV, PrismaService, Clock, EventBus, EventRegistry, OutboxRelay, PgListener, JobLock, AccessService, TokenVerifier, Mailer, EmailService],
 })
 export class PlatformModule {}

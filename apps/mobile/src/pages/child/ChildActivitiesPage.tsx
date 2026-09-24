@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useAppStore } from '../../stores/app.store';
-import { useAuthStore } from '../../stores/auth.store';
 import { activitiesService } from '../../features/activities/activities.service';
 import { storageService, type UploadedProof } from '../../features/storage/storage.service';
-import { emailService } from '../../features/notifications/email.service';
 import ProofUpload from '../../components/ui/ProofUpload';
 import { getCategoryStyle } from '../../lib/categoryStyle';
 import { RkSheet } from '../../components/rk/RkShell';
@@ -17,7 +15,6 @@ import type { Activity, ActivityCategory, ChildActivity } from '../../types/data
 
 const ChildActivitiesPage: React.FC = () => {
   const { selectedChild, refreshSelectedChild } = useAppStore();
-  const { profile } = useAuthStore();
 
   const [tab, setTab] = useState<'mine' | 'catalog'>('mine');
   const SECTIONS = ['mine', 'catalog'] as const;
@@ -90,12 +87,7 @@ const ChildActivitiesPage: React.FC = () => {
     setSubmitting(true);
     try {
       await activitiesService.submitActivity(submitTarget.id, note || undefined, proof?.url, proof?.type);
-      if (profile?.email && profile?.full_name) {
-        emailService.sendActivitySubmitted(
-          profile.email, profile.full_name, selectedChild.display_name,
-          submitTarget.activity?.title || 'une activité',
-        );
-      }
+      // Le parent est prévenu par push (validation requise) : pas d'email pour chaque activité (5.14).
       setSubmitTarget(null); setNote(''); setProof(null);
       await refreshSelectedChild();
       load();

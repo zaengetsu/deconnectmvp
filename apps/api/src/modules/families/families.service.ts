@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { CreateChildInput, CreateFamilyInvitationInput, UpdateChildInput, UpdateProfileInput } from '@rekonect/contracts';
 import { AccessService } from '../../platform/auth/access.service';
-import type { UserPrincipal } from '../../platform/auth/principal';
+import { actorOf, type UserPrincipal } from '../../platform/auth/principal';
 import { Clock } from '../../platform/clock';
 import { randomHex, shortCode } from '../../platform/crypto';
 import { EventBus } from '../../platform/events/event-bus';
@@ -145,8 +145,17 @@ export class FamiliesService {
 
   async createInvitation(p: UserPrincipal, input: CreateFamilyInvitationInput) {
     await this.entitlements.assertCanAddCoParent(p.userId);
-    const inv = await this.prisma.familyInvitation.create({
-      data: { ownerId: p.userId, memberRole: input.memberRole, inviteEmail: input.email ?? null },
+    const inv = await this.prisma.tx(async (tx) => {
+      const row = await tx.familyInvitation.create({
+        data: { ownerId: p.userId, memberRole: input.memberRole, inviteEmail: input.email ?? null },
+      });
+      await this.events.publish(tx, 'family.invitation_created', {
+        aggregateType: 'family_invitation',
+        aggregateId: row.id,
+        payload: { invitationId: row.id, ownerId: p.userId, email: row.inviteEmail, role: row.memberRole },
+        actor: actorOf(p),
+      });
+      return row;
     });
     return { token: inv.token, role: inv.memberRole, expiresAt: inv.expiresAt };
   }
@@ -170,6 +179,14 @@ export class FamiliesService {
       } else {
         await tx.familyMember.create({
           data: { ownerId: inv.ownerId, memberId: p.userId, memberEmail: me.email, memberRole: inv.memberRole, status: 'active', joinedAt: now },
+        });
+      }
+      if (!already) {
+        await this.events.publish(tx, 'family.member_joined', {
+          aggregateType: 'family_invitation',
+          aggregateId: inv.id,
+          payload: { ownerId: inv.ownerId, memberId: p.userId, role: inv.memberRole },
+          actor: actorOf(p),
         });
       }
     });

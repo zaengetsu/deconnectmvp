@@ -215,7 +215,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error) {
         const isRateLimit =
           error.status === 429 ||
-          (error as any).code === 'over_email_send_rate_limit' ||
+          (error as { code?: string }).code === 'over_email_send_rate_limit' ||
           error.message.toLowerCase().includes('rate limit') ||
           error.message.toLowerCase().includes('email rate');
         if (isRateLimit) {
@@ -226,7 +226,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       if (!data.user) throw new Error('Erreur lors de la création du compte');
 
-      emailService.sendWelcome(email, fullName);
+      // L'email de bienvenue part du serveur (événement user.registered), pas de l'app.
 
       if (data.session) {
         const profile = await get().fetchProfile(data.user.id);

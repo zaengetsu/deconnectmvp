@@ -8,6 +8,7 @@ import { ProviderPushTransport, PushTransport } from './channels/push';
 import { NotificationConsumers } from './consumers';
 import { DeliveryService } from './delivery.service';
 import { DigestService } from './digest.service';
+import { EngagementService } from './engagement.service';
 import { NotificationService } from './notification.service';
 import { RealtimeGateway } from './realtime.gateway';
 import { NotificationScheduler } from './scheduler.service';
@@ -84,12 +85,13 @@ const core = [
   NotificationScheduler,
   DeliveryService,
   DigestService,
+  EngagementService,
   NotificationConsumers,
   { provide: PushTransport, useClass: ProviderPushTransport },
 ];
 
 /** Moteur (décision, programmation, livraison, consommateurs) : utilisé par l'API et le worker. */
-@Module({ providers: core, exports: [NotificationService, NotificationScheduler, DeliveryService, DigestService, PushTransport] })
+@Module({ providers: core, exports: [NotificationService, NotificationScheduler, DeliveryService, DigestService, EngagementService, PushTransport] })
 export class NotificationsCoreModule {}
 
 /** Surface HTTP + WebSocket : uniquement dans le processus API. */

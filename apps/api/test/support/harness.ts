@@ -6,7 +6,10 @@ import { seed } from '../../prisma/seed';
 import { AppModule } from '../../src/app.module';
 import { BillingGateway, FakeBillingGateway } from '../../src/modules/billing/gateway';
 import { DeliveryService } from '../../src/modules/notifications/delivery.service';
+import { EmailJobs } from '../../src/modules/emails/emails.jobs';
 import { DigestService } from '../../src/modules/notifications/digest.service';
+import { EngagementService } from '../../src/modules/notifications/engagement.service';
+import { EmailService } from '../../src/platform/mail/email.service';
 import { FakePushTransport, PushTransport } from '../../src/modules/notifications/channels/push';
 import { NotificationScheduler } from '../../src/modules/notifications/scheduler.service';
 import { Clock, FixedClock } from '../../src/platform/clock';
@@ -28,6 +31,9 @@ export interface Harness {
   scheduler: NotificationScheduler;
   deliveries: DeliveryService;
   digests: DigestService;
+  emails: EmailService;
+  emailJobs: EmailJobs;
+  engagement: EngagementService;
   /** Traite tous les événements en attente (comme le ferait le worker). */
   drain(): Promise<void>;
   close(): Promise<void>;
@@ -82,12 +88,17 @@ export async function createHarness(): Promise<Harness> {
     scheduler: app.get(NotificationScheduler),
     deliveries: app.get(DeliveryService),
     digests: app.get(DigestService),
+    emails: app.get(EmailService),
+    emailJobs: app.get(EmailJobs),
+    engagement: app.get(EngagementService),
     async drain() {
       // Plusieurs passes : un consommateur peut publier de nouveaux événements.
       for (let i = 0; i < 5; i++) {
         const r = await relay.drain();
         if (r.processed + r.failed + r.dead === 0) break;
       }
+      // Puis la file d'emails, comme le ferait le worker.
+      await app.get(EmailService).processPending(500);
     },
     close: () => app.close(),
   };

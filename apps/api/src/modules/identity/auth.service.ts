@@ -13,8 +13,7 @@ import { Clock } from '../../platform/clock';
 import { hashSecret, isLegacyHash, normalizeShortCode, randomToken, sha256, verifySecret } from '../../platform/crypto';
 import { EventBus } from '../../platform/events/event-bus';
 import { badRequest, conflict, notFound, tooMany, unauthorized } from '../../platform/http/errors';
-import { Mailer } from '../../platform/mail/mailer';
-import { mails } from '../../platform/mail/templates';
+import { EmailService } from '../../platform/mail/email.service';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import { TokenService } from './token.service';
 
@@ -33,7 +32,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     private readonly events: EventBus,
-    private readonly mailer: Mailer,
+    private readonly emails: EmailService,
     private readonly clock: Clock,
     @Inject(ENV) private readonly env: Env,
   ) {}
@@ -74,8 +73,29 @@ export class AuthService {
     if (user.passwordHash && isLegacyHash(user.passwordHash)) data.passwordHash = await hashSecret(input.password);
     await this.prisma.user.update({ where: { id: user.id }, data });
 
+    const knownDevice = await this.isKnownDevice(user.id, meta.userAgent);
     const pair = await this.tokens.issue({ userId: user.id, role: user.role as 'parent' | 'admin' | 'partner' }, meta);
+    if (!knownDevice && meta.userAgent) {
+      await this.emails.queue(this.prisma, 'auth.new_login', {
+        to: user.email,
+        toName: user.fullName,
+        recipientId: user.id,
+        data: { device: describeDevice(meta.userAgent), when: formatParisDateTime(this.clock.now()) },
+        dedupKey: `new_login:${user.id}:${sha256(meta.userAgent).slice(0, 16)}`,
+      });
+    }
     return { ...this.stripId(pair), user: this.publicUser(user) };
+  }
+
+  /**
+   * Appareil déjà vu : même navigateur / app lors d'une connexion précédente. Première connexion du compte :
+   * rien à signaler (c'est l'inscription). Sans User-Agent, on ne conclut rien.
+   */
+  private async isKnownDevice(userId: string, userAgent: string | null | undefined): Promise<boolean> {
+    if (!userAgent) return true;
+    const previous = await this.prisma.refreshToken.findMany({ where: { userId }, select: { userAgent: true }, orderBy: { createdAt: 'desc' }, take: 50 });
+    if (previous.length === 0) return true;
+    return previous.some((t) => t.userAgent === userAgent);
   }
 
   refresh(refreshToken: string, meta: Meta = {}) {
@@ -134,8 +154,8 @@ export class AuthService {
       const base =
         user.role === 'admin' ? this.env.WEB_ADMIN_URL : user.role === 'partner' ? this.env.WEB_PARTNERS_URL : this.env.MOBILE_APP_URL;
       const url = `${base.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(raw)}`;
-      const res = await this.mailer.send(mails.passwordReset(user.email, url));
-      if (res.status === 'failed') this.logger.warn(`Email de réinitialisation non envoyé : ${res.error}`);
+      const res = await this.emails.sendNow('auth.password_reset', { to: user.email, toName: user.fullName, recipientId: user.id, data: { url } });
+      if (res.status !== 'pending') this.logger.warn(`Email de réinitialisation non envoyé : ${res.status}`);
     }
     return { success: true };
   }
@@ -151,7 +171,7 @@ export class AuthService {
       await this.tokens.revokeAllForUser(u.id, tx);
       return u;
     });
-    await this.mailer.send(mails.passwordChanged(user.email));
+    await this.emails.sendNow('auth.password_changed', { to: user.email, toName: user.fullName, recipientId: user.id, data: {} });
     return { success: true };
   }
 
@@ -257,6 +277,12 @@ export class AuthService {
         where: { id: member.id },
         data: { userId: user.id, status: 'active', joinedAt: now, inviteTokenHash: null, inviteExpiresAt: null },
       });
+      await this.events.publish(tx, 'partner.member_joined', {
+        aggregateType: 'partner_member',
+        aggregateId: member.id,
+        payload: { partnerId: member.partnerId, memberId: member.id, userId: user.id, role: member.role },
+        actor: { kind: 'partner', id: user.id },
+      });
       if (member.role === 'owner' && member.partner.status === 'pending') {
         await tx.partner.update({ where: { id: member.partnerId }, data: { status: 'active' } });
       }
@@ -288,4 +314,17 @@ export class AuthService {
       parentId: c.parentId,
     };
   }
+}
+
+/** Libellé lisible d'un User-Agent (« iPhone · Safari », « Mac · Chrome », « App Rekonect »). */
+export function describeDevice(ua: string): string {
+  const os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac OS X|Macintosh/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : null;
+  const app = /Rekonect|Capacitor|okhttp|CFNetwork|Dart/i.test(ua) ? 'App Rekonect' : null;
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : null;
+  const parts = [os, app ?? browser].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Appareil inconnu';
+}
+
+export function formatParisDateTime(d: Date): string {
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/Paris' }).format(d);
 }

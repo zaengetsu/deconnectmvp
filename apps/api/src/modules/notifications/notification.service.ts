@@ -85,7 +85,7 @@ export class NotificationService {
       if (group) {
         const count = Number(group.data?.group_count ?? 1) + 1;
         const summary = templates.groupSummary(draft.type, count);
-        await tx.notification.update({
+        await this.asEngine(tx, () => tx.notification.update({
           where: { id: group.id },
           data: {
             title: summary.title,
@@ -94,13 +94,13 @@ export class NotificationService {
             sentAt: now,
             priority: higherPriority(group.priority, draft.priority),
           },
-        });
+        }));
         await this.signal(tx, group.id, draft.recipientType, draft.recipientId);
         return { id: group.id, status: 'sent', grouped: true };
       }
     }
 
-    const rows = await tx.notification.createManyAndReturn({
+    const rows = await this.asEngine(tx, () => tx.notification.createManyAndReturn({
       data: [
         {
           recipientType: draft.recipientType,
@@ -126,11 +126,24 @@ export class NotificationService {
       ],
       skipDuplicates: true, // index unique partiel sur dedup_key : pas deux fois la même notification
       select: { id: true },
-    });
+    }));
     if (rows.length === 0) return { id: null, status: 'duplicate' };
     const id = rows[0].id;
     if (status === 'sent') await this.afterSent(tx, id, channels, draft.recipientType, draft.recipientId);
     return { id, status };
+  }
+
+  /**
+   * Seul ce moteur écrit le contenu des notifications : la base refuse les insertions des anciens
+   * triggers Supabase (migration notifications_v3). Le marqueur n'est posé que le temps de l'écriture.
+   */
+  private async asEngine<T>(tx: Tx, write: () => Promise<T>): Promise<T> {
+    await tx.$executeRaw`SELECT set_config('rekonect.notifications', 'api', true)`;
+    try {
+      return await write();
+    } finally {
+      await tx.$executeRaw`SELECT set_config('rekonect.notifications', '', true)`;
+    }
   }
 
   /** Livraisons asynchrones (push, email) + signal temps réel pour l'in-app. */

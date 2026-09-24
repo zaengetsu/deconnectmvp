@@ -69,6 +69,6 @@ export function parseChildLink(text: string): ChildLinkPayload | null {
 
 /** « rekonect://parent/subscription?checkout=success » → « /parent/subscription?checkout=success » (espaces parent/enfant uniquement). */
 export function appPathFromUrl(url: string): string | null {
-  const m = new RegExp(`^${LINK_SCHEME}://((?:parent|child)(?:/[^?#]*)?)(\\?[^#]*)?$`).exec(url.trim());
+  const m = new RegExp(`^${LINK_SCHEME}://((?:parent|child|family|join-family)(?:/[^?#]*)?)(\\?[^#]*)?$`).exec(url.trim());
   return m ? `/${m[1].replace(/\/+$/, '')}${m[2] ?? ''}` : null;
 }

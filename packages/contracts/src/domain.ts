@@ -115,8 +115,23 @@ export const NOTIFICATION_TYPES = [
   'security',
   'tip',
   'product_news',
+  // Relances d'encouragement (moteur d'engagement, plafonnées : 1 par jour et 4 par semaine pour un enfant)
+  'nudge_resume',
+  'nudge_streak',
+  'nudge_reward_close',
+  'nudge_comeback',
+  'nudge_idle',
+  'nudge_goal',
+  'streak_milestone',
+  // Côté parent
+  'parent_nudge_idle',
+  'validation_backlog',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+/** Relances d'encouragement : soumises au plafond et à la préférence « encouragements ». */
+export const NUDGE_TYPES = ['nudge_resume', 'nudge_streak', 'nudge_reward_close', 'nudge_comeback', 'nudge_idle', 'nudge_goal', 'parent_nudge_idle'] as const satisfies readonly NotificationType[];
+export type NudgeType = (typeof NUDGE_TYPES)[number];
 
 export const PRIORITY_RANK: Record<NotificationPriority, number> = { critical: 0, high: 1, normal: 2, low: 3 };
 
@@ -133,6 +148,8 @@ export type PartnerStatus = (typeof PARTNER_STATUSES)[number];
 
 /** « reception » : agent d'accueil ou de caisse, ne peut que valider des bons. */
 export const PARTNER_MEMBER_ROLES = ['owner', 'editor', 'viewer', 'reception'] as const;
+/** Libellés affichés (portail, emails). */
+export const PARTNER_ROLE_LABELS: Record<string, string> = { owner: 'administrateur', editor: 'éditeur', viewer: 'lecteur', reception: 'accueil (validation des bons)' };
 export type PartnerMemberRole = (typeof PARTNER_MEMBER_ROLES)[number];
 
 export const OFFER_KINDS = ['child_reward', 'parent_voucher', 'sponsored_activity'] as const;

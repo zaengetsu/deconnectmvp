@@ -223,6 +223,7 @@ export const UpdatePreferencesInput = z
     tips: z.boolean(),
     productNews: z.boolean(),
     partnerOffers: z.boolean(),
+    encouragements: z.boolean(),
     quietHoursStart: hhmm.nullable(),
     quietHoursEnd: hhmm.nullable(),
     timezone: z.string().min(3).max(64),

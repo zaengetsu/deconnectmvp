@@ -8,6 +8,7 @@ export interface MailMessage {
   html: string;
   text: string;
   tags?: string[];
+  headers?: Record<string, string>;
 }
 
 export type MailResult = { status: 'sent'; id?: string } | { status: 'skipped'; reason: string } | { status: 'failed'; error: string; retryable: boolean };
@@ -43,6 +44,7 @@ export class BrevoMailer extends Mailer {
           htmlContent: message.html,
           textContent: message.text,
           tags: message.tags,
+          headers: message.headers,
         }),
       });
       if (res.ok) {

@@ -1,7 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { type DomainEventType, formatEuros } from '@rekonect/contracts';
-import { Mailer } from '../../platform/mail/mailer';
-import { mails } from '../../platform/mail/templates';
+import { type DomainEventType, formatEuros, NUDGE_TYPES } from '@rekonect/contracts';
 import { Clock } from '../../platform/clock';
 import { familyTimeZone } from '../../platform/family-tz';
 import { type EventHandler, EventRegistry } from '../../platform/events/event-registry';
@@ -12,6 +10,9 @@ import { templates } from './templates';
 
 /** Heure du rappel d'une activité planifiée pour la journée (heure locale de la famille). */
 export const REMINDER_LOCAL_TIME = { hour: 17, minute: 0 };
+
+/** Caps de série fêtés par une notification. */
+export const STREAK_MILESTONES = [3, 7, 14, 21, 30, 50, 100];
 
 const childRef = { id: true, displayName: true, age: true, parentId: true } as const;
 
@@ -25,7 +26,6 @@ export class NotificationConsumers implements OnModuleInit {
     private readonly registry: EventRegistry,
     private readonly notifications: NotificationService,
     private readonly clock: Clock,
-    private readonly mailer: Mailer,
   ) {}
 
   private on<T extends DomainEventType>(type: T, handler: EventHandler<T>): void {
@@ -76,6 +76,14 @@ export class NotificationConsumers implements OnModuleInit {
       await n.enqueue(tx, templates.activityCompleted(child, a, p.childActivityId, p.points, day));
       if (p.levelUp) await n.enqueue(tx, templates.levelUp(child, p.newLevel));
       if (p.badgesAwarded > 0) await n.enqueue(tx, templates.badgeEarned(child, p.badgesAwarded, p.childActivityId));
+      // Série de jours : on fête les caps (3, 7, 14, 30…) plutôt que de rappeler chaque jour.
+      const streak = (await tx.child.findUnique({ where: { id: child.id }, select: { streakDays: true } }))?.streakDays ?? 0;
+      if (STREAK_MILESTONES.includes(streak)) {
+        await n.enqueue(tx, templates.streakMilestone(child, streak, day));
+        await n.enqueue(tx, templates.streakMilestoneParent(child, streak, day));
+      }
+      // Une relance d'encouragement programmée pour aujourd'hui n'a plus lieu d'être.
+      await n.cancelScheduled(tx, 'child', child.id, [...NUDGE_TYPES]);
     });
 
     this.on('activity.rejected', async (e, tx) => {
@@ -203,13 +211,8 @@ export class NotificationConsumers implements OnModuleInit {
       if (p.ownerKind === 'family') {
         const sub = await tx.subscription.findFirst({ where: { parentId: p.ownerId }, include: { planRef: { select: { name: true } } } });
         await n.enqueue(tx, templates.paymentFailed(p.ownerId, amount, sub?.planRef.name ?? 'actuel', p.invoiceId));
-        return;
       }
-      const owners = await tx.partnerMember.findMany({ where: { partnerId: p.ownerId, role: 'owner', status: 'active' } });
-      for (const o of owners) {
-        const res = await this.mailer.send(mails.notification(o.email, null, 'Paiement refusé', `Le paiement de ${amount} pour votre abonnement Rekonect partenaires n’a pas abouti.\nMettez à jour votre moyen de paiement depuis Compte & facturation.`));
-        if (res.status === 'failed' && res.retryable) throw new Error(res.error);
-      }
+      // Partenaires : prévenus par email (module emails), pas de notification in-app côté portail.
     });
 
     // ─── Partenaires ───

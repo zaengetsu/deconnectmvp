@@ -6,6 +6,7 @@ import { Clock } from '../../platform/clock';
 import { hashSecret } from '../../platform/crypto';
 import { OutboxRelay } from '../../platform/events/outbox-relay';
 import { badRequest, conflict, notFound } from '../../platform/http/errors';
+import { EmailService } from '../../platform/mail/email.service';
 import { Prisma, PrismaService } from '../../platform/prisma/prisma.service';
 import { AuthService } from '../identity/auth.service';
 import { familyName } from '../billing/billing-admin.service';
@@ -54,6 +55,7 @@ export class AdminService {
     private readonly relay: OutboxRelay,
     private readonly notifications: NotificationService,
     private readonly auth: AuthService,
+    private readonly emails: EmailService,
     private readonly clock: Clock,
     @Inject(ENV) private readonly env: Env,
   ) {}
@@ -560,6 +562,8 @@ export class AdminService {
       await tx.passwordResetToken.deleteMany({ where: { userId: id } });
       await tx.profile.delete({ where: { id } });
       await tx.user.deleteMany({ where: { id } });
+      // Confirmation RGPD : l'adresse n'est conservée que dans le journal d'envoi (sans lien vers la famille).
+      await this.emails.queue(tx, 'parent.account_deleted', { to: profile.email, data: { name: profile.fullName } });
     });
     return { success: true };
   }

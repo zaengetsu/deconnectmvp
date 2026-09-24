@@ -123,6 +123,8 @@ const ChildTabs: React.FC = () => (
       <Switch>
         <Route exact path="/child/home" component={ChildHomePage} />
         <Route exact path="/child/activities" component={ChildActivitiesPage} />
+        {/* Liens des notifications (rappel, reprise) : la liste s'ouvre sur « Mes défis ». */}
+        <Route exact path="/child/activities/:childActivityId" component={ChildActivitiesPage} />
         <Route exact path="/child/points" component={ChildPointsPage} />
         <Route exact path="/child/rewards" component={ChildRewardsPage} />
         <Route exact path="/child/notifications" component={ChildNotificationsPage} />

@@ -180,6 +180,21 @@ export class BillingWebhookService {
     const now = this.clock.now();
     if (paid) {
       if (row.status === 'past_due') await tx.subscription.update({ where: { id: row.id }, data: { status: 'active' } });
+      if (!existing && amount > 0) {
+        await this.events.publish(tx, 'billing.invoice_paid', {
+          aggregateType: 'subscription',
+          aggregateId: row.id,
+          payload: { ownerKind: row.parentId ? 'family' : 'partner', ownerId: row.parentId ?? row.partnerId!, invoiceId: inv.id, amountCents: amount, recovered: row.status === 'past_due' },
+          actor: { kind: 'system', id: 'stripe' },
+        });
+      } else if (existing && row.status === 'past_due') {
+        await this.events.publish(tx, 'billing.invoice_paid', {
+          aggregateType: 'subscription',
+          aggregateId: row.id,
+          payload: { ownerKind: row.parentId ? 'family' : 'partner', ownerId: row.parentId ?? row.partnerId!, invoiceId: inv.id, amountCents: amount, recovered: true },
+          actor: { kind: 'system', id: 'stripe' },
+        });
+      }
       if (inv.billingReason === 'subscription_cycle' || row.status === 'past_due') {
         await tx.subscriptionEvent.createMany({
           data: [{ subscriptionId: row.id, ...owner, type: row.status === 'past_due' ? 'payment_succeeded' : 'renewed', description: row.status === 'past_due' ? 'Paiement régularisé' : 'Renouvellement', amountCents: amount, plan: row.plan, stripeEventId: eventId, occurredAt: now }],

@@ -5,7 +5,6 @@ import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { childrenService } from '../../features/children/children.service';
-import { emailService } from '../../features/notifications/email.service';
 
 /** Ajouter un enfant — porté de la maquette Rekonect (écran pNewKid). */
 
@@ -13,7 +12,7 @@ const AGES = Array.from({ length: MAX_CHILD_AGE - MIN_CHILD_AGE + 1 }, (_, i) =>
 const AVATARS = Array.from({ length: 14 }, (_, i) => `/images/avatars/avatar_${String(i + 1).padStart(2, '0')}.png`);
 
 const CreateChildPage: React.FC = () => {
-  const { user, profile } = useAuthStore();
+  const { user } = useAuthStore();
   const history = useHistory();
   const back = useRkBack('/parent/children');
   const mounted = useRef(true);
@@ -36,10 +35,7 @@ const CreateChildPage: React.FC = () => {
         avatar_url: avatar,
       });
 
-      // Événement important côté parent : email en plus de l'in-app (5.14)
-      if (profile?.email) {
-        emailService.sendChildProfileCreated(profile.email, profile.full_name ?? '', displayName.trim());
-      }
+      // L'email « profil créé » part du serveur (événement child.created).
 
       if (mounted.current) history.replace('/parent/children');
     } catch (e) {

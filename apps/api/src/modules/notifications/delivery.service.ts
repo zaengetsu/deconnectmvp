@@ -1,8 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Clock } from '../../platform/clock';
 import { backoffSeconds } from '../../platform/events/outbox-relay';
-import { Mailer } from '../../platform/mail/mailer';
-import { mails } from '../../platform/mail/templates';
+import { EmailService } from '../../platform/mail/email.service';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import { PushTransport } from './channels/push';
 
@@ -28,7 +27,7 @@ export class DeliveryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly push: PushTransport,
-    private readonly mailer: Mailer,
+    private readonly emails: EmailService,
     private readonly clock: Clock,
   ) {}
 
@@ -133,9 +132,15 @@ export class DeliveryService {
     const email = user?.email ?? profile?.email;
     if (!email) return { status: 'skipped', sentCount: 0, targetCount: 0, error: 'no_email' };
 
-    const res = await this.mailer.send(mails.notification(email, user?.fullName ?? profile?.fullName ?? null, n.title, n.body));
-    if (res.status === 'sent') return { status: 'sent', sentCount: 1, targetCount: 1 };
-    if (res.status === 'skipped') return { status: 'skipped', sentCount: 0, targetCount: 1, error: res.reason };
-    return { status: res.retryable ? 'retry' : 'failed', error: res.error, sentCount: 0, targetCount: 1 };
+    // Remis à la file d'emails (reprises, désinscription, journal) : la livraison est acquise une fois en file.
+    const res = await this.emails.queue(this.prisma, 'parent.notification', {
+      to: email,
+      toName: user?.fullName ?? profile?.fullName ?? null,
+      recipientId: n.recipientId,
+      data: { title: n.title, body: n.body, route: n.route },
+      dedupKey: `notification:${n.id}`,
+    });
+    if (res.status === 'pending' || res.status === 'duplicate') return { status: 'sent', sentCount: 1, targetCount: 1 };
+    return { status: 'skipped', sentCount: 0, targetCount: 1, error: res.status };
   }
 }

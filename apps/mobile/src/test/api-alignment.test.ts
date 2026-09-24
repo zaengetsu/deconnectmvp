@@ -36,6 +36,21 @@ describe('API Rekonect (pont Supabase)', () => {
     expect(await api('DELETE', '/v1/x')).toBeUndefined();
   });
 
+  it('jeton push enregistré via l’API (environnement compris), repli Supabase si l’API est injoignable', async () => {
+    const { notificationService } = await import('../features/notifications/notification.service');
+    await notificationService.savePushToken('parent-1', 'push-token-123456', 'ios');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:3000/v1/push-tokens');
+    expect(JSON.parse(init.body as string)).toEqual({ token: 'push-token-123456', platform: 'ios', environment: 'development' });
+
+    fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+    const upsert = vi.fn(async () => ({ error: null }));
+    const from = vi.spyOn(supabase, 'from').mockReturnValue({ upsert } as never);
+    await notificationService.savePushToken('parent-1', 'push-token-123456', 'android', 'child-1');
+    expect(from).toHaveBeenCalledWith('push_tokens');
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ user_id: null, child_id: 'child-1', environment: 'development' }), { onConflict: 'token' });
+  });
+
   it('abonnement et bons : bonnes routes', async () => {
     await billingService.plans();
     await billingService.subscription();
@@ -93,6 +108,8 @@ describe('liens et bons', () => {
   it('liens profonds de l’app', () => {
     expect(appPathFromUrl('rekonect://parent/subscription?checkout=success')).toBe('/parent/subscription?checkout=success');
     expect(appPathFromUrl('rekonect://parent/offers/abc')).toBe('/parent/offers/abc');
+    expect(appPathFromUrl('rekonect://join-family?token=3f9a1c')).toBe('/join-family?token=3f9a1c');
+    expect(appPathFromUrl('rekonect://family')).toBe('/family');
     expect(appPathFromUrl('rekonect://link?t=123')).toBeNull();
     expect(appPathFromUrl('https://evil.example/parent')).toBeNull();
   });
