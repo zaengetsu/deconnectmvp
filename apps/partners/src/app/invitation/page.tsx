@@ -19,7 +19,7 @@ function Invitation() {
     setError(null);
     try {
       await acceptInvitation(token, fullName.trim(), password);
-      router.replace('/');
+      router.replace('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invitation invalide');
     } finally {

@@ -24,6 +24,8 @@ export class BillingController {
     private readonly webhooks: BillingWebhookService,
   ) {}
 
+  /** Grille tarifaire publique : affichée sur la landing partenaires avant toute connexion. */
+  @Public()
   @Get('plans')
   plans(@Query(zod(AudienceQuery)) q: z.infer<typeof AudienceQuery>) {
     return this.billing.plans(q.audience);

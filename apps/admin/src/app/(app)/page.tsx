@@ -1,6 +1,6 @@
 'use client';
 import { categoryImage, formatDelta, formatDuration, formatEuros, formatLongDate, formatNumber, formatPercent } from '@rekonect/api-client';
-import { C, Card, CardLink, CardTitle, ErrorBox, KpiCard, PageHeader, Segmented, Skeleton, Stack } from '@rekonect/ui';
+import { C, Card, CardLink, CardTitle, ErrorBox, HeroBanner, KpiCard, Segmented, Skeleton, Stack } from '@rekonect/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -56,10 +56,12 @@ export default function OverviewPage() {
 
   return (
     <Stack gap={22}>
-      <PageHeader
+      <HeroBanner
+        tone="ink"
+        kicker="BACK-OFFICE REKONECT"
         title="Vue d'ensemble"
         subtitle={o ? `Données au ${formatLongDate(o.asOf)}` : ' '}
-        actions={<Segmented ariaLabel="Période" options={RANGES} value={range} onChange={setRange} />}
+        aside={<Segmented ariaLabel="Période" options={RANGES} value={range} onChange={setRange} track="rgba(255,255,255,.9)" />}
       />
       {overview.error && <ErrorBox error={overview.error} onRetry={() => overview.refetch()} />}
 

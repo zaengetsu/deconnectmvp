@@ -7,6 +7,7 @@ import { gamificationService } from '../../features/gamification/gamification.se
 import { childSession } from '../../features/auth/child.session';
 import { useRk, RkSheet, type RkTheme } from '../../components/rk/RkShell';
 import { LEVEL_NAMES } from '../../lib/constants';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Profil & thème — porté de la maquette Rekonect (écran cProfile). */
 
@@ -63,14 +64,11 @@ const ChildProfilePage: React.FC = () => {
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader>
           <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
             Mon profil
           </h1>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 22 }}>
 

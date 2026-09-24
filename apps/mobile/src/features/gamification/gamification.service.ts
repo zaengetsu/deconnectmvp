@@ -1,4 +1,5 @@
-import { supabase } from '../../lib/supabase';
+import { api, withQuery } from '../../lib/api';
+import { snake } from '../../lib/case';
 import type { Badge, ChildBadge, PointsLedgerEntry } from '../../types/database.types';
 import { POINTS_CONFIG } from '../../lib/constants';
 
@@ -27,43 +28,66 @@ export function getRealStreak(streakDays: number, lastActivityDate: string | nul
   return 0;
 }
 
-export const gamificationService = {
-  // ─── Badges ──────────────────────────────────────────────
-  async getAllBadges(): Promise<Badge[]> {
-    const { data, error } = await supabase
-      .from('badges')
-      .select('*')
-      .order('condition_value', { ascending: true });
+interface ProgressSummary {
+  childId: string;
+  totalPoints: number;
+  level: number;
+  streakDays: number;
+  badges: { id: string; name: string; description: string | null; icon: string | null; earnedAt: string }[];
+  ledger: { id: string; points: number; reason: string | null; source: string; createdAt: string }[];
+}
 
-    if (error) throw error;
-    return data || [];
+interface ChildStats {
+  totalEarned: number;
+  totalSpent: number;
+  activitiesValidated: number;
+  since: string;
+  recent: { validated: { validatedAt: string; earnedPoints: number | null }[]; pointsEarned: number; badgesEarned: number };
+}
+
+const progressOf = (childId: string) => api<ProgressSummary>('GET', `/v1/children/${childId}/progress`);
+const statsOf = (childId: string, since?: Date) => api<ChildStats>('GET', withQuery(`/v1/children/${childId}/stats`, { since: since?.toISOString() }));
+
+/** Lundi 00:00 de la semaine en cours (heure locale). */
+function startOfWeek(now = new Date()): Date {
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+export const gamificationService = {
+  async getAllBadges(): Promise<Badge[]> {
+    const rows = snake<Badge[]>(await api('GET', '/v1/badges'));
+    return rows.sort((a, b) => a.condition_value - b.condition_value);
   },
 
   async getChildBadges(childId: string): Promise<ChildBadge[]> {
-    const { data, error } = await supabase
-      .from('child_badges')
-      .select('*, badge:badges(*)')
-      .eq('child_id', childId)
-      .order('earned_at', { ascending: false });
-
-    if (error) throw error;
-    return data || [];
+    const [progress, all] = await Promise.all([progressOf(childId), gamificationService.getAllBadges().catch(() => [] as Badge[])]);
+    return progress.badges.map((b) => ({
+      id: `${childId}:${b.id}`,
+      child_id: childId,
+      badge_id: b.id,
+      earned_at: b.earnedAt,
+      created_at: b.earnedAt,
+      badge: all.find((x) => x.id === b.id) ?? ({ id: b.id, name: b.name, description: b.description, icon: b.icon } as Badge),
+    }));
   },
 
-  // ─── Points ──────────────────────────────────────────────
   async getPointsHistory(childId: string, limit = 20): Promise<PointsLedgerEntry[]> {
-    const { data, error } = await supabase
-      .from('points_ledger')
-      .select('*')
-      .eq('child_id', childId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (error) throw error;
-    return data || [];
+    const progress = await progressOf(childId);
+    return progress.ledger.slice(0, limit).map((l) => ({
+      id: l.id,
+      child_id: childId,
+      source_type: l.source as PointsLedgerEntry['source_type'],
+      source_id: null,
+      points: l.points,
+      reason: l.reason,
+      created_by: null,
+      created_at: l.createdAt,
+    }));
   },
 
-  // ─── Level ───────────────────────────────────────────────
   calculateLevel(totalPoints: number): number {
     const thresholds = POINTS_CONFIG.levelThresholds;
     let level = 1;
@@ -106,131 +130,34 @@ export const gamificationService = {
   },
 
   // ─── All-Time Stats ─────────────────────────────────────
-  async getAllTimeStats(childId: string): Promise<{
-    totalEarned: number;
-    totalSpent: number;
-    activitiesValidated: number;
-  }> {
-    const [earnedRes, spentRes, activitiesRes] = await Promise.all([
-      supabase
-        .from('points_ledger')
-        .select('points')
-        .eq('child_id', childId)
-        .gt('points', 0),
-      supabase
-        .from('points_ledger')
-        .select('points')
-        .eq('child_id', childId)
-        .lt('points', 0),
-      supabase
-        .from('child_activities')
-        .select('id', { count: 'exact' })
-        .eq('child_id', childId)
-        .eq('status', 'validated'),
-    ]);
-
-    const totalEarned = (earnedRes.data || []).reduce((sum, e) => sum + e.points, 0);
-    const totalSpent = Math.abs((spentRes.data || []).reduce((sum, e) => sum + e.points, 0));
-
-    return {
-      totalEarned,
-      totalSpent,
-      activitiesValidated: activitiesRes.count || 0,
-    };
+  async getAllTimeStats(childId: string): Promise<{ totalEarned: number; totalSpent: number; activitiesValidated: number }> {
+    const s = await statsOf(childId);
+    return { totalEarned: s.totalEarned, totalSpent: s.totalSpent, activitiesValidated: s.activitiesValidated };
   },
 
-  // ─── Weekly Stats ────────────────────────────────────────
-  async getWeeklyStats(childId: string): Promise<{
-    activitiesCompleted: number;
-    pointsEarned: number;
-    badgesEarned: number;
-  }> {
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoISO = weekAgo.toISOString();
-
-    const [activitiesRes, pointsRes, badgesRes] = await Promise.all([
-      supabase
-        .from('child_activities')
-        .select('id', { count: 'exact' })
-        .eq('child_id', childId)
-        .eq('status', 'validated')
-        .gte('validated_at', weekAgoISO),
-      supabase
-        .from('points_ledger')
-        .select('points')
-        .eq('child_id', childId)
-        .eq('source_type', 'activity_validation')
-        .gte('created_at', weekAgoISO),
-      supabase
-        .from('child_badges')
-        .select('id', { count: 'exact' })
-        .eq('child_id', childId)
-        .gte('earned_at', weekAgoISO),
-    ]);
-
-    const pointsEarned = (pointsRes.data || []).reduce((sum, entry) => sum + entry.points, 0);
-
-    return {
-      activitiesCompleted: activitiesRes.count || 0,
-      pointsEarned,
-      badgesEarned: badgesRes.count || 0,
-    };
+  async getWeeklyStats(childId: string): Promise<{ activitiesCompleted: number; pointsEarned: number; badgesEarned: number }> {
+    const s = await statsOf(childId, new Date(Date.now() - 7 * 86_400_000));
+    return { activitiesCompleted: s.recent.validated.length, pointsEarned: s.recent.pointsEarned, badgesEarned: s.recent.badgesEarned };
   },
 
-  async getWeeklyDayByDay(childId: string): Promise<{
-    day: string;
-    date: string;
-    count: number;
-    points: number;
-    isToday: boolean;
-  }[]> {
+  /** Semaine en cours, jour par jour (lundi → dimanche, heure locale). */
+  async getWeeklyDayByDay(childId: string): Promise<{ day: string; date: string; count: number; points: number; isToday: boolean }[]> {
     const DAYS_FR = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-
-    // Helper : date locale YYYY-MM-DD (sans conversion UTC)
-    const localDateStr = (d: Date): string => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    };
-
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=Sun
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
-    monday.setHours(0, 0, 0, 0);
-
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-
-    // Fetch validated activities for this week
-    const { data: activities } = await supabase
-      .from('child_activities')
-      .select('validated_at, earned_points')
-      .eq('child_id', childId)
-      .eq('status', 'validated')
-      .gte('validated_at', monday.toISOString())
-      .lte('validated_at', sunday.toISOString());
-
-    const todayStr = localDateStr(now);
-
-    // Build 7-day array using LOCAL dates
+    const localDateStr = (d: Date): string =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const monday = startOfWeek();
+    const s = await statsOf(childId, monday);
+    const todayStr = localDateStr(new Date());
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
       const dateStr = localDateStr(d);
-      const dayActivities = (activities || []).filter(a => {
-        if (!a.validated_at) return false;
-        // Convert UTC timestamp to local date for comparison
-        return localDateStr(new Date(a.validated_at)) === dateStr;
-      });
+      const day = s.recent.validated.filter((a) => a.validatedAt && localDateStr(new Date(a.validatedAt)) === dateStr);
       return {
         day: DAYS_FR[d.getDay()],
         date: dateStr,
-        count: dayActivities.length,
-        points: dayActivities.reduce((s, a) => s + (a.earned_points || 0), 0),
+        count: day.length,
+        points: day.reduce((sum, a) => sum + (a.earnedPoints || 0), 0),
         isToday: dateStr === todayStr,
       };
     });

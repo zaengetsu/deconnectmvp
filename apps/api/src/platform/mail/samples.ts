@@ -10,6 +10,7 @@ const children = [
 export const SAMPLE_EMAIL_DATA: { [K in EmailTemplateId]: EmailData<K> } = {
   'auth.password_reset': { url: 'https://app.rekonect.app/reset-password?token=abc' },
   'auth.password_changed': {},
+  'auth.email_changed': { newEmail: 'camille.martin@exemple.fr' },
   'auth.new_login': { device: 'iPhone · Safari', when: '24 septembre 2026 à 18:42' },
 
   'parent.welcome': { name: 'Camille Martin' },

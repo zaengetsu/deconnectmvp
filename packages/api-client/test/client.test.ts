@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { adminApi, ApiError, authApi, buildQuery, defaultMessage, fieldErrors, HttpClient, LocalSessionStore, MemorySessionStore, partnerApi } from '../src';
+import { adminApi, ApiError, authApi, buildQuery, defaultMessage, fieldErrors, HttpClient, LocalSessionStore, MemorySessionStore, partnerApi, publicApi } from '../src';
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
@@ -141,6 +141,7 @@ describe('endpoints', () => {
       a.familyStats(), a.families({ plan: 'family' }), a.family('1'), a.familyPayments('1'), a.giftMonths('1', 1, 'family'), a.resendLogin('1'), a.deleteFamily('1', 'e'), a.setUserDisabled('1', true),
       a.billingOverview(), a.billingEvents(), a.plans('family'), a.updatePlan('family', { monthlyPriceCents: 499 }), a.promoCodes(), a.createPromoCode({ code: 'X' }), a.setPromoActive('1', false),
       a.partners('deca'), a.partnerStats(), a.createPartner({ name: 'n', kind: 'brand', ownerEmail: 'e', planId: 'partner_local' }), a.setPartnerStatus('1', 'suspended'),
+      a.partnerLeads(), a.partnerLeads('new'), a.setPartnerLeadStatus('L', 'contacted'),
       p.accounts(), p.detail('P'), p.update('P', {}), p.dashboard('P'), p.offers('P', { display: 'active' }), p.storeOffers('P'), p.offer('O'), p.createOffer('P', { kind: 'child_reward', title: 't' }),
       p.updateOffer('O', {}), p.deleteOffer('O'), p.submitOffer('O'), p.pauseOffer('O'), p.resumeOffer('O'), p.brandApprove('O'), p.brandRequestChanges('O', 'n'),
       p.places('P'), p.createPlace('P', { name: 'n' }), p.updatePlace('P', 'L', {}), p.createStore('P', { name: 'n', managerEmail: 'e' }),
@@ -158,6 +159,18 @@ describe('endpoints', () => {
     expect(urls).toContain('GET /v1/activities?origin=catalog&q=v%C3%A9lo');
     expect(urls).toContain('GET /v1/admin/families.csv');
     expect(urls).toContain('GET /v1/partner/P/redemptions.csv');
+    expect(urls).toContain('GET /v1/admin/partner-leads?status=new');
+    expect(urls).toContain('PATCH /v1/admin/partner-leads/L');
     expect(new Set(urls).size).toBeGreaterThan(60);
+  });
+
+  it('appels publics de la landing, sans jeton', async () => {
+    const { http, calls } = setup(() => json(200, {}));
+    const pub = publicApi(http);
+    await pub.partnerPlans();
+    await pub.submitPartnerLead({ fullName: 'Julie', organization: 'Vélo', email: 'j@v.fr', kind: 'store' });
+    expect(calls.map((c) => `${c.init.method} ${c.url.replace('http://api.test', '')}`)).toEqual(['GET /v1/billing/plans?audience=partner', 'POST /v1/partner-leads']);
+    for (const c of calls) expect((c.init.headers as Record<string, string>).authorization).toBeUndefined();
+    expect(JSON.parse(String(calls[1].init.body))).toMatchObject({ kind: 'store' });
   });
 });

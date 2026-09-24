@@ -10,7 +10,7 @@
 |---|---|
 | **Parent** | Tableau de bord de supervision, gestion des enfants, définition des plages horaires, catalogue d'activités, système de récompenses |
 | **Enfant** | Tracker hebdomadaire, défis & gamification, catalogue d'activités alternatives, notifications |
-| **Commun** | Authentification Supabase, liaison parent↔enfant par QR code, push notifications, splash screen natif |
+| **Commun** | Connexion via l'API Rekonect (parent : email, enfant : QR code + PIN), push notifications, splash screen natif |
 
 ---
 
@@ -36,8 +36,8 @@
 ### Backend & Data
 | Technologie | Rôle |
 |---|---|
-| **Supabase** | Base de données PostgreSQL, Auth, Storage |
-| `@supabase/supabase-js` | Client SDK |
+| **API Rekonect (NestJS)** | Seul serveur de l'app : données, connexion, preuves, temps réel, emails |
+| **PostgreSQL** | Base de données (hébergée chez Supabase, utilisée comme un Postgres classique) |
 
 ### Mobile natif
 | Technologie | Rôle |
@@ -65,7 +65,7 @@ npm install
 
 # 2. Configurer les variables d'environnement
 cp .env.example .env
-# → Renseigner VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY
+# → Renseigner VITE_API_URL (adresse de l'API Rekonect)
 
 # 3. Lancer le serveur de développement
 npm run dev
@@ -219,14 +219,14 @@ deconnectmvp/
 │   │   ├── rewards/      # Système de récompenses
 │   │   └── storage/      # Persistance locale
 │   ├── hooks/            # Hooks React personnalisés
-│   ├── lib/              # Config Supabase & utilitaires
+│   ├── lib/              # Client API, session, utilitaires
 │   ├── pages/
 │   │   ├── child/        # Interface enfant
 │   │   ├── parent/       # Interface parent
 │   │   └── public/       # Auth & onboarding
 │   ├── stores/           # État global Zustand
 │   └── types/            # Types TypeScript partagés
-├── supabase/             # Migrations & seeds SQL
+├── supabase/             # Historique SQL et Edge Functions (anciennes versions de l'app uniquement)
 ├── capacitor.config.ts   # Configuration Capacitor
 └── vite.config.ts        # Configuration Vite
 ```
@@ -235,11 +235,10 @@ deconnectmvp/
 
 ## 🔑 Variables d'environnement
 
-Créer un fichier `.env` à la racine à partir de `.env.example` :
+Créer `apps/mobile/.env` à partir de `apps/mobile/.env.example` :
 
 ```env
-VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_API_URL=http://localhost:3000
 ```
 
 > ⚠️ Ne jamais committer le fichier `.env`. Il est listé dans `.gitignore`.

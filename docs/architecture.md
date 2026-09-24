@@ -24,6 +24,7 @@
                     │                                                                  │
   packages/contracts ┤ événements versionnés + DTO zod partagés front/back             │
   packages/api-client┤ client HTTP typé (sessions, erreurs, formats FR)                 │
+  packages/brand     ┤ motifs et éléments graphiques de la charte (web + mobile)     │
   packages/ui        ┤ composants web + jetons des maquettes Admin / Partenaire       │
   e2e                ┤ parcours Playwright des deux portails sur l'API réelle          │
                     └──────────────────────────────────────────────────────────────────┘
@@ -175,8 +176,8 @@ Les règles RLS deviennent des **guards NestJS** : `@Roles()`, `ParentOwnsChild`
 | Phase | Contenu | État |
 |---|---|---|
 | 0 | Monorepo Turborepo · API NestJS · Prisma sur le schéma existant · outbox · notifications · partenaires · abonnements Stripe · apps admin et partenaires | **livré** |
-| 1 | L'app mobile passe de `supabase-js` à l'API, écran par écran (≈ 60 appels `.from()` et 9 RPC à remplacer). Déjà sur l'API : abonnement, bons partenaires, consentement, signalements | **commencé** |
-| 2 | Import des comptes (`auth.users` → `users`), bascule de l'auth mobile, suppression de Supabase Auth | à faire |
+| 1 | L'app mobile passe de `supabase-js` à l'API : données, RPC, Storage (preuves), Edge Functions, temps réel — `@supabase/supabase-js` retiré (§20) | **livré** |
+| 2 | Comptes `auth.users` → `users` (import + synchronisation continue pour les anciennes versions), connexion mobile parent et enfant par l'API (§20) | **livré** ; `SUPABASE_JWT_SECRET` à vider quand plus aucun appareil n'a d'ancienne version |
 | 3 | Désactivation des triggers, crons (`pg_cron`) et Edge Functions Supabase, remplacés par le worker ; pont Supabase → outbox pour les écrans mobiles encore sur supabase-js (§17) | **livré** |
 | 4 | Base Postgres déplacée hors de Supabase si souhaité (`pg_dump` / `pg_restore`) | optionnel |
 | 5 | Extraction de `notifications` (puis `partners`) en services séparés, derrière NATS | quand la charge le justifie |
@@ -254,11 +255,13 @@ Pendant les phases 1 à 3, **les triggers SQL et le worker ne doivent pas tourne
 | `apps/admin` | 3001 | Vue d'ensemble (alertes, KPI, familles actives par mois, plans, top activités/récompenses, santé) · Activités (filtres, fiche éditable, import CSV, signalements) · Récompenses (natives + modération des offres) · Familles (filtres, export CSV, fiche, mois offerts, historique de paiement, suspension, suppression RGPD) · Plans & abonnements (plans, événements, codes promo) · Partenaires (invitation, statut) · recherche ⌘K |
 | `apps/partners` | 3002 | Tableau de bord (KPI, entonnoir, déclencheurs) · Offres (filtres, cartes, validation des offres magasins) · Nouvelle offre / édition (5 étapes, aperçu téléphone, audience estimée en direct, visuel) · Audience & zones · Lieux / Magasins / Équipements / Sites · Bons & échanges (caisse + export CSV) · Compte & facturation (plan, équipe, factures) · invitation, connexion, mot de passe oublié |
 
+`apps/partners` sert aussi la **landing publique** à `/` (le tableau de bord est à `/dashboard`) : présentation, grille tarifaire lue sur `GET /v1/billing/plans?audience=partner` (désormais public), FAQ et formulaire « Être rappelé » (`POST /v1/partner-leads`, public, piège à robots et 3 demandes par adresse et par 24 h). Les demandes arrivent dans l'admin, **Partenaires → Demandes de contact** (statuts nouvelle / rappelée / devenue partenaire / archivée), avec un accusé de réception au demandeur et une alerte à `PARTNER_LEADS_EMAIL` si la variable est renseignée.
+
 Composants et jetons dans `packages/ui` (valeurs exactes des maquettes, police Manrope embarquée). Sessions : jeton d'accès court + refresh rotatif stocké côté navigateur, rafraîchi automatiquement.
 
 ## 13. Alignements de l'app mobile
 
-- Client `src/lib/api.ts` : appelle l'API NestJS avec le jeton Supabase existant (pont de migration, variable `SUPABASE_JWT_SECRET` côté API).
+- Client `src/lib/api.ts` : seul point de contact de l'app avec le serveur (jetons de l'API, rafraîchissement automatique) — voir §20.
 - **Mon abonnement** (`/parent/subscription`) : plan, limites utilisées, choix de plan mensuel/annuel via Stripe Checkout, portail de paiement, résiliation et reprise, code CSE/mairie, factures. Retour de paiement par lien profond `rekonect://parent/subscription?checkout=success`.
 - **Bons & avantages** (`/parent/vouchers`, `/parent/offers/:id` depuis la notification) : portefeuille des bons avec QR code, progression des bons en cours, activation du consentement avec code postal.
 - Préférence « Avantages partenaires » dans les préférences de notification ; **« Signaler cette activité »** sur les cartes de validation.
@@ -340,3 +343,44 @@ Réglages personnels (clé App Store Connect, Firebase) : copier `.release.env.e
 | `pnpm release:firebase [android\|ios\|all]` (`./scripts/firebase.sh`) | Même préparation, puis APK (et/ou IPA « release-testing ») envoyés aux testeurs Firebase App Distribution avec les derniers commits en notes. |
 
 Les deux scripts de livraison refusent une API locale ou non HTTPS (le téléphone d'un testeur ne la joindrait pas), sauf `--allow-local-api`, et refusent de livrer des modifications non commitées, sauf `--allow-dirty`.
+
+---
+
+## 19. Motifs et éléments graphiques (charte §05 et §05·B)
+
+Le paquet `@rekonect/brand` est la seule source des textures et des formes de la charte. Il n'a aucune dépendance hors React et accepte des couleurs en variables CSS, ce qui permet à l'app mobile de suivre le thème enfant et le mode sombre.
+
+| Brique | Rôle |
+|---|---|
+| `patternStyle()` / `<Pattern>` | les six textures en CSS : ondes, points, hachures, maillons (motif signature), arcs, confettis (réussite uniquement) ; estompage par masque en dégradé |
+| `<Rings>` · `<Halo>` · `<Target>` | ondes concentriques, lumière douce (une seule par écran), petite cible à point focal |
+| `<Sticker>` · `<ProgressRing>` · `<CornerRing>` | pastilles inclinées de 2 à 6°, anneau de progression, anneau d'angle des tuiles |
+| `<Scene>` · `<Backdrop>` | la « recette en 4 couches » : aplat, motif estompé, ondes et halo ancrés dans un coin, contenu |
+| `<Staged>` · `<Sprinkles>` · `<LogoMark>` | carte inclinée en ombre de niveau 3, petites formes flottantes, logo aux deux cercles |
+| `ELEVATION` · `tint()` | les quatre niveaux d'ombre ; opacité appliquée à un hexadécimal ou à une variable CSS |
+
+**Web** (`packages/ui`) : ré-export des briques, plus `HeroBanner` (tableaux de bord admin et partenaires), `SoftPanel`, `AuthBackdrop` (écrans de connexion), `EmptyMark` (états vides) et l'anneau d'angle des `KpiCard`.
+
+**Mobile** (`apps/mobile/src/components/rk/RkDecor.tsx`) : `RkHeader` (en-têtes clairs de tous les écrans de liste et de formulaire), `RkHero` (en-têtes colorés : accueil enfant, niveaux, fiche enfant), `RkFeature` (« À faire maintenant », « Presque »), `RkStat`, `RkPrompt` (sections vides), `RkAllClear` et `RkCelebrate` (confettis de la feuille « Bien joué ! »). `RkEmpty` porte aussi les arcs, les ondes et le halo.
+
+Règles : un décor est toujours `aria-hidden` et sans pointeur ; un seul halo par écran ; les confettis sont réservés aux réussites ; les couleurs de statut ne servent jamais de décor.
+
+## 20. App mobile sans Supabase
+
+L'app mobile ne dépend plus de Supabase : `@supabase/supabase-js`, les RPC, le Storage et les Edge Functions ne sont plus appelés. Supabase n'héberge plus que la base Postgres (phase 4 : déménageable avec `pg_dump`).
+
+| Brique | Avant | Maintenant |
+|---|---|---|
+| Session | Supabase Auth (parent), session anonyme (enfant) | `lib/session.ts` : jetons de l'API gardés dans les Preferences Capacitor ; `lib/api.ts` rafraîchit sur 401 (une seule fois pour toutes les requêtes en vol), délai de 15 s, nouvel essai des lectures après une coupure |
+| Parent | `signInWithPassword`, `signUp`, `updateUser` | `POST /v1/auth/login`, `/register`, `/password/change` (autres sessions fermées), `/email` (confirmé par le mot de passe, ancienne adresse prévenue) |
+| Enfant | `signInAnonymously` + RPC `claim_child_link_token` / `child_pin_login` | `POST /v1/auth/child/link` (QR ou code court + PIN) et `/v1/auth/child/login` ; un appareil déjà relié propose directement l'écran PIN après la mise à jour |
+| Données | ≈ 65 `.from()` + 9 RPC | services de l'app sur les routes REST ; conversion camelCase → snake_case dans `lib/case.ts`, les écrans ne changent pas |
+| Preuves | bucket `activity-proofs` | `POST /v1/child-activities/:id/proof` (photo ou vidéo, 10 Mo, type vérifié sur le contenu), servies par `/v1/media/:id` sans cache partagé |
+| Temps réel | canaux Supabase Realtime | WebSocket de l'API (`/realtime`), une connexion partagée qui suit la session |
+| Emails | Edge Function `send-email` | catalogue d'emails de l'API (§17) ; l'app n'envoie plus aucun email |
+
+Routes ajoutées : `POST /v1/auth/password/change`, `POST /v1/auth/email`, `POST|DELETE /v1/child-activities/:id/proof`, `GET /v1/children/:id/stats`, `POST /v1/notifications/remove-read` ; invitations co-parent avec code court à 6 caractères.
+
+Migration `20260925000100_mobile_sans_supabase` : colonnes `kind`, `child_id`, `child_activity_id` sur `media_files` ; `short_code` sur `family_invitations` ; les anciens triggers de génération de jetons ne remplissent plus que les valeurs absentes (ils écrasaient le lien de réinitialisation de mot de passe de l'API) ; comptes `auth.users` recopiés dans `users` et tenus à jour par trigger tant que d'anciennes versions de l'app créent des comptes Supabase (seuls les comptes jamais connectés via l'API sont modifiés).
+
+Transition : les anciennes versions installées continuent de fonctionner (pont `SUPABASE_JWT_SECRET`, pont supabase-js → outbox du §17). Une fois tous les appareils mis à jour : vider `SUPABASE_JWT_SECRET`, puis retirer le pont outbox et les Edge Functions.

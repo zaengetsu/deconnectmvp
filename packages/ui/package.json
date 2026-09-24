@@ -17,6 +17,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@rekonect/brand": "workspace:*",
     "@rekonect/api-client": "workspace:*"
   },
   "peerDependencies": {

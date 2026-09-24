@@ -15,6 +15,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@rekonect/brand": "workspace:*",
     "@capacitor/android": "^6.2.1",
     "@capacitor/app": "^6.0.3",
     "@capacitor/assets": "^3.0.5",
@@ -29,7 +30,6 @@
     "@hookform/resolvers": "^5.2.2",
     "@ionic/react": "^8.8.6",
     "@ionic/react-router": "^8.8.6",
-    "@supabase/supabase-js": "^2.105.4",
     "@types/react-router-dom": "^5.3.3",
     "date-fns": "^4.1.0",
     "html5-qrcode": "^2.3.8",
@@ -41,6 +41,7 @@
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.75.0",
     "react-router-dom": "^5.3.4",
+    "socket.io-client": "^4.8.3",
     "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },

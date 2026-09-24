@@ -7,14 +7,15 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ENV, type Env } from './config/env';
+import { applyBodyParsers } from './platform/http/body';
 
 export async function bootstrap() {
   // rawBody : nécessaire à la vérification de signature des webhooks Stripe.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: false, rawBody: true });
   const env = app.get<Env>(ENV);
   app.use(helmet());
-  // Téléversement d'images en base64 (2 Mo décodés ≈ 2,7 Mo encodés).
-  app.useBodyParser('json', { limit: '3mb' });
+  // JSON (visuels en base64) et binaire brut (preuves d'activité).
+  applyBodyParsers(app);
   app.enableCors({ origin: env.CORS_ORIGINS.split(',').map((o) => o.trim()), credentials: true, exposedHeaders: ['Content-Disposition'] });
   app.enableShutdownHooks();
   await app.listen(env.PORT);

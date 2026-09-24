@@ -2,9 +2,8 @@ import { useRkBack } from '../../hooks/useRkBack';
 import React, { useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/auth.store';
-import { emailService } from '../../features/notifications/email.service';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /**
  * Mon compte — nom affiché, adresse email, mot de passe.
@@ -17,7 +16,7 @@ const strongEnough = (v: string) => v.length >= 8 && /[A-Z]/.test(v) && /\d/.tes
 const AccountPage: React.FC = () => {
   const history = useHistory();
   const back = useRkBack('/parent/settings');
-  const { user, profile, updateProfile } = useAuthStore();
+  const { user, profile, updateProfile, changeEmail, changePassword } = useAuthStore();
 
   // Brouillons : tant que l'utilisateur n'a rien tapé, on affiche la valeur
   // du profil (qui peut arriver après le premier rendu).
@@ -25,6 +24,7 @@ const AccountPage: React.FC = () => {
   const [emailDraft, setEmail] = useState<string | null>(null);
   const name = nameDraft ?? profile?.full_name ?? '';
   const email = emailDraft ?? user?.email ?? profile?.email ?? '';
+  const [emailPwd, setEmailPwd] = useState('');
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [busy, setBusy] = useState<'name' | 'email' | 'password' | null>(null);
@@ -48,13 +48,13 @@ const AccountPage: React.FC = () => {
     const v = email.trim().toLowerCase();
     if (!isEmail(v)) return say('err', 'Adresse email invalide.');
     if (v === (user?.email ?? '').toLowerCase()) return say('err', 'C’est déjà votre adresse actuelle.');
+    if (!emailPwd) return say('err', 'Saisissez votre mot de passe pour confirmer.');
     setBusy('email');
     try {
-      const { error } = await supabase.auth.updateUser({ email: v });
-      if (error) throw error;
-      // L'adresse ne change qu'après confirmation : profiles.email est
-      // resynchronisé à la prochaine connexion (auth.store).
-      say('ok', `Un email de confirmation a été envoyé à ${v}. L’adresse changera une fois confirmée.`);
+      // Confirmée par le mot de passe ; l'ancienne adresse reçoit un email de sécurité.
+      await changeEmail(v, emailPwd);
+      setEmail(null); setEmailPwd('');
+      say('ok', `Adresse modifiée : vous vous connectez désormais avec ${v}.`);
     } catch (e) {
       say('err', (e as Error).message || 'Impossible de changer l’adresse.');
     } finally { setBusy(null); }
@@ -66,14 +66,10 @@ const AccountPage: React.FC = () => {
     if (!strongEnough(newPwd)) return say('err', '8 caractères minimum, une majuscule et un chiffre.');
     setBusy('password');
     try {
-      // On revérifie le mot de passe actuel avant de le remplacer.
-      const { error: authErr } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPwd });
-      if (authErr) throw new Error('Mot de passe actuel incorrect.');
-      const { error } = await supabase.auth.updateUser({ password: newPwd });
-      if (error) throw error;
+      // Le serveur vérifie le mot de passe actuel, ferme les autres sessions et prévient par email.
+      await changePassword(currentPwd, newPwd);
       setCurrentPwd(''); setNewPwd('');
-      say('ok', 'Mot de passe modifié.');
-      emailService.sendPasswordChanged(user.email, profile?.full_name ?? '').catch(() => {});
+      say('ok', 'Mot de passe modifié. Vos autres appareils ont été déconnectés.');
     } catch (e) {
       say('err', (e as Error).message || 'Impossible de changer le mot de passe.');
     } finally { setBusy(null); }
@@ -107,16 +103,13 @@ const AccountPage: React.FC = () => {
   return (
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader>
           <button onClick={() => back()} style={{ fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12 }}>
             ← Réglages
           </button>
           <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>Mon compte</h1>
           <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>Nom, adresse email et mot de passe</p>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '18px 22px 140px' }}>
           <div style={eyebrow}>PROFIL</div>
@@ -134,8 +127,15 @@ const AccountPage: React.FC = () => {
             <div style={label}>Email</div>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="vous@email.com"
               autoComplete="email" autoCapitalize="none" style={field(!!email)} />
+            {emailChanged && (
+              <>
+                <div style={{ ...label, marginTop: 12 }}>Mot de passe</div>
+                <input type="password" value={emailPwd} onChange={e => setEmailPwd(e.target.value)} placeholder="Pour confirmer"
+                  autoComplete="current-password" style={field(!!emailPwd)} />
+              </>
+            )}
             <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 7, lineHeight: 1.5 }}>
-              Un lien de confirmation vous sera envoyé. Votre adresse actuelle reste active jusqu’à la confirmation.
+              Votre ancienne adresse recevra un email de sécurité.
             </div>
             <button onClick={saveEmail} disabled={!emailChanged || busy === 'email'} style={cta(emailChanged)}>
               {busy === 'email' ? 'Envoi…' : 'Changer l’adresse'}

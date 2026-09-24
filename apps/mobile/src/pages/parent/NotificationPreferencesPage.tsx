@@ -9,6 +9,7 @@ import {
   type NotificationPreferences,
   type PreferenceKey,
 } from '../../features/notifications/preferences.service';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /**
  * Préférences de notifications (5.15).
@@ -101,8 +102,7 @@ const NotificationPreferencesPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const errorTimer = useRef<number | null>(null);
 
-  // La ligne existe mais sans les colonnes v2 → la migration 025 n'est pas
-  // appliquée côté Supabase. On le dit plutôt que de laisser des switches morts.
+  // Réponse incomplète du serveur : on le dit plutôt que de laisser des switches morts.
   const schemaOutdated = !!prefs && prefs.activity_completed === undefined;
 
   const userId = user?.id ?? null;
@@ -180,10 +180,7 @@ const NotificationPreferencesPage: React.FC = () => {
       <IonContent fullscreen>
         <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-          <div style={{
-            padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-            background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-          }}>
+          <RkHeader>
             <button onClick={() => back()} style={{
               fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
             }}>← Réglages</button>
@@ -193,7 +190,7 @@ const NotificationPreferencesPage: React.FC = () => {
             <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>
               Choisissez ce que vous recevez, et par quel canal
             </p>
-          </div>
+          </RkHeader>
 
           <div style={{ padding: '18px 22px 140px' }}>
             {loading && !prefs ? (
@@ -212,7 +209,7 @@ const NotificationPreferencesPage: React.FC = () => {
                     padding: '12px 14px', marginBottom: 18, fontSize: 13, lineHeight: 1.5, color: 'var(--rk-text)',
                   }}>
                     <strong>Réglages indisponibles pour l’instant.</strong><br />
-                    Le serveur n’a pas encore la migration <code>025_notifications_v2</code> : lancez <code>supabase db push</code>.
+                    Le serveur ne répond pas pour le moment. Réessayez dans un instant.
                   </div>
                 )}
                 {/* Canaux */}

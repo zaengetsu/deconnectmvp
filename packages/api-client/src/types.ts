@@ -255,6 +255,37 @@ export interface PromoCode {
 
 // ─── Partenaires ─────────────────────────────────────────────────────────────
 export type PartnerRole = 'owner' | 'editor' | 'viewer' | 'reception';
+// ─── Landing partenaires ─────────────────────────────────────────────────────
+export type PartnerLeadKind = 'store' | 'brand' | 'public_institution' | 'cse';
+export type PartnerLeadStatus = 'new' | 'contacted' | 'converted' | 'archived';
+export interface PartnerLeadInput {
+  fullName: string;
+  organization: string;
+  email: string;
+  kind: PartnerLeadKind;
+  message?: string;
+  /** Piège à robots : toujours vide. */
+  website?: string;
+}
+export interface PartnerLead {
+  id: string;
+  fullName: string;
+  organization: string;
+  email: string;
+  kind: PartnerLeadKind;
+  kindLabel: string;
+  message: string | null;
+  source: string;
+  status: PartnerLeadStatus;
+  handledBy: string | null;
+  handledAt: string | null;
+  createdAt: string;
+}
+export interface PartnerLeadList {
+  items: PartnerLead[];
+  counts: Partial<Record<PartnerLeadStatus, number>>;
+}
+
 export interface AdminPartnerRow {
   id: string;
   name: string;

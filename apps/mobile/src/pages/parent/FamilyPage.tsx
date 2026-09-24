@@ -1,9 +1,11 @@
 import { useRkBack, useBackSwipe } from '../../hooks/useRkBack';
 import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
+import { compact, snake } from '../../lib/case';
 import { useAuthStore } from '../../stores/auth.store';
 import { RkShell, RkSheet } from '../../components/rk/RkShell';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Ma famille — porté de la maquette Rekonect (écran pFamily). */
 
@@ -39,26 +41,22 @@ const FamilyPageInner: React.FC = () => {
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const fetchMembers = async (): Promise<FamilyMember[]> => {
+    const res = await api<{ members: unknown[] }>('GET', '/v1/family/members');
+    return snake<FamilyMember[]>(res.members).filter(m => m.status !== 'revoked');
+  };
+
   const load = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('family_members')
-      .select('*')
-      .eq('owner_id', user.id)
-      .neq('status', 'revoked');
-    setMembers((data as FamilyMember[]) ?? []);
+    setMembers(await fetchMembers().catch(() => []));
   };
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       if (!user) return;
-      const { data } = await supabase
-        .from('family_members')
-        .select('*')
-        .eq('owner_id', user.id)
-        .neq('status', 'revoked');
-      if (!cancelled) setMembers((data as FamilyMember[]) ?? []);
+      const list = await fetchMembers().catch(() => []);
+      if (!cancelled) setMembers(list);
     })();
     return () => { cancelled = true; };
   }, [user]);
@@ -67,12 +65,9 @@ const FamilyPageInner: React.FC = () => {
     if (!user) return;
     setCreating(true);
     try {
-      const { data, error } = await supabase.rpc('create_family_invitation', {
-        p_member_role: role,
-        p_invite_email: email || null,
-      });
-      if (error) throw error;
-      setToken(typeof data === 'string' ? data : (data as { token?: string })?.token ?? null);
+      // Code court à 6 caractères, saisi par l'invité dans « Rejoindre une famille ».
+      const inv = await api<{ token: string; code: string | null }>('POST', '/v1/family/invitations', compact({ memberRole: role, email: email.trim() || undefined }));
+      setToken(inv.code ?? inv.token);
       load();
     } catch (e) {
       console.error('[pFamily] invite:', e);
@@ -112,10 +107,7 @@ const FamilyPageInner: React.FC = () => {
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }} {...backSwipe}>
 
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader>
           <button onClick={back} style={{
             fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
           }}>← Réglages</button>
@@ -125,7 +117,7 @@ const FamilyPageInner: React.FC = () => {
           <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>
             Co-parent, grands-parents, éducateur
           </p>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '18px 22px 60px', display: 'flex', flexDirection: 'column', gap: 22 }}>
 

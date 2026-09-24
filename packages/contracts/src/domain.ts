@@ -150,6 +150,11 @@ export type PartnerStatus = (typeof PARTNER_STATUSES)[number];
 export const PARTNER_MEMBER_ROLES = ['owner', 'editor', 'viewer', 'reception'] as const;
 /** Libellés affichés (portail, emails). */
 export const PARTNER_ROLE_LABELS: Record<string, string> = { owner: 'administrateur', editor: 'éditeur', viewer: 'lecteur', reception: 'accueil (validation des bons)' };
+/** Type d'organisation déclaré sur la landing partenaires. */
+export const PARTNER_LEAD_KINDS = ['store', 'brand', 'public_institution', 'cse'] as const;
+export type PartnerLeadKind = (typeof PARTNER_LEAD_KINDS)[number];
+export const PARTNER_LEAD_STATUSES = ['new', 'contacted', 'converted', 'archived'] as const;
+export type PartnerLeadStatus = (typeof PARTNER_LEAD_STATUSES)[number];
 export type PartnerMemberRole = (typeof PARTNER_MEMBER_ROLES)[number];
 
 export const OFFER_KINDS = ['child_reward', 'parent_voucher', 'sponsored_activity'] as const;

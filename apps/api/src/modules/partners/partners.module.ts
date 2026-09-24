@@ -6,7 +6,9 @@ import {
   InvitePartnerMemberInput,
   OFFER_KINDS,
   OFFER_STATUSES,
+  PARTNER_LEAD_STATUSES,
   PARTNER_MEMBER_ROLES,
+  PartnerLeadInput,
   PlaceInput,
   RangeQuery,
   RejectOfferInput,
@@ -14,17 +16,19 @@ import {
   SetPartnerStatusInput,
   UpdateOfferInput,
   UpdatePartnerInput,
+  UpdatePartnerLeadInput,
   UpdatePlaceInput,
   VerifyCodeInput,
 } from '@rekonect/contracts';
 import { z } from 'zod';
 import { AccessService } from '../../platform/auth/access.service';
-import { Allow, CurrentPrincipal, type Principal, type UserPrincipal } from '../../platform/auth/principal';
+import { Allow, CurrentPrincipal, type Principal, Public, type UserPrincipal } from '../../platform/auth/principal';
 import { zod } from '../../platform/http/zod.pipe';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import { EntitlementsModule } from '../billing/billing.module';
 import { PARTNER_REWARDS } from '../rewards/partner-rewards.port';
 import { AudienceService } from './audience.service';
+import { PartnerLeadsService } from './leads.service';
 import { ModerationService } from './moderation.service';
 import { OfferEngine } from './offer-engine';
 import { OffersService } from './offers.service';
@@ -41,6 +45,7 @@ const UpdateMemberInput = z.object({ role: z.enum(PARTNER_MEMBER_ROLES).optional
 const InviteMemberInput = InvitePartnerMemberInput.extend({ title: z.string().max(120).optional() });
 const PartnerProfileInput = UpdatePartnerInput.extend({ color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(), subtitle: z.string().max(120).optional() });
 const BrandReviewInput = z.object({ note: z.string().max(1000).optional() });
+const LeadsQuery = z.object({ status: z.enum(PARTNER_LEAD_STATUSES).optional() });
 
 /** Portail partenaires : tout est cloisonné par organisation (membre actif requis, enseigne → magasins). */
 @Controller('v1/partner/:partnerId')
@@ -244,7 +249,18 @@ export class AdminPartnersController {
     private readonly partners: PartnersService,
     private readonly offers: OffersService,
     private readonly moderation: ModerationService,
+    private readonly leads: PartnerLeadsService,
   ) {}
+
+  @Get('partner-leads')
+  leadList(@Query(zod(LeadsQuery)) q: z.infer<typeof LeadsQuery>) {
+    return this.leads.list(q.status);
+  }
+
+  @Patch('partner-leads/:id')
+  leadStatus(@CurrentPrincipal() p: UserPrincipal, @Param('id', ParseUUIDPipe) id: string, @Body(zod(UpdatePartnerLeadInput)) body: z.infer<typeof UpdatePartnerLeadInput>) {
+    return this.leads.setStatus(p, id, body.status);
+  }
 
   @Get('partners')
   list(@Query(zod(SearchQuery)) q: z.infer<typeof SearchQuery>) {
@@ -285,6 +301,19 @@ export class AdminPartnersController {
   }
 }
 
+/** Landing partenaires : formulaire « Être rappelé » (public). */
+@Controller('v1/partner-leads')
+export class PartnerLeadsController {
+  constructor(private readonly leads: PartnerLeadsService) {}
+
+  @Public()
+  @Post()
+  @HttpCode(202)
+  submit(@Body(zod(PartnerLeadInput)) body: PartnerLeadInput) {
+    return this.leads.submit(body);
+  }
+}
+
 /** Côté famille (app mobile) : bons débloqués, progression, vues d'offres. */
 @Controller('v1')
 export class FamilyOffersController {
@@ -319,8 +348,8 @@ export class FamilyOffersController {
 
 @Module({
   imports: [EntitlementsModule],
-  controllers: [PartnerPortalController, PartnerOfferController, PartnerAccountsController, AdminPartnersController, FamilyOffersController],
-  providers: [PartnersService, OffersService, AudienceService, PartnerStatsService, ModerationService, OfferEngine, { provide: PARTNER_REWARDS, useExisting: OfferEngine }],
+  controllers: [PartnerPortalController, PartnerOfferController, PartnerAccountsController, AdminPartnersController, PartnerLeadsController, FamilyOffersController],
+  providers: [PartnersService, PartnerLeadsService, OffersService, AudienceService, PartnerStatsService, ModerationService, OfferEngine, { provide: PARTNER_REWARDS, useExisting: OfferEngine }],
   exports: [PARTNER_REWARDS, PartnersService, OffersService, OfferEngine, ModerationService, AudienceService],
 })
 export class PartnersModule {}

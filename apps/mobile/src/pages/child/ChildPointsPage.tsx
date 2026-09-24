@@ -6,6 +6,8 @@ import { useAppStore } from '../../stores/app.store';
 import { gamificationService } from '../../features/gamification/gamification.service';
 import { LEVEL_NAMES, POINTS_CONFIG } from '../../lib/constants';
 import type { Badge, ChildBadge, PointsLedgerEntry } from '../../types/database.types';
+import { ProgressRing } from '@rekonect/brand';
+import { RkHero } from '../../components/rk/RkDecor';
 
 /** Points & niveaux — porté de la maquette Rekonect (écran cPoints). */
 
@@ -58,23 +60,18 @@ const ChildPointsPage: React.FC = () => {
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }} {...swipe}>
 
         {/* ── En-tête accent ──────────────────────────────────── */}
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 12px) 22px 24px',
-          background: 'var(--rk-accent)',
-          backgroundImage:
-            'radial-gradient(circle at 50% 130%, rgba(255,255,255,.22) 0 38%, transparent 39%),' +
-            'radial-gradient(circle at 50% 130%, rgba(255,255,255,.14) 56%, transparent 57%)',
-          color: 'var(--rk-accentink)', textAlign: 'center',
-        }}>
+        <RkHero tone="accent" padding="calc(env(safe-area-inset-top) + 12px) 22px 24px" style={{ textAlign: 'center' }} decor={{ rings: 'bottom', ringsSize: 300, halo: 'center', haloSize: 220 }}>
           <button onClick={back} style={{
             fontSize: 13, fontWeight: 700, opacity: .8, marginBottom: 10, display: 'block',
           }}>← Accueil</button>
 
-          <div style={{
-            width: 74, height: 74, borderRadius: '50%', background: 'rgba(255,255,255,.3)',
-            margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 28, fontWeight: 800,
-          }}>{level}</div>
+          <ProgressRing
+            value={progress} size={84} thickness={7} label={`Niveau ${level}`}
+            color="rgba(255,255,255,.92)" track="rgba(255,255,255,.28)" inner="var(--rk-accent)"
+            style={{ margin: '0 auto 12px' }}
+          >
+            <span style={{ fontSize: 28, color: 'var(--rk-accentink)' }}>{level}</span>
+          </ProgressRing>
 
           <div style={{ fontSize: 23, fontWeight: 800, letterSpacing: '-.03em' }}>{levelName}</div>
           <div style={{ fontSize: 13, fontWeight: 600, opacity: .8, marginTop: 3 }}>{points} points au total</div>
@@ -89,7 +86,7 @@ const ChildPointsPage: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
+        </RkHero>
 
         {/* ── Bascule ─────────────────────────────────────────── */}
         <div style={{ padding: '12px 22px 0' }}>

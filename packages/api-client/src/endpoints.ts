@@ -84,6 +84,16 @@ export function adminApi(http: HttpClient) {
     createPartner: (input: { name: string; kind: string; ownerEmail: string; planId: string; subtitle?: string; color?: string; status?: string; parentPartnerId?: string }) =>
       post<{ id: string; invitation: { url: string; email: string } }>('/partners', input),
     setPartnerStatus: (id: string, status: T.AdminPartnerRow['status']) => patch<{ id: string; status: string }>(`/partners/${q(id)}/status`, { status }),
+    partnerLeads: (status?: T.PartnerLeadStatus) => get<T.PartnerLeadList>('/partner-leads', { status }),
+    setPartnerLeadStatus: (id: string, status: T.PartnerLeadStatus) => patch<T.PartnerLead>(`/partner-leads/${q(id)}`, { status }),
+  };
+}
+
+/** Appels publics, sans session (landing partenaires). */
+export function publicApi(http: HttpClient) {
+  return {
+    partnerPlans: () => http.request<T.Plan[]>('GET', '/v1/billing/plans', { query: { audience: 'partner' }, anonymous: true }),
+    submitPartnerLead: (input: T.PartnerLeadInput) => http.request<{ received: true }>('POST', '/v1/partner-leads', { body: input, anonymous: true }),
   };
 }
 

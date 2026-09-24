@@ -8,6 +8,7 @@ import {
   isActionRequired,
   type AppNotification,
 } from '../../features/notifications/notification.service';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Notifications parent — porté de la maquette Rekonect (écran pNotifs). */
 
@@ -90,10 +91,7 @@ const NotificationsPage: React.FC = () => {
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader>
           <button onClick={back} style={{
             fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
           }}>← Accueil</button>
@@ -117,7 +115,7 @@ const NotificationsPage: React.FC = () => {
               }}>Réglages</button>
             </div>
           </div>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '18px 22px 140px' }}>
           {loading ? (

@@ -1,6 +1,6 @@
 'use client';
 import { categoryImage, formatDelta, formatEuros, formatNumber } from '@rekonect/api-client';
-import { C, ErrorBox, KpiCard, Skeleton, Stack, useSession } from '@rekonect/ui';
+import { C, ErrorBox, HeroBanner, KpiCard, Skeleton, Stack, useSession } from '@rekonect/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -45,22 +45,23 @@ export default function DashboardPage() {
 
   return (
     <Stack gap={20}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 260 }}>
-          <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-.035em', margin: 0 }}>Bonjour {first}</h1>
-          <p style={{ fontSize: 14, color: C.muted, margin: '6px 0 0' }}>{intro}</p>
-        </div>
-        <label style={{ position: 'relative', height: 36, padding: '0 14px', borderRadius: 11, background: '#fff', border: '1px solid rgba(22,24,43,.1)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-          {RANGES.find((r) => r.days === days)?.label} <span style={{ fontSize: 10, color: C.muted }}>▾</span>
-          <select aria-label="Période" value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}>
-            {RANGES.map((r) => (
-              <option key={r.days} value={r.days}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <HeroBanner
+        kicker={detail?.name?.toUpperCase()}
+        title={`Bonjour ${first}`}
+        subtitle={intro}
+        aside={
+          <label style={{ position: 'relative', height: 38, padding: '0 16px', borderRadius: 999, background: 'rgba(255,255,255,.14)', border: '1px solid rgba(255,255,255,.22)', color: '#fff', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {RANGES.find((r) => r.days === days)?.label} <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
+            <select aria-label="Période" value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}>
+              {RANGES.map((r) => (
+                <option key={r.days} value={r.days}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        }
+      />
       {dash.error && <ErrorBox error={dash.error} onRetry={() => dash.refetch()} />}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 12 }}>

@@ -1,245 +1,114 @@
-import { supabase } from '../../lib/supabase';
+import { api, withQuery } from '../../lib/api';
+import { compact, snake } from '../../lib/case';
 import type { Activity, ActivityCategory, ChildActivity } from '../../types/database.types';
 import type { ActivityFormData } from '../../lib/validations';
 
-export const activitiesService = {
-  // ─── Categories ──────────────────────────────────────────
-  async getCategories(): Promise<ActivityCategory[]> {
-    const { data, error } = await supabase
-      .from('activity_categories')
-      .select('*')
-      .order('name', { ascending: true });
+/** Formulaire de l'app (snake_case) → corps attendu par l'API. Les champs vides sont omis. */
+function activityBody(f: Partial<ActivityFormData>) {
+  return compact({
+    title: f.title,
+    description: f.description || undefined,
+    instructions: f.instructions || undefined,
+    points: f.points,
+    durationMinutes: f.duration_minutes || undefined,
+    difficulty: f.difficulty,
+    categoryId: f.category_id || undefined,
+  });
+}
 
-    if (error) throw error;
-    return data || [];
+const toActivities = (rows: unknown) => snake<Activity[]>(rows);
+const toChildActivities = (rows: unknown) => snake<ChildActivity[]>(rows);
+
+export const activitiesService = {
+  // ─── Catégories ──────────────────────────────────────────
+  async getCategories(): Promise<ActivityCategory[]> {
+    return snake<ActivityCategory[]>(await api('GET', '/v1/activity-categories'));
   },
 
-  // ─── Activities ──────────────────────────────────────────
-  async getActivities(filters?: {
-    category_id?: string;
-    difficulty?: string;
-    min_age?: number;
-    max_age?: number;
-  }): Promise<Activity[]> {
-    let query = supabase
-      .from('activities')
-      .select('*, category:activity_categories(*)')
-      .eq('is_active', true)
-      .order('title', { ascending: true });
-
-    if (filters?.category_id) {
-      query = query.eq('category_id', filters.category_id);
-    }
-    if (filters?.difficulty) {
-      query = query.eq('difficulty', filters.difficulty);
-    }
-    if (filters?.min_age) {
-      query = query.lte('min_age', filters.min_age);
-    }
-    if (filters?.max_age) {
-      query = query.gte('max_age', filters.max_age);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+  // ─── Activités ───────────────────────────────────────────
+  /** Catalogue visible par le parent (Rekonect, activités perso, partenaires consentis). */
+  async getActivities(filters?: { category_id?: string; difficulty?: string; min_age?: number; max_age?: number }): Promise<Activity[]> {
+    const rows = toActivities(await api('GET', withQuery('/v1/activities', { categoryId: filters?.category_id })));
+    return rows.filter(
+      (a) =>
+        (!filters?.difficulty || a.difficulty === filters.difficulty) &&
+        (filters?.min_age == null || a.min_age == null || a.min_age <= filters.min_age) &&
+        (filters?.max_age == null || a.max_age == null || a.max_age >= filters.max_age),
+    );
   },
 
   async getActivity(activityId: string): Promise<Activity> {
-    const { data, error } = await supabase
-      .from('activities')
-      .select('*, category:activity_categories(*)')
-      .eq('id', activityId)
-      .single();
-
-    if (error) throw error;
-    return data;
+    return snake<Activity>(await api('GET', `/v1/activities/${activityId}`));
   },
 
-  async createCustomActivity(parentId: string, formData: ActivityFormData): Promise<Activity> {
-    const { data, error } = await supabase
-      .from('activities')
-      .insert({
-        ...formData,
-        created_by: parentId,
-        activity_type: 'custom_parent' as const,
-        is_public: false,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+  async createCustomActivity(_parentId: string, formData: ActivityFormData): Promise<Activity> {
+    return snake<Activity>(await api('POST', '/v1/activities', activityBody(formData)));
   },
 
-  async getParentCustomActivities(parentId: string): Promise<Activity[]> {
-    const { data, error } = await supabase
-      .from('activities')
-      .select('*, category:activity_categories(*)')
-      .eq('created_by', parentId)
-      .eq('activity_type', 'custom_parent')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data || [];
+  async getParentCustomActivities(_parentId?: string): Promise<Activity[]> {
+    const rows = toActivities(await api('GET', withQuery('/v1/activities', { origin: 'custom' })));
+    return rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
   },
 
-  // ─── Child Activities ────────────────────────────────────
-  async getChildActivities(childId: string, status?: string): Promise<ChildActivity[]> {
-    let query = supabase
-      .from('child_activities')
-      .select('*, activity:activities(*, category:activity_categories(*))')
-      .eq('child_id', childId)
-      .order('created_at', { ascending: false });
-
-    if (status) {
-      query = query.eq('status', status);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
-  },
-
-  async selectActivity(childId: string, activityId: string): Promise<ChildActivity> {
-    const { data, error } = await supabase
-      .from('child_activities')
-      .insert({
-        child_id: childId,
-        activity_id: activityId,
-        status: 'selected',
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  /** Start an already-assigned activity (available → selected) */
-  async startAssignedActivity(childActivityId: string): Promise<ChildActivity> {
-    const { data, error } = await supabase
-      .from('child_activities')
-      .update({ status: 'selected' })
-      .eq('id', childActivityId)
-      .eq('status', 'available')
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  async submitActivity(
-    childActivityId: string,
-    childNote?: string,
-    proofUrl?: string,
-    proofType?: string
-  ): Promise<ChildActivity> {
-    const { data, error } = await supabase
-      .from('child_activities')
-      .update({
-        status: 'submitted',
-        submitted_at: new Date().toISOString(),
-        child_note: childNote,
-        ...(proofUrl ? { proof_url: proofUrl, proof_type: proofType } : {}),
-      })
-      .eq('id', childActivityId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  // Parent-only: get all pending validations
-  async getPendingValidations(parentId: string): Promise<ChildActivity[]> {
-    const { data, error } = await supabase
-      .from('child_activities')
-      .select('*, activity:activities(*), child:children!inner(*)')
-      .eq('child.parent_id', parentId)
-      .eq('status', 'submitted')
-      .order('submitted_at', { ascending: true });
-
-    if (error) throw error;
-    return data || [];
-  },
-
-  // Parent validates activity — calls RPC for safe points handling
-  async validateActivity(childActivityId: string, parentId: string, parentNote?: string): Promise<void> {
-    const { error } = await supabase.rpc('validate_child_activity', {
-      p_child_activity_id: childActivityId,
-      p_parent_id: parentId,
-      p_parent_note: parentNote || null,
-    });
-
-    if (error) throw error;
-  },
-
-  async rejectActivity(childActivityId: string, parentId: string, rejectionReason: string): Promise<void> {
-    const { error } = await supabase
-      .from('child_activities')
-      .update({
-        status: 'rejected',
-        rejected_at: new Date().toISOString(),
-        validated_by: parentId,
-        rejection_reason: rejectionReason,
-      })
-      .eq('id', childActivityId);
-
-    if (error) throw error;
-  },
-
-  // ─── Daily Challenges ─────────────────────────────────────
-  async getDailyChallenges(childId: string): Promise<Activity[]> {
-    const { data, error } = await supabase.rpc('get_daily_challenges', {
-      p_child_id: childId,
-    });
-
-    if (error) throw error;
-    return (data || []) as Activity[];
-  },
-
-  // ─── CRUD Custom Activities ───────────────────────────────
   async updateActivity(activityId: string, updates: Partial<ActivityFormData>): Promise<Activity> {
-    const { data, error } = await supabase
-      .from('activities')
-      .update(updates)
-      .eq('id', activityId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return snake<Activity>(await api('PATCH', `/v1/activities/${activityId}`, activityBody(updates)));
   },
 
   async deleteActivity(activityId: string): Promise<void> {
-    const { error } = await supabase
-      .from('activities')
-      .update({ is_active: false })
-      .eq('id', activityId);
-
-    if (error) throw error;
+    await api('PATCH', `/v1/activities/${activityId}`, { isActive: false });
   },
 
-  // ─── Assign activities to a child (parent action) ─────────
+  // ─── Activités d'un enfant ───────────────────────────────
+  async getChildActivities(childId: string, status?: string): Promise<ChildActivity[]> {
+    return toChildActivities(await api('GET', withQuery(`/v1/children/${childId}/activities`, { status })));
+  },
+
+  /** L'enfant choisit une activité du catalogue. */
+  async selectActivity(_childId: string, activityId: string): Promise<ChildActivity> {
+    return snake<ChildActivity>(await api('POST', '/v1/child-activities', { activityId }));
+  },
+
+  /** L'enfant commence une activité proposée par son parent. */
+  async startAssignedActivity(childActivityId: string): Promise<ChildActivity> {
+    return snake<ChildActivity>(await api('POST', `/v1/child-activities/${childActivityId}/start`));
+  },
+
+  async submitActivity(childActivityId: string, childNote?: string, proofUrl?: string, proofType?: string): Promise<ChildActivity> {
+    const type = proofType === 'video' ? 'video' : proofUrl ? 'photo' : childNote ? 'text' : undefined;
+    return snake<ChildActivity>(
+      await api('POST', `/v1/child-activities/${childActivityId}/submit`, compact({ note: childNote || undefined, proofUrl, proofType: type })),
+    );
+  },
+
+  async abandonActivity(childActivityId: string): Promise<void> {
+    await api('POST', `/v1/child-activities/${childActivityId}/abandon`);
+  },
+
+  /** Activités terminées qui attendent la validation du parent connecté. */
+  async getPendingValidations(_parentId?: string): Promise<ChildActivity[]> {
+    return toChildActivities(await api('GET', '/v1/validations'));
+  },
+
+  /** Validation : points, niveau, badges et série sont calculés par le serveur. */
+  async validateActivity(childActivityId: string, _parentId?: string, parentNote?: string): Promise<void> {
+    await api('POST', `/v1/child-activities/${childActivityId}/validate`, compact({ note: parentNote || undefined }));
+  },
+
+  async rejectActivity(childActivityId: string, _parentId: string | undefined, rejectionReason: string): Promise<void> {
+    await api('POST', `/v1/child-activities/${childActivityId}/reject`, compact({ reason: rejectionReason || undefined }));
+  },
+
+  // ─── Défis du jour ───────────────────────────────────────
+  async getDailyChallenges(childId: string): Promise<Activity[]> {
+    return toActivities(await api('GET', `/v1/children/${childId}/daily-challenges`));
+  },
+
+  // ─── Assignation par le parent ───────────────────────────
   /**
-   * Une activité est assignable autant de fois que le parent le souhaite
-   * (deux fois par semaine, à chaque enfant, à nouveau une fois réalisée…).
-   * Chaque assignation est une ligne child_activities distincte ; aucune
-   * n'est bloquée par une assignation précédente, active ou terminée.
+   * Une activité est assignable autant de fois que le parent le souhaite : chaque
+   * assignation est une ligne distincte, jamais bloquée par une précédente.
    */
   async assignActivitiesToChild(childId: string, activityIds: string[]): Promise<void> {
-    const toInsert = activityIds.map(activity_id => ({
-      child_id: childId,
-      activity_id,
-      status: 'available' as const,
-    }));
-
-    if (toInsert.length === 0) return;
-
-    const { error } = await supabase.from('child_activities').insert(toInsert);
-    if (error) throw error;
+    for (const activityId of activityIds) await api('POST', `/v1/children/${childId}/activities`, { activityId });
   },
 };

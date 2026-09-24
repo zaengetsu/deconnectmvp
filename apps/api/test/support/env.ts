@@ -10,6 +10,7 @@ Object.assign(process.env, {
   NOTIFICATIONS_ENGINE: 'api',
   RUN_JOBS: 'false',
   BREVO_API_KEY: '',
+  PARTNER_LEADS_EMAIL: 'equipe@rekonect.test',
   APNS_KEY_ID: '',
   FCM_SERVICE_ACCOUNT_JSON: '',
   SUPABASE_JWT_SECRET: 'supabase-test-secret-supabase-test-secret',

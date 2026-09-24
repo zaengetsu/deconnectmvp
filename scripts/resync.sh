@@ -116,7 +116,7 @@ case "$DB_HOST" in localhost|127.0.0.1|postgres|host.docker.internal) REMOTE=0 ;
 ok "Base : $DB_HOST$([ "$REMOTE" = 1 ] && echo ' (distante)')"
 for k in SUPABASE_JWT_SECRET BREVO_API_KEY STRIPE_SECRET_KEY; do
   [ -n "$(env_value "$k" "$API_DIR/.env")" ] || warn "$k vide : $(case $k in
-    SUPABASE_JWT_SECRET) echo "l'app mobile (connectée via Supabase) ne pourra pas appeler l'API";;
+    SUPABASE_JWT_SECRET) echo "les anciennes versions de l'app (connectées via Supabase) ne pourront plus appeler l'API";;
     BREVO_API_KEY) echo "les emails restent en file sans être envoyés";;
     STRIPE_SECRET_KEY) echo "les paiements sont désactivés";; esac)"
 done
@@ -132,7 +132,16 @@ if printf '%s' "$STATUS" | grep -qE "P1001|P1000|Can't reach database|Authentica
   fail "Base injoignable ($DB_HOST). Vérifiez DATABASE_URL et que la base est démarrée (pnpm db:up en local).
 $(printf '%s' "$STATUS" | grep -E 'Error|error' | head -3)"
 fi
-if printf '%s' "$STATUS" | grep -qE "P3005|not managed by Prisma|schema is not empty"; then
+# Base Supabase jamais migrée par Prisma : pas de table _prisma_migrations, mais des tables métier.
+# « migrate status » la présente alors comme « 7 migrations en attente », baseline comprise : c'est
+# « migrate deploy » qui échouerait ensuite en P3005. On la repère aux deux signes.
+NEEDS_BASELINE=0
+if printf '%s' "$STATUS" | grep -qE "P3005|not managed by Prisma|schema is not empty"; then NEEDS_BASELINE=1; fi
+if printf '%s' "$STATUS" | grep -q "20260924000000_baseline" && printf '%s' "$STATUS" | grep -q "have not yet been applied" \
+   && ! printf '%s' "$STATUS" | grep -q "No migration found in prisma/migrations"; then
+  if printf 'SELECT 1 FROM children LIMIT 1;' | pnpm exec prisma db execute --stdin >/dev/null 2>&1; then NEEDS_BASELINE=1; fi
+fi
+if [ "$NEEDS_BASELINE" = 1 ]; then
   info "Base existante jamais migrée par Prisma (ancienne base Supabase) : marquage « baseline »."
   confirm "Marquer $DB_HOST comme déjà au niveau de la migration baseline ?"
   pnpm exec prisma migrate resolve --applied 20260924000000_baseline >/dev/null

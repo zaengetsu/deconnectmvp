@@ -18,5 +18,9 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Paramètres gardés pour la compatibilité des écrans (ex. parentId, désormais déduit de la session).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' }],
+    },
   },
 ])

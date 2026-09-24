@@ -19,46 +19,10 @@ vi.mock('@ionic/react-router', () => ({
   IonReactRouter: (props: any) => React.createElement('div', null, props.children),
 }));
 
-// Mock Supabase
-vi.mock('../lib/supabase', () => {
-  const mockChain = () => ({
-    select: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    upsert: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    or: vi.fn().mockReturnThis(),
-    lte: vi.fn().mockReturnThis(),
-    gte: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-  });
-
-  return {
-    supabase: {
-      auth: {
-        getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1', email: 'test@test.com' } } }),
-        signInWithPassword: vi.fn(),
-        signUp: vi.fn(),
-        signOut: vi.fn().mockResolvedValue({ error: null }),
-        signInAnonymously: vi.fn().mockResolvedValue({ data: { user: { id: 'anon-1', is_anonymous: true } }, error: null }),
-        resetPasswordForEmail: vi.fn().mockResolvedValue({ data: {}, error: null }),
-        onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
-      },
-      from: vi.fn().mockImplementation(mockChain),
-      rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
-      removeChannel: vi.fn(),
-      channel: vi.fn().mockReturnValue({ on: vi.fn().mockReturnThis(), subscribe: vi.fn().mockReturnThis() }),
-      functions: {
-        invoke: vi.fn().mockResolvedValue({ data: null, error: null }),
-      },
-    },
-  };
-});
+// Temps réel : pas de vraie connexion WebSocket pendant les tests.
+vi.mock('socket.io-client', () => ({
+  io: vi.fn(() => ({ on: vi.fn(), removeAllListeners: vi.fn(), disconnect: vi.fn() })),
+}));
 
 // Mock Capacitor Preferences (session enfant persistée)
 vi.mock('@capacitor/preferences', () => ({

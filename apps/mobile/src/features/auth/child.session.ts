@@ -1,24 +1,22 @@
-import { supabase } from '../../lib/supabase';
 import { Preferences } from '@capacitor/preferences';
+import { api, ApiError } from '../../lib/api';
+import { devicePushToken, sessionStore } from '../../lib/session';
+import { toChild } from '../children/children.service';
 import type { Child } from '../../types/database.types';
 
 /**
- * Session enfant — identité propre à l'appareil enfant.
+ * Session enfant — identité propre à l'appareil de l'enfant, émise par l'API.
  *
- * L'espace enfant ne s'appuie PLUS sur la session du parent (« pont » retiré).
- * L'appareil enfant ouvre une session Supabase anonyme, que le lien QR ou la
- * connexion PIN rattache à `children.auth_user_id`. Toutes les policies RLS
- * enfant (migration 024) sont scopées sur cette identité.
- *
- * Conséquence assumée : un appareil = une session à la fois. Passer en mode
- * enfant depuis le téléphone d'un parent déconnecte le parent.
+ * Le lien QR (ou code court) puis le PIN ouvrent une session `child:<id>` : l'enfant
+ * ne porte jamais le jeton de son parent. Un appareil = une session à la fois : passer
+ * en mode enfant depuis le téléphone d'un parent ferme la session du parent.
  */
 
+/** Dernier enfant relié à cet appareil : permet de le reconnecter avec son seul PIN. */
 const CHILD_SESSION_KEY = 'dc_child_session';
 
 export interface ChildSessionRecord {
   childId: string;
-  authUserId: string;
 }
 
 export interface ChildLoginResult {
@@ -29,37 +27,32 @@ export interface ChildLoginResult {
   locked_until?: string;
 }
 
-/** Ouvre (ou réutilise) une session anonyme et renvoie son uid. */
-async function ensureAnonSession(): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (session?.user?.is_anonymous) return session.user.id;
-
-  // Session parent en cours → on la ferme : l'enfant ne doit jamais
-  // porter le jeton du parent.
-  if (session) await supabase.auth.signOut();
-
-  const { data, error } = await supabase.auth.signInAnonymously();
-  if (error || !data.user) {
-    console.error('[ChildSession] signInAnonymously failed:', error);
-    throw new Error(describeAnonError(error));
-  }
-  return data.user.id;
+interface ChildAuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  child: { id: string; parentId: string } & Record<string, unknown>;
+  parentName?: string | null;
 }
 
-/** Message utile plutôt que « vérifie ta connexion » pour tout. */
-function describeAnonError(error: { message?: string; status?: number } | null): string {
-  const m = (error?.message ?? '').toLowerCase();
-  if (m.includes('anonymous') && (m.includes('disabled') || m.includes('not enabled'))) {
-    return "Les connexions enfant ne sont pas activées sur le serveur (Supabase → Authentication → Providers → « Anonymous sign-ins »). Demande à un parent de l'activer.";
+async function openChildSession(res: ChildAuthResponse): Promise<Child> {
+  // Session parent éventuelle sur ce téléphone : révoquée côté serveur avant d'être remplacée.
+  const previous = await sessionStore.get();
+  if (previous?.kind === 'parent') {
+    await api('POST', '/v1/auth/logout', { refreshToken: previous.refreshToken }).catch(() => undefined);
   }
-  if (m.includes('rate') || error?.status === 429) {
-    return 'Trop de tentatives pour le moment. Réessaie dans une minute.';
+  await sessionStore.set({ kind: 'child', accessToken: res.accessToken, refreshToken: res.refreshToken, subjectId: res.child.id, parentId: res.child.parentId });
+  await Preferences.set({ key: CHILD_SESSION_KEY, value: JSON.stringify({ childId: res.child.id } as ChildSessionRecord) }).catch(() => undefined);
+  const child = toChild(res.child);
+  try { localStorage.setItem('deconnect_child', JSON.stringify(child)); } catch { /* stockage indisponible */ }
+  return child;
+}
+
+function failure(e: unknown): ChildLoginResult {
+  if (e instanceof ApiError) {
+    const details = e.details as { lockedUntil?: string } | undefined;
+    return { success: false, error: e.message, ...(details?.lockedUntil ? { locked_until: details.lockedUntil } : e.code === 'PIN_LOCKED' ? { locked_until: '' } : {}) };
   }
-  if (m.includes('fetch') || m.includes('network') || error?.status === 0 || !error?.message) {
-    return 'Connexion impossible. Vérifie ta connexion internet.';
-  }
-  return `Connexion impossible : ${error?.message}`;
+  return { success: false, error: 'Connexion impossible. Vérifie ta connexion internet.' };
 }
 
 export const childSession = {
@@ -68,88 +61,69 @@ export const childSession = {
     return !!user?.is_anonymous;
   },
 
-  /** Connexion par PIN — lie l'appareil à l'enfant. */
-  async login(childId: string, pin: string): Promise<ChildLoginResult> {
-    let authUserId: string;
-    try { authUserId = await ensureAnonSession(); }
-    catch (e) { return { success: false, error: (e as Error).message }; }
-
-    const { data, error } = await supabase.rpc('child_pin_login', {
-      p_child_id: childId,
-      p_pin: pin,
-      p_auth_user_id: authUserId,
-    });
-
-    if (error) {
-      await supabase.auth.signOut();
-      return { success: false, error: error.message };
+  /** Connexion par PIN — l'enfant choisit son profil (téléphone familial) ou se reconnecte. */
+  async login(childId: string, pin: string, deviceId?: string): Promise<ChildLoginResult> {
+    try {
+      const res = await api<ChildAuthResponse>('POST', '/v1/auth/child/login', { childId, pin, ...(deviceId ? { deviceId } : {}) }, { auth: false });
+      return { success: true, child: await openChildSession(res) };
+    } catch (e) {
+      return failure(e);
     }
-
-    const result = data as ChildLoginResult;
-
-    if (result?.success) {
-      await Preferences.set({
-        key: CHILD_SESSION_KEY,
-        value: JSON.stringify({ childId, authUserId } as ChildSessionRecord),
-      });
-    } else {
-      // PIN refusé : on ne laisse pas traîner une session anonyme orpheline
-      await supabase.auth.signOut();
-    }
-
-    return result;
   },
 
-  /** Lien initial par QR code — pose le PIN et lie l'appareil. */
-  async claimLink(token: string, pin: string, deviceId?: string) {
-    let authUserId: string;
-    try { authUserId = await ensureAnonSession(); }
-    catch (e) { return { success: false, error: (e as Error).message }; }
-
-    const { data, error } = await supabase.rpc('claim_child_link_token', {
-      p_token: token,
-      p_pin: pin,
-      p_device_id: deviceId ?? null,
-      p_auth_user_id: authUserId,
-    });
-
-    if (error) {
-      await supabase.auth.signOut();
-      return { success: false, error: error.message };
+  /** Lien initial par QR code ou code court : pose le PIN et relie l'appareil. */
+  async claimLink(token: string, pin: string, deviceId?: string): Promise<{ success: boolean; child?: Child; parent_name?: string | null; error?: string }> {
+    try {
+      const res = await api<ChildAuthResponse>('POST', '/v1/auth/child/link', { code: token, pin, ...(deviceId ? { deviceId } : {}) }, { auth: false });
+      return { success: true, child: await openChildSession(res), parent_name: res.parentName ?? null };
+    } catch (e) {
+      return failure(e);
     }
-
-    const result = data as { success: boolean; child?: Child; parent_name?: string; error?: string };
-
-    if (result?.success && result.child) {
-      await Preferences.set({
-        key: CHILD_SESSION_KEY,
-        value: JSON.stringify({ childId: result.child.id, authUserId } as ChildSessionRecord),
-      });
-    } else {
-      await supabase.auth.signOut();
-    }
-
-    return result;
   },
 
-  /** Récupère l'enfant rattaché à la session anonyme courante (après reload). */
+  /** Enfant rattaché à la session courante (après un redémarrage de l'app). */
   async restore(): Promise<Child | null> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.is_anonymous) return null;
+    const s = await sessionStore.get();
+    if (s?.kind !== 'child') return null;
+    try {
+      const me = await api<{ kind: string; child?: unknown }>('GET', '/v1/auth/me');
+      return me.kind === 'child' && me.child ? toChild(me.child) : null;
+    } catch {
+      return null;
+    }
+  },
 
-    const { data, error } = await supabase
-      .from('children')
-      .select('*')
-      .eq('auth_user_id', session.user.id)
-      .maybeSingle();
+  /** Dernier enfant relié à cet appareil (reconnexion par PIN sans le parent). */
+  async lastChildId(): Promise<string | null> {
+    try {
+      const { value } = await Preferences.get({ key: CHILD_SESSION_KEY });
+      return value ? ((JSON.parse(value) as ChildSessionRecord).childId ?? null) : null;
+    } catch {
+      return null;
+    }
+  },
 
-    if (error || !data) return null;
-    return data as Child;
+  /**
+   * Enfant déjà relié à cet appareil (mémorisé à la liaison) : après une mise à jour de l'app ou
+   * une session expirée, il se reconnecte avec son seul PIN, sans rescanner de QR code.
+   */
+  rememberedChild(): Child | null {
+    try {
+      const raw = localStorage.getItem('deconnect_child');
+      const child = raw ? (JSON.parse(raw) as Child) : null;
+      return child?.id ? child : null;
+    } catch {
+      return null;
+    }
   },
 
   /** Fin de session enfant (retour à l'écran de connexion parent). */
   async end(): Promise<void> {
-    await Preferences.remove({ key: CHILD_SESSION_KEY });
-    await supabase.auth.signOut();
+    const s = await sessionStore.get();
+    const pushToken = devicePushToken.get();
+    if (s) await api('POST', '/v1/auth/logout', { refreshToken: s.refreshToken, ...(pushToken ? { pushToken } : {}) }).catch(() => undefined);
+    await Preferences.remove({ key: CHILD_SESSION_KEY }).catch(() => undefined);
+    try { localStorage.removeItem('deconnect_child'); localStorage.removeItem('deconnect_child_id'); } catch { /* stockage indisponible */ }
+    await sessionStore.clear();
   },
 };

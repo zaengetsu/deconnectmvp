@@ -62,6 +62,19 @@ export const mails = {
         : [`« ${offerTitle} » n’a pas été validée.`, `Motif : ${reason ?? 'non précisé'}`, 'Vous pouvez la modifier et la soumettre à nouveau.'],
     ),
 
+  partnerLeadReceived: (to: string, name: string) =>
+    message(to, 'Votre demande a bien été reçue', `Merci ${name}`, [
+      'Nous avons bien reçu votre demande pour proposer des offres aux familles Rekonect.',
+      'Un membre de l’équipe vous rappelle sous 48 h ouvrées pour préparer votre première offre avec vous.',
+    ], undefined, name),
+
+  partnerLeadInternal: (to: string, lead: { fullName: string; organization: string; email: string; kindLabel: string; message: string | null }, url: string) =>
+    message(to, `Nouvelle demande partenaire : ${lead.organization}`, 'Nouvelle demande « Être rappelé »', [
+      `${lead.fullName} · ${lead.organization} (${lead.kindLabel})`,
+      `Email : ${lead.email}`,
+      ...(lead.message ? [`Message : ${lead.message}`] : []),
+    ], { label: 'Voir les demandes', url }),
+
   notification: (to: string, name: string | null, title: string, body: string) =>
     message(to, title, title, body.split('\n').filter(Boolean), undefined, name),
 };

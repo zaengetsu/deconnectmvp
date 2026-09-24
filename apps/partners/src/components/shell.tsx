@@ -1,6 +1,6 @@
 'use client';
 import { initialsOf } from '@rekonect/api-client';
-import { C, Logo, Spinner, useSession } from '@rekonect/ui';
+import { C, Logo, SoftPanel, Spinner, useSession } from '@rekonect/ui';
 import { useQuery } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
@@ -8,7 +8,7 @@ import { placesCopy } from '@/lib/labels';
 import { PartnerProvider, usePartner, usePartnerApi } from '@/lib/partner';
 
 export const NAV = [
-  { id: 'dash', href: '/', label: 'Tableau de bord', shape: '3px', min: 1 },
+  { id: 'dash', href: '/dashboard', label: 'Tableau de bord', shape: '3px', min: 1 },
   { id: 'offers', href: '/offers', label: 'Offres', shape: '50%', min: 1 },
   { id: 'audience', href: '/audience', label: 'Audience & zones', shape: '50% 50% 3px 3px', min: 1 },
   { id: 'stores', href: '/places', label: 'Lieux', shape: '3px 50% 3px 50%', min: 1 },
@@ -22,7 +22,7 @@ export const TITLES: Record<string, string> = { dash: 'Tableau de bord', offers:
 export function screenOf(pathname: string): string {
   if (pathname === '/offers/new') return 'create';
   if (pathname.startsWith('/offers/')) return 'edit';
-  return NAV.find((n) => (n.href === '/' ? pathname === '/' : pathname.startsWith(n.href)))?.id ?? 'dash';
+  return NAV.find((n) => pathname.startsWith(n.href))?.id ?? 'dash';
 }
 
 /** Libellé de portée affiché dans l'en-tête (« National · 142 magasins », « Rayon 15 km · Lyon »…). */
@@ -126,7 +126,7 @@ function Frame({ children }: { children: ReactNode }) {
                   onClick={() => {
                     setAccount(a.id);
                     setSw(false);
-                    router.push('/');
+                    router.push('/dashboard');
                   }}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, background: a.id === account.id ? '#F6F4F1' : 'transparent' }}
                 >
@@ -161,10 +161,7 @@ function Frame({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div style={{ background: '#EEEFFB', borderRadius: 14, padding: '13px 14px', fontSize: 12, color: C.text2, lineHeight: 1.5 }}>
-          <div style={{ fontWeight: 800, color: C.primary, marginBottom: 3 }}>Données anonymisées</div>
-          Vous voyez des volumes agrégés par zone. Aucune donnée nominative d'enfant n'est partagée.
-        </div>
+        <SoftPanel title="Données anonymisées">Vous voyez des volumes agrégés par zone. Aucune donnée nominative d'enfant n'est partagée.</SoftPanel>
       </aside>
 
       <main style={{ flex: 1, minWidth: 0 }}>

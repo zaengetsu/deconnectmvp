@@ -147,6 +147,30 @@ export class GamificationService {
     };
   }
 
+  async stats(p: Principal, childId: string, since: Date | null) {
+    await this.access.assertCanReadChild(p, childId);
+    const from = since ?? new Date(this.clock.now().getTime() - 7 * 86_400_000);
+    const [earned, spent, validated, recent, weekPoints, badges] = await Promise.all([
+      this.prisma.pointsLedger.aggregate({ where: { childId, points: { gt: 0 } }, _sum: { points: true } }),
+      this.prisma.pointsLedger.aggregate({ where: { childId, points: { lt: 0 } }, _sum: { points: true } }),
+      this.prisma.childActivity.count({ where: { childId, status: 'validated' } }),
+      this.prisma.childActivity.findMany({
+        where: { childId, status: 'validated', validatedAt: { gte: from } },
+        select: { validatedAt: true, earnedPoints: true },
+        orderBy: { validatedAt: 'asc' },
+      }),
+      this.prisma.pointsLedger.aggregate({ where: { childId, sourceType: 'activity_validation', createdAt: { gte: from } }, _sum: { points: true } }),
+      this.prisma.childBadge.count({ where: { childId, earnedAt: { gte: from } } }),
+    ]);
+    return {
+      totalEarned: earned._sum.points ?? 0,
+      totalSpent: Math.abs(spent._sum.points ?? 0),
+      activitiesValidated: validated,
+      since: from,
+      recent: { validated: recent, pointsEarned: weekPoints._sum.points ?? 0, badgesEarned: badges },
+    };
+  }
+
   listBadges() {
     return this.prisma.badge.findMany({ orderBy: [{ conditionType: 'asc' }, { conditionValue: 'asc' }] });
   }

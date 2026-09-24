@@ -10,6 +10,7 @@ import {
   useId,
 } from 'react';
 import { C, chip, seg, TONES, type Tone } from './tokens';
+import { EmptyMark, TileRing } from './decor';
 
 // ─── Surfaces ────────────────────────────────────────────────────────────────
 
@@ -233,16 +234,17 @@ export function Toggle({ checked, onChange, disabled, label }: { checked: boolea
   );
 }
 
-export function KpiCard({ label, value, delta, sub, deltaTone = 'green' }: { label: ReactNode; value: ReactNode; delta?: ReactNode; sub?: ReactNode; deltaTone?: Tone }) {
+export function KpiCard({ label, value, delta, sub, deltaTone = 'green', ring = C.primary }: { label: ReactNode; value: ReactNode; delta?: ReactNode; sub?: ReactNode; deltaTone?: Tone; ring?: string }) {
   const [b, f] = TONES[deltaTone];
   return (
-    <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 20, padding: 20 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 10 }}>
+    <div style={{ position: 'relative', overflow: 'hidden', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 20, padding: 20 }}>
+      <TileRing color={ring} />
+      <div style={{ position: 'relative', fontSize: 12, fontWeight: 700, color: C.muted }}>{label}</div>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 10 }}>
         <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-.035em', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
         {delta != null && delta !== '' && <div style={{ fontSize: 12, fontWeight: 800, color: f, background: b, borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap' }}>{delta}</div>}
       </div>
-      {sub != null && <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>{sub}</div>}
+      {sub != null && <div style={{ position: 'relative', fontSize: 12, color: C.muted, marginTop: 6 }}>{sub}</div>}
     </div>
   );
 }
@@ -302,7 +304,8 @@ export function TableRow({ template, children, onClick, gap = 16, padding = '12p
 
 export function EmptyState({ title, children, action }: { title: ReactNode; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div style={{ padding: '36px 20px', textAlign: 'center' }}>
+    <div style={{ padding: '32px 20px 36px', textAlign: 'center' }}>
+      <EmptyMark />
       <div style={{ fontSize: 15, fontWeight: 800 }}>{title}</div>
       {children && <div style={{ fontSize: 13, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>{children}</div>}
       {action && <div style={{ marginTop: 14 }}>{action}</div>}

@@ -150,7 +150,10 @@ const App: React.FC = () => {
               enfant relié dans son espace — plus de formulaire de connexion
               affiché par-dessus une session valide. */}
           <Route exact path="/splash">
-            {isParentSession ? <Redirect to="/parent" /> : isChildSession && selectedChild ? <Redirect to="/child" /> : <SplashPage />}
+            {isParentSession ? <Redirect to="/parent" />
+              : isChildSession && selectedChild ? <Redirect to="/child" />
+              : !user && childSession.rememberedChild() ? <Redirect to="/select-child" />
+              : <SplashPage />}
           </Route>
           <Route exact path="/onboarding">
             {isParentSession ? <Redirect to="/parent" /> : isChildSession && selectedChild ? <Redirect to="/child" /> : <OnboardingPage />}

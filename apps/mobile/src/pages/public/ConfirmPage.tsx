@@ -1,47 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../stores/auth.store';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
 
-// Cette page intercepte le lien de confirmation envoyé par Supabase Auth.
-// L'URL a la forme : /confirm#access_token=...&type=signup
-// Supabase gère automatiquement le token via onAuthStateChange.
+// Ancien lien de confirmation d'email (Supabase Auth). Les comptes créés via l'API sont actifs
+// dès l'inscription : on renvoie simplement vers l'espace parent, ou vers la connexion.
 
 const ConfirmPage: React.FC = () => {
   const history = useHistory();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const { user, isInitialized } = useAuthStore();
+
   useEffect(() => {
-    // Supabase parse le fragment #access_token automatiquement
-    // onAuthStateChange reçoit EMAIL_OTP_VERIFIED ou SIGNED_IN si valide
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        if (session?.user) {
-          setStatus('success');
-          // Redirige vers le parent dashboard après 2s
-          setTimeout(() => history.replace('/parent'), 2000);
-        }
-      }
-    });
-
-    // Fallback : si la session est déjà active au chargement
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        setStatus('error');
-        setErrorMsg('Lien invalide ou expiré.');
-        return;
-      }
-      if (session?.user) {
+    if (!isInitialized) return;
+    const t0 = window.setTimeout(() => {
+      if (user && !user.is_anonymous) {
         setStatus('success');
-        setTimeout(() => history.replace('/parent'), 2000);
+      } else {
+        setStatus('error');
+        setErrorMsg('Votre compte est actif : connectez-vous avec votre email et votre mot de passe.');
       }
-      // Sinon on attend onAuthStateChange
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    }, 0);
+    const t1 = window.setTimeout(() => history.replace(user && !user.is_anonymous ? '/parent' : '/login'), 2000);
+    return () => { window.clearTimeout(t0); window.clearTimeout(t1); };
+  }, [isInitialized, user, history]);
 
   return (
     <IonPage>

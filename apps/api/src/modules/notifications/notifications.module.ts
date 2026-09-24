@@ -48,6 +48,12 @@ export class NotificationsController {
     return this.center.markRead(p, id, false);
   }
 
+  @Post('notifications/remove-read')
+  @HttpCode(200)
+  removeRead(@CurrentPrincipal() p: Principal) {
+    return this.center.removeRead(p);
+  }
+
   @Delete('notifications/:id')
   remove(@CurrentPrincipal() p: Principal, @Param('id', ParseUUIDPipe) id: string) {
     return this.center.remove(p, id);

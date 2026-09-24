@@ -23,6 +23,9 @@ importers:
       '@rekonect/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@rekonect/brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
       '@rekonect/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -244,9 +247,9 @@ importers:
       '@ionic/react-router':
         specifier: ^8.8.6
         version: 8.8.19(react-dom@19.3.0(react@19.3.0))(react-router-dom@5.3.4(react@19.3.0))(react-router@5.3.4(react@19.3.0))(react@19.3.0)
-      '@supabase/supabase-js':
-        specifier: ^2.105.4
-        version: 2.117.1
+      '@rekonect/brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
       '@types/react-router-dom':
         specifier: ^5.3.3
         version: 5.3.3
@@ -280,6 +283,9 @@ importers:
       react-router-dom:
         specifier: ^5.3.4
         version: 5.3.4(react@19.3.0)
+      socket.io-client:
+        specifier: ^4.8.3
+        version: 4.8.3
       zod:
         specifier: ^4.4.3
         version: 4.6.5
@@ -359,6 +365,9 @@ importers:
       '@rekonect/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@rekonect/brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
       '@rekonect/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -434,6 +443,42 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@24.13.6)(jiti@2.7.0)(jsdom@27.4.0(@noble/hashes@1.8.0))(lightningcss@1.33.0)(msw@2.15.0(@types/node@24.13.6)(typescript@5.9.3))(terser@5.51.2)
 
+  packages/brand:
+    devDependencies:
+      '@testing-library/jest-dom':
+        specifier: ^6.9.1
+        version: 6.10.0(@testing-library/dom@10.4.2)
+      '@testing-library/react':
+        specifier: ^16.3.0
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@types/react':
+        specifier: ^19.2.2
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.2.2
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: ^5.1.0
+        version: 5.2.0(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2))
+      '@vitest/coverage-v8':
+        specifier: ^3.2.7
+        version: 3.2.7(vitest@3.2.7(@types/node@24.13.6)(jiti@2.7.0)(jsdom@27.4.0(@noble/hashes@1.8.0))(lightningcss@1.33.0)(msw@2.15.0(@types/node@24.13.6)(typescript@5.9.3))(terser@5.51.2))
+      jsdom:
+        specifier: ^27.0.1
+        version: 27.4.0(@noble/hashes@1.8.0)
+      react:
+        specifier: ^19.2.6
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.3.0(react@19.3.0)
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@24.13.6)(jiti@2.7.0)(jsdom@27.4.0(@noble/hashes@1.8.0))(lightningcss@1.33.0)(msw@2.15.0(@types/node@24.13.6)(typescript@5.9.3))(terser@5.51.2)
+
   packages/contracts:
     dependencies:
       zod:
@@ -458,6 +503,9 @@ importers:
       '@rekonect/api-client':
         specifier: workspace:*
         version: link:../api-client
+      '@rekonect/brand':
+        specifier: workspace:*
+        version: link:../brand
     devDependencies:
       '@testing-library/jest-dom':
         specifier: ^6.9.1
@@ -2690,38 +2738,6 @@ packages:
     engines: {node: '>=16.0.0', npm: '>=7.10.0'}
     hasBin: true
 
-  '@supabase/auth-js@2.117.1':
-    resolution: {integrity: sha512-3vJpc5thxaovbZ2zrWagzp/ZtCcXpQk1xftinzneNB1XLdhAmjqChOnj2Y8wpriYEFVvlqC+sFbR0JBUi83hDA==}
-    engines: {node: '>=22.0.0'}
-
-  '@supabase/functions-js@2.117.1':
-    resolution: {integrity: sha512-yyMIbEPMDXmjpjWe7WKd7en3mn6q4eDGLHEQVPcqWQIyC1hC7xa3po+o4cWSyItI6a6GYY/voDUpwhZmkxjcPw==}
-    engines: {node: '>=22.0.0'}
-
-  '@supabase/phoenix@0.4.5':
-    resolution: {integrity: sha512-aAn9H9ovVyeApKy11OWOrrOGq8DV68yWeH4ud2lN9fzn4aO8Zb5GLL9m1pUg9nLqIcT+ZDfAcsZe0E/nqdv2lw==}
-
-  '@supabase/postgrest-js@2.117.1':
-    resolution: {integrity: sha512-2a7we4uKXA1d94CUc02MpUj+LzZWO3qm8fH2PDq60tVt0T6KQTIiMmEsRD53lrnwZA9C3SsaKL3mk4DiDH6GvQ==}
-    engines: {node: '>=22.0.0'}
-
-  '@supabase/realtime-js@2.117.1':
-    resolution: {integrity: sha512-GkbZfeh5F5aqnUhG1chrdaVQmnRK8ZUL8H16Km/eVVsX99x0w2AijfxjONCB9YKgrXArcnMsKSJzOIQGCv+qvQ==}
-    engines: {node: '>=22.0.0'}
-
-  '@supabase/storage-js@2.117.1':
-    resolution: {integrity: sha512-ytDQbELKKzIVStLkShxTTK5FT4vds12eXF5QfW+gTHVvO7cB3VKZ7Hu2wkUaJlDZCaUfFdih3vznF6P8kNkJQg==}
-    engines: {node: '>=22.0.0'}
-
-  '@supabase/supabase-js@2.117.1':
-    resolution: {integrity: sha512-VcyiuXF0jZFbN4GcHtytSGNwfXnRJwlxjGFZxeEmRVgSLSbaoHk2Avyg49/aEdTJGBSz5vK1L7uhYiYdfl0Axw==}
-    engines: {node: '>=22.0.0'}
-    peerDependencies:
-      '@opentelemetry/api': '>=1.0.0'
-    peerDependenciesMeta:
-      '@opentelemetry/api':
-        optional: true
-
   '@swc/core-darwin-arm64@1.16.2':
     resolution: {integrity: sha512-i/j0HNbnn79qnTVPicvay92Nark8fW8NQqn1e2mGERjUXNpBV0+SwQxlRpk2zBhn6laJ8PDI6Kn1nHZhnz3LCA==}
     engines: {node: '>=10'}
@@ -4851,10 +4867,6 @@ packages:
   human-signals@2.1.0:
     resolution: {integrity: sha512-B4FFZ6q/T2jhhksgkbEW3HBvWIfDW85snkQgawt07S7J5QXTk6BkNV+0yAeZrM5QpMAdYlocGoljn0sJ/WQkFw==}
     engines: {node: '>=10.17.0'}
-
-  iceberg-js@0.8.1:
-    resolution: {integrity: sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA==}
-    engines: {node: '>=20.0.0'}
 
   iconv-lite@0.7.3:
     resolution: {integrity: sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==}
@@ -9285,38 +9297,6 @@ snapshots:
       '@rollup/rollup-win32-arm64-msvc': 4.44.0
       '@rollup/rollup-win32-x64-msvc': 4.44.0
 
-  '@supabase/auth-js@2.117.1':
-    dependencies:
-      tslib: 2.8.1
-
-  '@supabase/functions-js@2.117.1':
-    dependencies:
-      tslib: 2.8.1
-
-  '@supabase/phoenix@0.4.5': {}
-
-  '@supabase/postgrest-js@2.117.1':
-    dependencies:
-      tslib: 2.8.1
-
-  '@supabase/realtime-js@2.117.1':
-    dependencies:
-      '@supabase/phoenix': 0.4.5
-      tslib: 2.8.1
-
-  '@supabase/storage-js@2.117.1':
-    dependencies:
-      iceberg-js: 0.8.1
-      tslib: 2.8.1
-
-  '@supabase/supabase-js@2.117.1':
-    dependencies:
-      '@supabase/auth-js': 2.117.1
-      '@supabase/functions-js': 2.117.1
-      '@supabase/postgrest-js': 2.117.1
-      '@supabase/realtime-js': 2.117.1
-      '@supabase/storage-js': 2.117.1
-
   '@swc/core-darwin-arm64@1.16.2':
     optional: true
 
@@ -11759,8 +11739,6 @@ snapshots:
       - supports-color
 
   human-signals@2.1.0: {}
-
-  iceberg-js@0.8.1: {}
 
   iconv-lite@0.7.3:
     dependencies:

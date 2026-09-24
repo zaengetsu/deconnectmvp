@@ -7,6 +7,7 @@ import { gamificationService } from '../../features/gamification/gamification.se
 import RkSearch from '../../components/rk/RkSearch';
 import { matches } from '../../lib/search';
 import type { Reward, RewardRequest } from '../../types/database.types';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Récompenses enfant — porté de la maquette Rekonect (écran cRewards). */
 
@@ -66,10 +67,7 @@ const ChildRewardsPage: React.FC = () => {
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader>
           <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
             Récompenses
           </h1>
@@ -82,7 +80,7 @@ const ChildRewardsPage: React.FC = () => {
               {available} points à dépenser
             </div>
           </div>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 22 }}>
 

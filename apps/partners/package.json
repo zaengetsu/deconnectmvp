@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@rekonect/brand": "workspace:*",
     "@fontsource-variable/manrope": "^5.3.0",
     "@rekonect/api-client": "workspace:*",
     "@rekonect/contracts": "workspace:*",

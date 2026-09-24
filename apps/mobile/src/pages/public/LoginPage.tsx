@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
+import { Halo, LogoMark, Pattern, Rings, tint } from '@rekonect/brand';
 
 /** Connexion — porté de la maquette Rekonect (écran login). */
 
@@ -35,15 +36,15 @@ const LoginPage: React.FC = () => {
       <div className="rk-app rk-screen" style={{
         minHeight: '100%', background: 'var(--rk-bg)', display: 'flex', flexDirection: 'column',
       }}>
-        <div style={{ padding: 'calc(env(safe-area-inset-top) + 30px) 26px 34px', textAlign: 'center' }}>
-          <div style={{ width: 52, height: 52, position: 'relative', margin: '0 auto 18px' }}>
-            <div style={{ position: 'absolute', left: 0, top: 13, width: 29, height: 29, borderRadius: '50%', border: '3px solid var(--rk-indigo)' }} />
-            <div style={{ position: 'absolute', left: 19, top: 13, width: 29, height: 29, borderRadius: '50%', border: '3px solid var(--rk-accent)' }} />
-          </div>
-          <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
+        <div style={{ padding: 'calc(env(safe-area-inset-top) + 30px) 26px 34px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+          <Pattern kind="arcs" fade={180} fadeStop={70} line={tint('var(--rk-indigo)', 0.12)} accent={tint('var(--rk-accent)', 0.28)} />
+          <Rings at={{ x: '50%', y: 'calc(env(safe-area-inset-top) + 56px)' }} size={260} color="var(--rk-indigo)" strength={0.55} />
+          <Halo at={{ x: '50%', y: 'calc(env(safe-area-inset-top) + 56px)' }} size={150} color="var(--rk-accent)" intensity={0.3} />
+          <LogoMark size={52} a="var(--rk-indigo)" b="var(--rk-accent)" stroke={3} style={{ display: 'block', margin: '0 auto 18px' }} />
+          <h1 style={{ position: 'relative', fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
             Bon retour
           </h1>
-          <p style={{ fontSize: 14, color: 'var(--rk-text3)', margin: '6px 0 0' }}>Espace parent</p>
+          <p style={{ position: 'relative', fontSize: 14, color: 'var(--rk-text3)', margin: '6px 0 0' }}>Espace parent</p>
         </div>
 
         <div style={{

@@ -5,6 +5,7 @@ import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { childrenService } from '../../features/children/children.service';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Ajouter un enfant — porté de la maquette Rekonect (écran pNewKid). */
 
@@ -53,10 +54,7 @@ const CreateChildPage: React.FC = () => {
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader>
           <button onClick={() => back()} style={{
             fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
           }}>← Enfants</button>
@@ -66,7 +64,7 @@ const CreateChildPage: React.FC = () => {
           <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>
             Vous pourrez lier son appareil ensuite
           </p>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '20px 22px 140px', display: 'flex', flexDirection: 'column', gap: 18 }}>
 

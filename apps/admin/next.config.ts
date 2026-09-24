@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 
 const config: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@rekonect/ui', '@rekonect/api-client'],
+  transpilePackages: ['@rekonect/brand', '@rekonect/ui', '@rekonect/api-client'],
   poweredByHeader: false,
   async headers() {
     return [

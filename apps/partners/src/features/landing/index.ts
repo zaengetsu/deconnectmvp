@@ -1,0 +1,1 @@
+export { PartnersLanding } from './landing';

@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Headers, HttpCode, Module, Post } from '@nestjs/common';
 import {
   AcceptPartnerInvitationInput,
+  ChangeEmailInput,
+  ChangePasswordInput,
   ChildLinkInput,
   ChildPinLoginInput,
   ForgotPasswordInput,
@@ -10,7 +12,7 @@ import {
   ResetPasswordInput,
 } from '@rekonect/contracts';
 import { z } from 'zod';
-import { CurrentPrincipal, type Principal, Public } from '../../platform/auth/principal';
+import { Allow, CurrentPrincipal, type Principal, Public, type UserPrincipal } from '../../platform/auth/principal';
 import { zod } from '../../platform/http/zod.pipe';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
@@ -64,6 +66,20 @@ export class AuthController {
   @HttpCode(200)
   reset(@Body(zod(ResetPasswordInput)) body: ResetPasswordInput) {
     return this.auth.resetPassword(body);
+  }
+
+  @Post('password/change')
+  @Allow('parent', 'admin', 'partner')
+  @HttpCode(200)
+  changePassword(@CurrentPrincipal() p: UserPrincipal, @Body(zod(ChangePasswordInput)) body: ChangePasswordInput, @Headers('user-agent') ua?: string) {
+    return this.auth.changePassword(p, body, { userAgent: ua });
+  }
+
+  @Post('email')
+  @Allow('parent', 'admin', 'partner')
+  @HttpCode(200)
+  changeEmail(@CurrentPrincipal() p: UserPrincipal, @Body(zod(ChangeEmailInput)) body: ChangeEmailInput) {
+    return this.auth.changeEmail(p, body);
   }
 
   @Public()

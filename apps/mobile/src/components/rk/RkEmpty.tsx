@@ -1,10 +1,11 @@
 import React from 'react';
+import { Halo, Pattern, Rings, tint as alpha } from '@rekonect/brand';
 import RkTile from './RkTile';
 
 /**
  * État vide Rekonect : une carte qui dit ce que l'écran contiendra, pourquoi
  * il est vide, et — quand c'est utile — comment le remplir. Jamais un écran
- * blanc.
+ * blanc. Habillage charte : arcs estompés, ondes et halo autour de l'icône.
  */
 const RkEmpty: React.FC<{
   icon?: string;
@@ -16,11 +17,16 @@ const RkEmpty: React.FC<{
   cta?: { label: string; onClick: () => void };
   secondary?: { label: string; onClick: () => void };
 }> = ({ icon, img, tint = 'var(--rk-indigosoft)', title, text, steps, cta, secondary }) => (
-  <div style={{
+  <div data-rk-empty="" style={{
+    position: 'relative', overflow: 'hidden', isolation: 'isolate',
     background: 'var(--rk-surface)', border: '1px solid var(--rk-border)',
     borderRadius: 24, padding: '26px 20px 20px', textAlign: 'center',
   }}>
-    <RkTile icon={icon} img={img} tint={tint} size={64} radius={20} style={{ margin: '0 auto 16px' }} />
+    <Pattern kind="arcs" fade={180} fadeStop={48} line={alpha('var(--rk-nav)', 0.13)} accent={alpha('var(--rk-accent)', 0.3)} />
+    <Halo at={{ x: '50%', y: '58px' }} size={150} color="var(--rk-accent)" intensity={0.28} />
+    <Rings at={{ x: '50%', y: '58px' }} size={210} color="var(--rk-nav)" strength={0.6} />
+    <RkTile icon={icon} img={img} tint={tint} size={64} radius={20} style={{ margin: '0 auto 16px', position: 'relative' }} />
+    <div style={{ position: 'relative' }}>
     <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-.02em', color: 'var(--rk-text)', marginBottom: 6 }}>
       {title}
     </div>
@@ -60,6 +66,7 @@ const RkEmpty: React.FC<{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>{secondary.label}</button>
     )}
+    </div>
   </div>
 );
 

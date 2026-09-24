@@ -1,11 +1,12 @@
-import { supabase } from '../../lib/supabase';
+import { api, withQuery } from '../../lib/api';
+import { camel, compact, snake } from '../../lib/case';
 
 /**
  * Préférences de notification (5.15).
  *
  * Une ligne par destinataire : le parent (child_id NULL) ou un enfant.
  * Le modèle vit dans notification_preferences (migrations 001 + 025) — on
- * n'ouvre pas un second système de préférences à côté.
+ * n'ouvre pas un second système de préférences à côté. Lu et modifié via l'API.
  */
 export interface NotificationPreferences {
   id: string;
@@ -60,56 +61,34 @@ export type PreferenceKey = keyof Omit<
   'id' | 'parent_id' | 'child_id' | 'quiet_hours_start' | 'quiet_hours_end' | 'timezone'
 >;
 
+/** Destinataire de chaque ligne chargée : l'API adresse les préférences par enfant, pas par identifiant. */
+const owners = new Map<string, string | null>();
+
+async function load(childId?: string): Promise<NotificationPreferences | null> {
+  try {
+    const prefs = snake<NotificationPreferences>(await api('GET', withQuery('/v1/notification-preferences', { childId })));
+    owners.set(prefs.id, prefs.child_id ?? null);
+    return prefs;
+  } catch (e) {
+    console.error('[PreferencesService] fetch failed:', e);
+    return null;
+  }
+}
+
 export const preferencesService = {
-  /** Préférences du parent (crée la ligne par défaut si besoin). */
-  async getParentPreferences(parentId: string): Promise<NotificationPreferences | null> {
-    const { data, error } = await supabase
-      .from('notification_preferences')
-      .select('*')
-      .eq('parent_id', parentId)
-      .is('child_id', null)
-      .maybeSingle();
-
-    if (error) {
-      console.error('[PreferencesService] fetch failed:', error);
-      return null;
-    }
-    if (data) return data as NotificationPreferences;
-
-    const { data: created, error: insertError } = await supabase
-      .from('notification_preferences')
-      .insert({ parent_id: parentId })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('[PreferencesService] create failed:', insertError);
-      return null;
-    }
-    return created as NotificationPreferences;
+  /** Préférences du parent (la ligne par défaut est créée par le serveur si besoin). */
+  getParentPreferences(_parentId?: string): Promise<NotificationPreferences | null> {
+    return load();
   },
 
-  async getChildPreferences(childId: string): Promise<NotificationPreferences | null> {
-    const { data, error } = await supabase
-      .from('notification_preferences')
-      .select('*')
-      .eq('child_id', childId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('[PreferencesService] fetch child failed:', error);
-      return null;
-    }
-    return (data as NotificationPreferences) ?? null;
+  getChildPreferences(childId: string): Promise<NotificationPreferences | null> {
+    return load(childId);
   },
 
   async update(id: string, patch: Partial<NotificationPreferences>): Promise<void> {
-    const { error } = await supabase
-      .from('notification_preferences')
-      .update({ ...patch, updated_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) throw error;
+    const { id: _id, parent_id: _p, child_id: _c, ...fields } = patch;
+    const childId = owners.get(id) ?? undefined;
+    await api('PUT', withQuery('/v1/notification-preferences', { childId }), compact(camel<Record<string, unknown>>(fields)));
   },
 
   /** Quiet hours : « HH:MM » ou null pour désactiver. */

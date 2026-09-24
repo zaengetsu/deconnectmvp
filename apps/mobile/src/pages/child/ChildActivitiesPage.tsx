@@ -10,6 +10,8 @@ import RkSearch from '../../components/rk/RkSearch';
 import { useSwipe, stepSection } from '../../hooks/useSwipe';
 import { matches } from '../../lib/search';
 import type { Activity, ActivityCategory, ChildActivity } from '../../types/database.types';
+import { RkCelebrate, RkHeader } from '../../components/rk/RkDecor';
+import { Sticker } from '@rekonect/brand';
 
 /** Mes défis — porté de la maquette Rekonect (écran cActs). */
 
@@ -104,10 +106,7 @@ const ChildActivitiesPage: React.FC = () => {
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }} {...swipe}>
 
         {/* ── En-tête + bascule ───────────────────────────────── */}
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 18px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader padding="calc(env(safe-area-inset-top) + 16px) 22px 18px">
           <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
             Mes défis
           </h1>
@@ -125,7 +124,7 @@ const ChildActivitiesPage: React.FC = () => {
               </button>
             ))}
           </div>
-        </div>
+        </RkHeader>
 
         {/* ── En cours ────────────────────────────────────────── */}
         {tab === 'mine' && (
@@ -318,6 +317,14 @@ const ChildActivitiesPage: React.FC = () => {
             const st = getCategoryStyle(submitTarget.activity?.category?.slug);
             return (
               <>
+                <div aria-hidden style={{ position: 'relative', height: 58, margin: '-10px -20px 4px', overflow: 'hidden' }}>
+                  <RkCelebrate />
+                  <div style={{ position: 'absolute', right: 22, top: 16 }}>
+                    <Sticker tilt={-5} bg="var(--rk-accent)" fg="var(--rk-accentink)">
+                      +{submitTarget.activity?.points ?? 0} pts
+                    </Sticker>
+                  </div>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 13, marginBottom: 18 }}>
                   <div style={{
                     width: 46, height: 46, borderRadius: 14, background: st.bg, flexShrink: 0,
@@ -340,7 +347,7 @@ const ChildActivitiesPage: React.FC = () => {
                   childActivityId={submitTarget.id}
                   onUploadComplete={setProof}
                   onRemove={async () => {
-                    if (proof) { await storageService.deleteActivityProof(proof.path).catch(() => {}); setProof(null); }
+                    if (proof) { await storageService.deleteActivityProof(proof.path, proof.childActivityId).catch(() => {}); setProof(null); }
                   }}
                   currentProof={proof}
                   hint="conseillé pour cette activité"

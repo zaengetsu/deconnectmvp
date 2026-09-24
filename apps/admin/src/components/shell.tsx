@@ -1,6 +1,6 @@
 'use client';
 import { formatNumber, initialsOf } from '@rekonect/api-client';
-import { C, CountBadge, Logo, Modal, Spinner, TextInput, useSession } from '@rekonect/ui';
+import { C, CountBadge, Halo, Logo, Modal, Pattern, Rings, Spinner, TextInput, useSession } from '@rekonect/ui';
 import { useQuery } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
@@ -66,7 +66,10 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <aside style={{ width: 244, flexShrink: 0, background: C.ink, color: '#fff', position: 'sticky', top: 0, height: '100vh', display: 'flex', flexDirection: 'column', padding: '22px 14px 18px' }}>
+      <aside style={{ width: 244, flexShrink: 0, background: C.ink, color: '#fff', position: 'sticky', top: 0, height: '100vh', display: 'flex', flexDirection: 'column', padding: '22px 14px 18px', overflowX: 'hidden', overflowY: 'auto', isolation: 'isolate' }}>
+        <Pattern kind="dots" fade={0} fadeStop={45} line="rgba(255,255,255,.09)" style={{ zIndex: -1 }} />
+        <Rings at="bottom-left" size={360} strength={0.45} style={{ zIndex: -1 }} />
+        <Halo at="bottom-left" size={240} intensity={0.28} style={{ zIndex: -1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '0 8px 22px' }}>
           <Logo size={32} />
           <div>

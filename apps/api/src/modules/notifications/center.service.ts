@@ -93,6 +93,15 @@ export class NotificationCenterService {
     return { success: true };
   }
 
+  /** « Effacer les lues » du centre de notifications. */
+  async removeRead(p: Principal) {
+    const res = await this.prisma.notification.updateMany({
+      where: { ...recipientOf(p), status: 'sent', isRead: true },
+      data: { status: 'cancelled' },
+    });
+    return { removed: res.count };
+  }
+
   // ─── Préférences ───────────────────────────────────────────────────────────
 
   private async prefsRow(p: UserPrincipal, childId?: string) {

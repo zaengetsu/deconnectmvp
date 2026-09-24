@@ -1,71 +1,48 @@
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
+import { snake } from '../../lib/case';
 import type { Child, ChildInsert, ChildUpdate } from '../../types/database.types';
 
-export const childrenService = {
-  async getChildren(parentId: string): Promise<Child[]> {
-    const { data, error } = await supabase
-      .from('children')
-      .select('*')
-      .eq('parent_id', parentId)
-      .eq('is_active', true)
-      .order('created_at', { ascending: true });
+/** Les dates « jour » arrivent en ISO complet : l'app attend AAAA-MM-JJ (calcul de série). */
+export function toChild(raw: unknown): Child {
+  const c = snake<Child>(raw);
+  return { ...c, last_activity_date: c.last_activity_date ? String(c.last_activity_date).slice(0, 10) : null };
+}
 
-    if (error) throw error;
-    return data || [];
+export const childrenService = {
+  /** Enfants actifs du parent connecté (le paramètre est gardé pour la compatibilité des écrans). */
+  async getChildren(_parentId?: string): Promise<Child[]> {
+    const rows = await api<unknown[]>('GET', '/v1/children');
+    return rows.map(toChild);
   },
 
   async getChild(childId: string): Promise<Child> {
-    const { data, error } = await supabase
-      .from('children')
-      .select('*')
-      .eq('id', childId)
-      .single();
-
-    if (error) throw error;
-    return data;
+    return toChild(await api('GET', `/v1/children/${childId}`));
   },
 
   async createChild(child: ChildInsert): Promise<Child> {
-    const { data, error } = await supabase
-      .from('children')
-      .insert(child)
-      .select()
-      .single();
-
-    // 409 = unique constraint (double-submit) — fetch existing instead
-    if (error) {
-      if (error.code === '23505') {
-        const { data: existing } = await supabase
-          .from('children')
-          .select('*')
-          .eq('parent_id', child.parent_id)
-          .eq('display_name', child.display_name)
-          .single();
-        if (existing) return existing;
-      }
-      throw error;
-    }
-    return data;
+    return toChild(
+      await api('POST', '/v1/children', {
+        displayName: child.display_name,
+        age: child.age,
+        ...(child.avatar_url ? { avatarUrl: child.avatar_url } : {}),
+      }),
+    );
   },
 
   async updateChild(childId: string, updates: ChildUpdate): Promise<Child> {
-    const { data, error } = await supabase
-      .from('children')
-      .update(updates)
-      .eq('id', childId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const body: Record<string, unknown> = {};
+    if (updates.display_name !== undefined) body.displayName = updates.display_name;
+    if (updates.age !== undefined) body.age = updates.age;
+    if (updates.avatar_url) body.avatarUrl = updates.avatar_url;
+    return toChild(await api('PATCH', `/v1/children/${childId}`, body));
   },
 
   async deactivateChild(childId: string): Promise<void> {
-    const { error } = await supabase
-      .from('children')
-      .update({ is_active: false })
-      .eq('id', childId);
+    await api('DELETE', `/v1/children/${childId}`);
+  },
 
-    if (error) throw error;
+  /** QR + code court pour relier l'appareil de l'enfant (15 min). */
+  async createLinkCode(childId: string): Promise<{ token: string; code: string; expiresAt: string }> {
+    return api('POST', `/v1/children/${childId}/link-code`);
   },
 };

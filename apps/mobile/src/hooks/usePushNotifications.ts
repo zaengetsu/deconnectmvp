@@ -12,10 +12,8 @@ import { useAppStore } from '../stores/app.store';
  * - Subscribes to real-time in-app notifications
  * - Provides toast state for in-app notification banners
  *
- * IMPORTANT: Uses a ref to track the active Realtime channel unsubscribe
- * function, ensuring we never accumulate stale channels. Accumulated
- * channels eventually exhaust the Supabase Realtime connection limit
- * (~100 channels), after which ALL data fetching stops working.
+ * IMPORTANT: Uses a ref to track the active realtime subscription, so that a
+ * remount never stacks listeners on the shared WebSocket (lib/realtime.ts).
  */
 export function usePushNotifications() {
   const { user } = useAuthStore();

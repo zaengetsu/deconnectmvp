@@ -9,6 +9,7 @@ import RkTile from '../../components/rk/RkTile';
 import { useSwipe, stepSection } from '../../hooks/useSwipe';
 import { matches } from '../../lib/search';
 import type { Reward, RewardRequest } from '../../types/database.types';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Récompenses parent — porté de la maquette Rekonect (écran pRewards). */
 
@@ -110,10 +111,7 @@ const ParentRewardsPage: React.FC = () => {
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }} {...swipe}>
 
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 18px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader padding="calc(env(safe-area-inset-top) + 16px) 22px 18px">
           <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
             Récompenses
           </h1>
@@ -138,7 +136,7 @@ const ParentRewardsPage: React.FC = () => {
             placeholder={tab === 'mine' ? 'Rechercher dans mes récompenses' : 'Rechercher une idée'}
             style={{ marginTop: 12 }}
           />
-        </div>
+        </RkHeader>
 
         {/* ── Les miennes ─────────────────────────────────────── */}
         {tab === 'mine' && (

@@ -7,6 +7,7 @@ import { childrenService } from '../../features/children/children.service';
 import { childSession } from '../../features/auth/child.session';
 import { gamificationService } from '../../features/gamification/gamification.service';
 import type { Child } from '../../types/database.types';
+import { Halo, Rings } from '@rekonect/brand';
 
 /**
  * Qui joue ? — porté de la maquette Rekonect (écran selectchild).
@@ -21,7 +22,8 @@ const ChildSelectorPage: React.FC = () => {
 
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState<Child | null>(null);
+  // Appareil d'un enfant déjà relié, sans session (mise à jour de l'app, session expirée) : écran PIN direct.
+  const [pending, setPending] = useState<Child | null>(() => (!user || user.is_anonymous ? childSession.rememberedChild() : null));
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -80,7 +82,9 @@ const ChildSelectorPage: React.FC = () => {
           minHeight: '100%', background: 'var(--rk-bg)',
           padding: 'calc(env(safe-area-inset-top) + 32px) 26px 44px',
         }}>
-          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ textAlign: 'center', marginBottom: 28, position: 'relative', isolation: 'isolate' }}>
+            <Rings at={{ x: '50%', y: '38px' }} size={250} color="var(--rk-accent)" strength={0.8} style={{ zIndex: -1 }} />
+            <Halo at={{ x: '50%', y: '38px' }} size={160} color="var(--rk-accent)" intensity={0.35} style={{ zIndex: -1 }} />
             {isImg ? (
               <img src={pending.avatar_url!} alt="" style={{
                 width: 76, height: 76, borderRadius: '50%', objectFit: 'cover',

@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useRkBack } from '../../hooks/useRkBack';
 import { RkSheet } from '../../components/rk/RkShell';
 import { offersService, type VoucherClaim, type VoucherProgress } from '../../features/offers/offers.service';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /**
  * Portefeuille de bons : avantages partenaires débloqués par les activités des enfants.
@@ -81,13 +82,13 @@ const VouchersPage: React.FC = () => {
     <IonPage>
       <IonContent fullscreen>
         <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
-          <div style={{ padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px', background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)' }}>
+          <RkHeader>
             <button onClick={back} aria-label="Retour" style={{ fontSize: 15, fontWeight: 700, color: 'var(--rk-text2)', marginBottom: 12 }}>
               ← Réglages
             </button>
             <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', color: 'var(--rk-text)', margin: 0 }}>Bons &amp; avantages</h1>
             <p style={{ fontSize: 14, color: 'var(--rk-text3)', margin: '6px 0 0' }}>Débloqués grâce aux efforts de vos enfants</p>
-          </div>
+          </RkHeader>
 
           <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {error && (

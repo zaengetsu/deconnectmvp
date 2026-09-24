@@ -97,6 +97,21 @@ export const EMAILS = {
     }),
   }),
 
+  'auth.email_changed': define<{ newEmail: string }>({
+    audience: 'any',
+    category: 'security',
+    render: (d) => ({
+      subject: 'L’adresse de votre compte Rekonect a changé',
+      preheader: `Nouvelle adresse : ${d.newEmail}`,
+      title: 'Adresse email modifiée',
+      blocks: [
+        { kind: 'p', text: 'L’adresse de connexion de votre compte Rekonect vient d’être modifiée. Les prochains emails partiront vers la nouvelle adresse.' },
+        { kind: 'rows', rows: [{ label: 'Nouvelle adresse', value: d.newEmail }] },
+        { kind: 'note', tone: 'danger', text: 'Si vous n’êtes pas à l’origine de ce changement, contactez-nous immédiatement.' },
+      ],
+    }),
+  }),
+
   'auth.new_login': define<{ device: string; when: string }>({
     audience: 'any',
     category: 'security',

@@ -7,6 +7,7 @@ import { rewardsService } from '../../features/rewards/rewards.service';
 import { childrenService } from '../../features/children/children.service';
 import { REWARD_CATEGORIES } from '../../lib/constants';
 import type { Child } from '../../types/database.types';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Nouvelle récompense — porté de la maquette Rekonect (écran pNewRew). */
 
@@ -58,17 +59,14 @@ const CreateRewardPage: React.FC = () => {
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader>
           <button onClick={() => back()} style={{
             fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
           }}>← Récompenses</button>
           <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
             Nouvelle récompense
           </h1>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '20px 22px 140px', display: 'flex', flexDirection: 'column', gap: 18 }}>
 

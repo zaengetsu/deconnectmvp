@@ -14,7 +14,7 @@ export const EnvSchema = z.object({
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).default(900),
   REFRESH_TTL_DAYS: z.coerce.number().int().min(1).default(30),
   CHILD_REFRESH_TTL_DAYS: z.coerce.number().int().min(1).default(180),
-  CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:3001,http://localhost:3002'),
+  CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:3001,http://localhost:3002,capacitor://localhost,http://localhost'),
   APP_TIMEZONE: z.string().default('Europe/Paris'),
   NOTIFICATIONS_ENGINE: z.enum(['api', 'sql']).default('api'),
   RUN_JOBS: bool.default(true),
@@ -32,6 +32,8 @@ export const EnvSchema = z.object({
   EMAIL_FROM_NAME: z.string().default('Rekonect'),
   WEB_ADMIN_URL: z.string().default('http://localhost:3001'),
   WEB_PARTNERS_URL: z.string().default('http://localhost:3002'),
+  /** Adresse de l'équipe prévenue à chaque demande « Être rappelé » de la landing partenaires (vide : pas d'alerte). */
+  PARTNER_LEADS_EMAIL: z.string().default(''),
   MOBILE_APP_URL: z.string().default('rekonect://'),
   /** Libellé d'environnement affiché dans le back-office. */
   APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),

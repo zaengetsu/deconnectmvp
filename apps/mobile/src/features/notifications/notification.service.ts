@@ -1,5 +1,6 @@
-import { api } from '../../lib/api';
-import { supabase } from '../../lib/supabase';
+import { api, withQuery } from '../../lib/api';
+import { realtime } from '../../lib/realtime';
+import { devicePushToken, sessionStore } from '../../lib/session';
 
 export interface AppNotification {
   id: string;
@@ -42,160 +43,117 @@ export function filterNotifications(list: AppNotification[], filter: Notificatio
   return list.filter(n => FILTER_TYPES[filter].includes(n.type ?? ''));
 }
 
+interface ApiNotification {
+  id: string;
+  type: string | null;
+  title: string;
+  body: string;
+  icon: string | null;
+  route: string | null;
+  data: Record<string, unknown> | null;
+  priority: AppNotification['priority'];
+  entityType: string | null;
+  entityId: string | null;
+  isRead: boolean;
+  sentAt: string;
+}
+
+/** Notification de l'API → forme lue par les écrans (héritée de la table Supabase). */
+export function toAppNotification(n: ApiNotification, recipientType: 'parent' | 'child', recipientId: string): AppNotification {
+  return {
+    id: n.id,
+    recipient_type: recipientType,
+    recipient_id: recipientId,
+    title: n.title,
+    body: n.body,
+    icon: n.icon ?? '🔔',
+    route: n.route,
+    data: n.data ?? {},
+    is_read: n.isRead,
+    created_at: n.sentAt,
+    type: n.type,
+    priority: n.priority,
+    entity_type: n.entityType,
+    entity_id: n.entityId,
+    status: 'sent',
+  };
+}
+
+async function list(recipientType: 'parent' | 'child', recipientId: string, limit: number): Promise<AppNotification[]> {
+  const res = await api<{ items: ApiNotification[] }>('GET', withQuery('/v1/notifications', { limit: Math.min(100, limit) }));
+  return res.items.map((n) => toAppNotification(n, recipientType, recipientId));
+}
+
+/**
+ * Centre de notifications. Le destinataire est celui de la session (parent ou enfant) :
+ * les paramètres recipientType / recipientId ne servent plus qu'à remplir les objets renvoyés.
+ * Les notifications sont créées uniquement par le serveur, à partir des événements métier.
+ */
 export const notificationService = {
-  // ─── Fetch notifications ────────────────────────────────
-  async getParentNotifications(parentId: string, limit = 30): Promise<AppNotification[]> {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('recipient_type', 'parent')
-      .eq('recipient_id', parentId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (error) throw error;
-    return data || [];
+  getParentNotifications(parentId: string, limit = 30): Promise<AppNotification[]> {
+    return list('parent', parentId, limit);
   },
 
-  async getChildNotifications(childId: string, limit = 30): Promise<AppNotification[]> {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('recipient_type', 'child')
-      .eq('recipient_id', childId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (error) throw error;
-    return data || [];
+  getChildNotifications(childId: string, limit = 30): Promise<AppNotification[]> {
+    return list('child', childId, limit);
   },
 
-  async getUnreadCount(recipientType: 'parent' | 'child', recipientId: string): Promise<number> {
-    const { count, error } = await supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('recipient_type', recipientType)
-      .eq('recipient_id', recipientId)
-      .eq('is_read', false);
-
-    if (error) return 0;
-    return count || 0;
+  async getUnreadCount(_recipientType?: 'parent' | 'child', _recipientId?: string): Promise<number> {
+    try {
+      return (await api<{ count: number }>('GET', '/v1/notifications/unread-count')).count ?? 0;
+    } catch {
+      return 0;
+    }
   },
 
   async markAsRead(notificationId: string): Promise<void> {
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', notificationId);
+    await api('POST', `/v1/notifications/${notificationId}/read`).catch(() => undefined);
   },
 
-  async markAllRead(recipientType: 'parent' | 'child', recipientId: string): Promise<void> {
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('recipient_type', recipientType)
-      .eq('recipient_id', recipientId)
-      .eq('is_read', false);
+  async markAllRead(_recipientType?: 'parent' | 'child', _recipientId?: string): Promise<void> {
+    await api('POST', '/v1/notifications/read-all').catch(() => undefined);
   },
 
-  // ─── Create notification (client-side trigger) ──────────
-  async createNotification(
-    recipientType: 'parent' | 'child',
-    recipientId: string,
-    title: string,
-    body: string,
-    icon = '🔔',
-    route?: string,
-    data: Record<string, unknown> = {}
-  ): Promise<void> {
-    await supabase.rpc('create_notification', {
-      p_recipient_type: recipientType,
-      p_recipient_id: recipientId,
-      p_title: title,
-      p_body: body,
-      p_icon: icon,
-      p_route: route || null,
-      p_data: data,
-    });
-  },
-
-  // ─── Push token management ─────────────────────────────
-  async savePushToken(
-    userId: string,
-    token: string,
-    platform: 'ios' | 'android' | 'web',
-    childId?: string | null
-  ): Promise<void> {
-    // Enregistrement via l'API : un jeton appartient à un seul destinataire (repris si l'appareil
-    // change de compte), l'environnement APNs est mémorisé (sandbox en développement) et la date de
-    // dernière activité sert au nettoyage des jetons morts.
+  // ─── Jetons push ─────────────────────────────────────────
+  /**
+   * Un jeton appartient à un seul destinataire (repris si l'appareil change de compte) ;
+   * l'environnement APNs est mémorisé (sandbox en développement).
+   */
+  async savePushToken(_userId: string, token: string, platform: 'ios' | 'android' | 'web', _childId?: string | null): Promise<void> {
     const environment = import.meta.env.DEV ? 'development' : 'production';
+    devicePushToken.set(token);
     try {
       await api('POST', '/v1/push-tokens', { token, platform, environment });
-      return;
     } catch (e) {
-      console.warn('[NotificationService] API push-tokens indisponible, repli Supabase :', e);
+      console.warn('[NotificationService] Jeton push non enregistré :', e);
     }
-    // Repli : un token appartient soit à un parent, soit à un enfant — jamais aux deux.
-    const { error } = await supabase
-      .from('push_tokens')
-      .upsert(
-        {
-          user_id: childId ? null : userId,
-          child_id: childId ?? null,
-          token,
-          platform,
-          environment,
-          updated_at: new Date().toISOString(),
-          last_seen_at: new Date().toISOString(),
-        },
-        { onConflict: 'token' }
-      );
-
-    if (error) console.error('[NotificationService] Failed to save push token:', error);
   },
 
-  // ─── Suppression (5.13) ────────────────────────────────
+  async removePushToken(token: string): Promise<void> {
+    await api('POST', '/v1/push-tokens/unregister', { token }).catch(() => undefined);
+  },
+
+  // ─── Suppression (5.13) ──────────────────────────────────
   async deleteNotification(notificationId: string): Promise<void> {
-    const { error } = await supabase.from('notifications').delete().eq('id', notificationId);
-    if (error) console.error('[NotificationService] delete failed:', error);
+    await api('DELETE', `/v1/notifications/${notificationId}`).catch((e) => console.error('[NotificationService] delete failed:', e));
   },
 
-  async deleteAllRead(recipientType: 'parent' | 'child', recipientId: string): Promise<void> {
-    const { error } = await supabase
-      .from('notifications')
-      .delete()
-      .eq('recipient_type', recipientType)
-      .eq('recipient_id', recipientId)
-      .eq('is_read', true);
-    if (error) console.error('[NotificationService] deleteAllRead failed:', error);
+  async deleteAllRead(_recipientType?: 'parent' | 'child', _recipientId?: string): Promise<void> {
+    await api('POST', '/v1/notifications/remove-read').catch((e) => console.error('[NotificationService] deleteAllRead failed:', e));
   },
 
-  // ─── Real-time subscription ────────────────────────────
+  // ─── Temps réel ──────────────────────────────────────────
+  /** Nouvelle notification pour la session courante (WebSocket de l'API). */
   subscribeToNotifications(
     recipientType: 'parent' | 'child',
     recipientId: string,
-    onNewNotification: (notification: AppNotification) => void
+    onNewNotification: (notification: AppNotification) => void,
   ) {
-    const channelName = `notifications:${recipientType}:${recipientId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `recipient_id=eq.${recipientId}`,
-        },
-        (payload) => {
-          onNewNotification(payload.new as AppNotification);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return realtime.subscribe(async (id) => {
+      if (!(await sessionStore.get())) return;
+      const latest = await list(recipientType, recipientId, 10).catch(() => []);
+      const n = latest.find((x) => x.id === id);
+      if (n) onNewNotification(n);
+    });
   },
 };

@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { useRkBack } from '../../hooks/useRkBack';
 import { RkSheet } from '../../components/rk/RkShell';
 import { billingService, euros, type FamilyPlan, type FamilySubscription, type Invoice } from '../../features/billing/billing.service';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /**
  * « Mon abonnement » : plan actuel, limites utilisées, changement de plan (Stripe),
@@ -101,13 +102,13 @@ const SubscriptionPage: React.FC = () => {
     <IonPage>
       <IonContent fullscreen>
         <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
-          <div style={{ padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px', background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)' }}>
+          <RkHeader>
             <button onClick={back} aria-label="Retour" style={{ fontSize: 15, fontWeight: 700, color: 'var(--rk-text2)', marginBottom: 12 }}>
               ← Réglages
             </button>
             <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', color: 'var(--rk-text)', margin: 0 }}>Mon abonnement</h1>
             <p style={{ fontSize: 14, color: 'var(--rk-text3)', margin: '6px 0 0' }}>Plan, limites et factures de la famille</p>
-          </div>
+          </RkHeader>
 
           <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {notice && (

@@ -6,13 +6,13 @@ import React, { useEffect, useState } from 'react';
 import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useParams, useHistory } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { supabase } from '../../lib/supabase';
 import { childrenService } from '../../features/children/children.service';
 import { activitiesService } from '../../features/activities/activities.service';
 import { gamificationService, getRealStreak } from '../../features/gamification/gamification.service';
 import { useRk, RkSheet } from '../../components/rk/RkShell';
 import { LEVEL_NAMES } from '../../lib/constants';
 import type { Child, ChildActivity, ChildBadge } from '../../types/database.types';
+import { RkHero } from '../../components/rk/RkDecor';
 
 /** Fiche enfant — porté de la maquette Rekonect (écran pKid). */
 
@@ -47,11 +47,9 @@ const ChildDetailPage: React.FC = () => {
 
   const createLink = async () => {
     try {
-      const { data, error } = await supabase.rpc('create_child_link_token', { p_child_id: childId });
-      if (error) throw error;
-      const payload = typeof data === 'string' ? { token: data } : (data as { token?: string; code?: string } | null);
-      setToken(payload?.token ?? null);
-      setCode(payload?.code ?? null);
+      const payload = await childrenService.createLinkCode(childId);
+      setToken(payload.token);
+      setCode(payload.code);
       setPin(String(Math.floor(1000 + Math.random() * 9000)));
       openSheet('qr');
     } catch (e) {
@@ -68,7 +66,7 @@ const ChildDetailPage: React.FC = () => {
   const nextThreshold = gamificationService.getNextLevelThreshold(child.total_points);
   const progress = gamificationService.getLevelProgress(child.total_points);
   const streak = getRealStreak(child.streak_days || 0, child.last_activity_date);
-  const linked = !!child.auth_user_id;
+  const linked = !!child.device_linked_at || !!child.auth_user_id;
   // La confirmation « Appareil lié » n'est mise en avant que dans les 24 h qui
   // suivent la liaison ; ensuite, un simple statut discret dans l'en-tête.
   const justLinked = linked && isWithinLastDay(child.device_linked_at);
@@ -90,14 +88,7 @@ const ChildDetailPage: React.FC = () => {
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
         {/* ── En-tête indigo ──────────────────────────────────── */}
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 12px) 22px 26px',
-          background: 'var(--rk-indigo)',
-          backgroundImage:
-            'radial-gradient(circle at 15% 120%, rgba(255,255,255,.14) 0 44%, transparent 45%),' +
-            'radial-gradient(circle at 15% 120%, rgba(255,255,255,.1) 66%, transparent 67%)',
-          color: '#fff',
-        }}>
+        <RkHero tone="indigo" padding="calc(env(safe-area-inset-top) + 12px) 22px 26px">
           <button onClick={back} style={{
             height: 32, padding: '0 13px', borderRadius: 999, background: 'rgba(255,255,255,.18)',
             color: '#fff', fontSize: 13, fontWeight: 700,
@@ -156,7 +147,7 @@ const ChildDetailPage: React.FC = () => {
               <div style={{ width: 15, height: 15, borderRadius: 4, border: '2px solid #fff' }} />
             </button>
           </div>
-        </div>
+        </RkHero>
 
         <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 22 }}>
 

@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
+import { applyBodyParsers } from '../../src/platform/http/body';
 import request from 'supertest';
 import { seed } from '../../prisma/seed';
 import { AppModule } from '../../src/app.module';
@@ -71,7 +72,7 @@ export async function createHarness(): Promise<Harness> {
     .compile();
 
   const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false, rawBody: true });
-  app.useBodyParser('json', { limit: '3mb' });
+  applyBodyParsers(app);
   await app.init();
   const prisma = app.get(PrismaService);
   const relay = app.get(OutboxRelay);

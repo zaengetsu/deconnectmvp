@@ -1,177 +1,84 @@
-import { supabase } from '../../lib/supabase';
+import { api, withQuery } from '../../lib/api';
+import { compact, snake } from '../../lib/case';
 import type { Reward, RewardRequest } from '../../types/database.types';
 import type { RewardFormData } from '../../lib/validations';
 
+function rewardBody(f: Partial<RewardFormData>) {
+  return compact({
+    title: f.title,
+    description: f.description || undefined,
+    requiredPoints: f.required_points,
+    childId: f.child_id || undefined,
+  });
+}
+
+const toRewards = (rows: unknown) => snake<Reward[]>(rows);
+const toRequests = (rows: unknown) => snake<RewardRequest[]>(rows);
+
 export const rewardsService = {
-  // ─── Rewards ─────────────────────────────────────────────
-  async getRewards(parentId: string, childId?: string): Promise<Reward[]> {
-    let query = supabase
-      .from('rewards')
-      .select('*')
-      .eq('parent_id', parentId)
-      .eq('is_active', true)
-      .order('required_points', { ascending: true });
-
-    if (childId) {
-      query = query.or(`child_id.eq.${childId},child_id.is.null`);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+  // ─── Récompenses ─────────────────────────────────────────
+  /**
+   * Récompenses actives. Côté parent : toutes, ou celles d'un enfant (+ communes).
+   * Côté enfant, la session suffit : le serveur renvoie les siennes.
+   */
+  async getRewards(_parentId?: string, childId?: string): Promise<Reward[]> {
+    return toRewards(await api('GET', withQuery('/v1/rewards', { childId })));
   },
 
-  async getChildRewards(parentId: string, childId: string): Promise<Reward[]> {
-    const { data, error } = await supabase
-      .from('rewards')
-      .select('*')
-      .eq('parent_id', parentId)
-      .eq('is_active', true)
-      .or(`child_id.eq.${childId},child_id.is.null`)
-      .order('required_points', { ascending: true });
-
-    if (error) throw error;
-    return data || [];
+  async getChildRewards(_parentId: string | undefined, childId: string): Promise<Reward[]> {
+    return rewardsService.getRewards(undefined, childId);
   },
 
-  async createReward(parentId: string, formData: RewardFormData): Promise<Reward> {
-    const { data, error } = await supabase
-      .from('rewards')
-      .insert({
-        ...formData,
-        parent_id: parentId,
-        reward_type: 'custom' as const,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+  async createReward(_parentId: string, formData: RewardFormData): Promise<Reward> {
+    return snake<Reward>(await api('POST', '/v1/rewards', rewardBody(formData)));
   },
 
   async updateReward(rewardId: string, updates: Partial<RewardFormData>): Promise<Reward> {
-    const { data, error } = await supabase
-      .from('rewards')
-      .update(updates)
-      .eq('id', rewardId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return snake<Reward>(await api('PATCH', `/v1/rewards/${rewardId}`, rewardBody(updates)));
   },
 
+  /** Désactivation (l'historique des demandes est conservé). Le serveur vérifie le propriétaire. */
   async deleteReward(rewardId: string): Promise<void> {
-    // Defense-in-depth: filter by parent_id explicitly, even though RLS
-    // already enforces it. This prevents accidental deletion if RLS is
-    // ever misconfigured.
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Non authentifié');
-
-    const { error } = await supabase
-      .from('rewards')
-      .update({ is_active: false })
-      .eq('id', rewardId)
-      .eq('parent_id', user.id); // explicit owner check
-
-    if (error) throw error;
+    await api('DELETE', `/v1/rewards/${rewardId}`);
   },
 
-  // ─── Catalog ──────────────────────────────────────────────
+  // ─── Catalogue ───────────────────────────────────────────
   async getCatalogRewards(): Promise<Reward[]> {
-    const { data, error } = await supabase
-      .from('rewards')
-      .select('*')
-      .is('parent_id', null)
-      .eq('reward_type', 'catalog')
-      .eq('is_active', true)
-      .order('reward_category', { ascending: true })
-      .order('required_points', { ascending: true });
-
-    if (error) throw error;
-    return data || [];
+    const rows = toRewards(await api('GET', '/v1/rewards/catalog'));
+    return rows.sort((a, b) => (a.reward_category ?? '').localeCompare(b.reward_category ?? '') || a.required_points - b.required_points);
   },
 
-  /** Copy a catalog reward into the parent's personal list */
-  async activateCatalogReward(parentId: string, catalogReward: Reward, childId?: string): Promise<Reward> {
-    const { data, error } = await supabase
-      .from('rewards')
-      .insert({
-        parent_id: parentId,
-        child_id: childId || null,
-        title: catalogReward.title,
-        description: catalogReward.description,
-        required_points: catalogReward.required_points,
-        reward_type: 'custom' as const,
-        reward_category: catalogReward.reward_category,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+  /** Copie une récompense du catalogue dans la liste du parent. */
+  async activateCatalogReward(_parentId: string, catalogReward: Reward, childId?: string): Promise<Reward> {
+    return snake<Reward>(await api('POST', `/v1/rewards/catalog/${catalogReward.id}/activate`, compact({ childId })));
   },
 
-  // ─── Reward Requests ─────────────────────────────────────
-  async requestReward(childId: string, rewardId: string): Promise<RewardRequest> {
-    const { data, error } = await supabase
-      .from('reward_requests')
-      .insert({
-        child_id: childId,
-        reward_id: rewardId,
-        status: 'pending',
-        requested_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+  // ─── Demandes ────────────────────────────────────────────
+  /** Demande de l'enfant connecté. */
+  async requestReward(_childId: string, rewardId: string): Promise<RewardRequest> {
+    return snake<RewardRequest>(await api('POST', `/v1/rewards/${rewardId}/request`));
   },
 
   async getChildRewardRequests(childId: string): Promise<RewardRequest[]> {
-    const { data, error } = await supabase
-      .from('reward_requests')
-      .select('*, reward:rewards(*)')
-      .eq('child_id', childId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data || [];
+    return toRequests(await api('GET', withQuery('/v1/reward-requests', { childId })));
   },
 
-  async getPendingRewardRequests(parentId: string): Promise<RewardRequest[]> {
-    const { data, error } = await supabase
-      .from('reward_requests')
-      .select('*, reward:rewards(*), child:children!inner(*)')
-      .eq('child.parent_id', parentId)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-    return data || [];
+  async getPendingRewardRequests(_parentId?: string): Promise<RewardRequest[]> {
+    const rows = toRequests(await api('GET', withQuery('/v1/reward-requests', { status: 'pending' })));
+    return rows.sort((a, b) => (a.requested_at ?? '').localeCompare(b.requested_at ?? ''));
   },
 
-  async approveRewardRequest(requestId: string, parentId: string): Promise<void> {
-    const { error } = await supabase.rpc('approve_reward_request', {
-      p_request_id: requestId,
-      p_parent_id: parentId,
-    });
-
-    if (error) throw error;
+  /** Approbation : débit des points (et code partenaire éventuel) côté serveur. */
+  async approveRewardRequest(requestId: string, _parentId?: string, parentNote?: string): Promise<void> {
+    await api('POST', `/v1/reward-requests/${requestId}/approve`, compact({ note: parentNote || undefined }));
   },
 
-  async rejectRewardRequest(requestId: string, parentId: string, parentNote?: string): Promise<void> {
-    const { error } = await supabase
-      .from('reward_requests')
-      .update({
-        status: 'rejected',
-        rejected_at: new Date().toISOString(),
-        handled_by: parentId,
-        parent_note: parentNote,
-      })
-      .eq('id', requestId);
+  async rejectRewardRequest(requestId: string, _parentId?: string, parentNote?: string): Promise<void> {
+    await api('POST', `/v1/reward-requests/${requestId}/reject`, compact({ note: parentNote || undefined }));
+  },
 
-    if (error) throw error;
+  /** La récompense a été remise à l'enfant. */
+  async deliverRewardRequest(requestId: string): Promise<void> {
+    await api('POST', `/v1/reward-requests/${requestId}/deliver`);
   },
 };

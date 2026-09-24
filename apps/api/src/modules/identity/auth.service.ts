@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type {
   AcceptPartnerInvitationInput,
+  ChangeEmailInput,
+  ChangePasswordInput,
   ChildLinkInput,
   ChildPinLoginInput,
   LoginInput,
@@ -8,7 +10,7 @@ import type {
   ResetPasswordInput,
 } from '@rekonect/contracts';
 import { ENV, type Env } from '../../config/env';
-import type { Principal } from '../../platform/auth/principal';
+import type { Principal, UserPrincipal } from '../../platform/auth/principal';
 import { Clock } from '../../platform/clock';
 import { hashSecret, isLegacyHash, normalizeShortCode, randomToken, sha256, verifySecret } from '../../platform/crypto';
 import { EventBus } from '../../platform/events/event-bus';
@@ -175,6 +177,42 @@ export class AuthService {
     return { success: true };
   }
 
+  // ─── Compte connecté ───────────────────────────────────────────────────────
+
+  /** Nouveau mot de passe : les autres sessions sont fermées, celle-ci reçoit une nouvelle paire de jetons. */
+  async changePassword(p: UserPrincipal, input: ChangePasswordInput, meta: Meta = {}) {
+    const user = await this.prisma.user.findUnique({ where: { id: p.userId } });
+    if (!user || !(await verifySecret(user.passwordHash, input.currentPassword))) {
+      throw unauthorized('INVALID_CREDENTIALS', 'Mot de passe actuel incorrect');
+    }
+    const passwordHash = await hashSecret(input.newPassword);
+    const pair = await this.prisma.tx(async (tx) => {
+      await tx.user.update({ where: { id: user.id }, data: { passwordHash } });
+      await this.tokens.revokeAllForUser(user.id, tx);
+      return this.tokens.issue({ userId: user.id, role: user.role as 'parent' | 'admin' | 'partner' }, meta, tx);
+    });
+    await this.emails.sendNow('auth.password_changed', { to: user.email, toName: user.fullName, recipientId: user.id, data: {} });
+    return { ...this.stripId(pair), user: this.publicUser(user) };
+  }
+
+  /** Nouvelle adresse, confirmée par le mot de passe. L'ancienne adresse est prévenue. */
+  async changeEmail(p: UserPrincipal, input: ChangeEmailInput) {
+    const user = await this.prisma.user.findUnique({ where: { id: p.userId } });
+    if (!user || !(await verifySecret(user.passwordHash, input.password))) {
+      throw unauthorized('INVALID_CREDENTIALS', 'Mot de passe incorrect');
+    }
+    if (input.email === user.email) return { user: this.publicUser(user) };
+    const taken = await this.prisma.user.findUnique({ where: { email: input.email } });
+    if (taken) throw conflict('EMAIL_TAKEN', 'Un compte existe déjà avec cet email');
+    const updated = await this.prisma.tx(async (tx) => {
+      const u = await tx.user.update({ where: { id: user.id }, data: { email: input.email, emailVerifiedAt: null } });
+      await tx.profile.updateMany({ where: { id: user.id }, data: { email: input.email } });
+      return u;
+    });
+    await this.emails.sendNow('auth.email_changed', { to: user.email, toName: user.fullName, recipientId: user.id, data: { newEmail: input.email } });
+    return { user: this.publicUser(updated) };
+  }
+
   // ─── Enfants ───────────────────────────────────────────────────────────────
 
   /** L'appareil de l'enfant échange le QR / code court + un PIN choisi contre une session enfant. */
@@ -302,7 +340,7 @@ export class AuthService {
     return { id: u.id, email: u.email, role: u.role, fullName: u.fullName, createdAt: u.createdAt };
   }
 
-  publicChild(c: { id: string; displayName: string; avatarUrl: string | null; age: number; level: number; totalPoints: number; parentId: string; streakDays: number }) {
+  publicChild(c: { id: string; displayName: string; avatarUrl: string | null; age: number; level: number; totalPoints: number; parentId: string; streakDays: number; lastActivityDate?: Date | null; isActive?: boolean }) {
     return {
       id: c.id,
       displayName: c.displayName,
@@ -311,6 +349,8 @@ export class AuthService {
       level: c.level,
       totalPoints: c.totalPoints,
       streakDays: c.streakDays,
+      lastActivityDate: c.lastActivityDate ?? null,
+      isActive: c.isActive ?? true,
       parentId: c.parentId,
     };
   }

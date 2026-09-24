@@ -8,6 +8,7 @@ import { getCategoryStyle } from '../../lib/categoryStyle';
 import RkSearch from '../../components/rk/RkSearch';
 import { matches } from '../../lib/search';
 import type { Activity, ActivityCategory, Child, ChildActivity } from '../../types/database.types';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Assigner des activités — porté de la maquette Rekonect (écran pAssign). */
 
@@ -84,10 +85,7 @@ const AssignActivitiesPage: React.FC = () => {
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader>
           <button onClick={() => back()} style={{
             fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12,
           }}>← {child?.display_name ?? 'Retour'}</button>
@@ -97,7 +95,7 @@ const AssignActivitiesPage: React.FC = () => {
           <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>
             Sélectionnez les activités pour {child?.display_name ?? 'votre enfant'}
           </p>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '18px 22px 200px' }}>
           <RkSearch value={query} onChange={setQuery} placeholder="Rechercher une activité" style={{ marginBottom: 14 }} />

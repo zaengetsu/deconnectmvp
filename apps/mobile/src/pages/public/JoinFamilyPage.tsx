@@ -2,7 +2,7 @@ import { useRkBack, useBackSwipe } from '../../hooks/useRkBack';
 import React, { useRef, useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory, useLocation } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { api, ApiError } from '../../lib/api';
 
 /** Rejoindre une famille — porté de la maquette Rekonect (écran join). */
 
@@ -24,16 +24,11 @@ const JoinFamilyPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: rpcError } = await supabase.rpc('accept_family_invitation', { p_token: code });
-      if (rpcError) throw rpcError;
-      const result = typeof data === 'string' ? JSON.parse(data) : data;
-      if (result && result.success === false) {
-        setError(result.error || 'Code invalide');
-        return;
-      }
+      await api('POST', '/v1/family/invitations/accept', { token: code });
       history.replace('/parent/dashboard');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Code invalide');
+      if (e instanceof ApiError && e.status === 401) setError('Connectez-vous d’abord à votre compte parent, puis saisissez le code.');
+      else setError(e instanceof Error ? e.message : 'Code invalide');
     } finally {
       setLoading(false);
     }

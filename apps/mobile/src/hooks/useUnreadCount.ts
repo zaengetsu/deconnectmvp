@@ -6,8 +6,8 @@ import { useAppStore } from '../stores/app.store';
 /**
  * Compteur de notifications non lues, pour les pastilles des barres d'onglets.
  *
- * S'abonne au Realtime pour se mettre à jour sans polling, et nettoie son
- * canal au démontage (la limite Supabase est d'environ 100 canaux).
+ * S'abonne au temps réel de l'API (WebSocket partagé) pour se mettre à jour
+ * sans polling, et se désabonne au démontage.
  */
 export function useUnreadCount() {
   const { user } = useAuthStore();

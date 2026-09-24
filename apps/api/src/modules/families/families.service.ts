@@ -3,7 +3,7 @@ import type { CreateChildInput, CreateFamilyInvitationInput, UpdateChildInput, U
 import { AccessService } from '../../platform/auth/access.service';
 import { actorOf, type UserPrincipal } from '../../platform/auth/principal';
 import { Clock } from '../../platform/clock';
-import { randomHex, shortCode } from '../../platform/crypto';
+import { normalizeShortCode, randomHex, shortCode } from '../../platform/crypto';
 import { EventBus } from '../../platform/events/event-bus';
 import { badRequest, conflict, notFound } from '../../platform/http/errors';
 import { PrismaService } from '../../platform/prisma/prisma.service';
@@ -146,8 +146,10 @@ export class FamiliesService {
   async createInvitation(p: UserPrincipal, input: CreateFamilyInvitationInput) {
     await this.entitlements.assertCanAddCoParent(p.userId);
     const inv = await this.prisma.tx(async (tx) => {
+      let code = shortCode();
+      for (let attempt = 0; attempt < 5 && (await tx.familyInvitation.findFirst({ where: { shortCode: code, status: 'pending' } })); attempt++) code = shortCode();
       const row = await tx.familyInvitation.create({
-        data: { ownerId: p.userId, memberRole: input.memberRole, inviteEmail: input.email ?? null },
+        data: { ownerId: p.userId, memberRole: input.memberRole, inviteEmail: input.email ?? null, shortCode: code },
       });
       await this.events.publish(tx, 'family.invitation_created', {
         aggregateType: 'family_invitation',
@@ -157,13 +159,16 @@ export class FamiliesService {
       });
       return row;
     });
-    return { token: inv.token, role: inv.memberRole, expiresAt: inv.expiresAt };
+    return { token: inv.token, code: inv.shortCode, role: inv.memberRole, expiresAt: inv.expiresAt };
   }
 
   async acceptInvitation(p: UserPrincipal, token: string) {
     const now = this.clock.now();
+    const raw = token.trim();
+    const byCode = raw.length <= 8;
     const inv = await this.prisma.familyInvitation.findFirst({
-      where: { token, status: 'pending', expiresAt: { gt: now } },
+      where: { ...(byCode ? { shortCode: normalizeShortCode(raw) } : { token: raw }), status: 'pending', expiresAt: { gt: now } },
+      orderBy: { createdAt: 'desc' },
       include: { owner: { select: { fullName: true } } },
     });
     if (!inv) throw badRequest('INVITATION_INVALID', 'Invitation invalide ou expirée');
@@ -209,6 +214,7 @@ export const childSelect = {
   totalPoints: true,
   level: true,
   streakDays: true,
+  lastActivityDate: true,
   deviceLinkedAt: true,
   isActive: true,
   createdAt: true,

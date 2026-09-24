@@ -80,7 +80,7 @@ describe('coque et libellés', () => {
     expect(scopeLabel(null)).toBe('');
   });
   it('écran courant', () => {
-    expect(screenOf('/')).toBe('dash');
+    expect(screenOf('/dashboard')).toBe('dash');
     expect(screenOf('/offers/new')).toBe('create');
     expect(screenOf('/offers/123')).toBe('edit');
     expect(screenOf('/places')).toBe('stores');

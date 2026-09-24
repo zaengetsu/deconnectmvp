@@ -169,6 +169,8 @@ model FamilyInvitation {
   memberRole  String    @default("co_parent") @map("member_role")
   inviteEmail String?   @map("invite_email")
   token       String    @unique(map: "family_invitations_token_key") @default(dbgenerated("encode(gen_random_bytes(20), 'hex'::text)"))
+  /// Code court à 6 caractères, saisi dans l'app par le co-parent.
+  shortCode   String?   @map("short_code")
   status      String    @default("pending")
   expiresAt   DateTime  @default(dbgenerated("(now() + '7 days'::interval)")) @map("expires_at") @db.Timestamptz(6)
   createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -840,6 +842,25 @@ model Partner {
   @@map("partners")
 }
 
+/// Demandes de contact de la landing partenaires (« Être rappelé »).
+model PartnerLead {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName     String    @map("full_name")
+  organization String
+  email        String
+  kind         String
+  message      String?
+  source       String    @default("landing")
+  status       String    @default("new")
+  handledBy    String?   @map("handled_by") @db.Uuid
+  handledAt    DateTime? @map("handled_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt], map: "partner_leads_status_idx")
+  @@index([email, createdAt], map: "partner_leads_email_idx")
+  @@map("partner_leads")
+}
+
 model PartnerPlace {
   id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   partnerId       String         @map("partner_id") @db.Uuid
@@ -1015,6 +1036,10 @@ model OfferImpression {
 
 model MediaFile {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// offer : visuel partenaire (public) · proof : preuve d'activité d'un enfant.
+  kind        String   @default("offer")
+  childId         String? @map("child_id") @db.Uuid
+  childActivityId String? @map("child_activity_id") @db.Uuid
   partnerId   String?  @map("partner_id") @db.Uuid
   uploadedBy  String?  @map("uploaded_by") @db.Uuid
   contentType String   @map("content_type")
@@ -1024,6 +1049,7 @@ model MediaFile {
   partner     Partner? @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@index([partnerId], map: "media_files_partner_idx")
+  @@index([childActivityId], map: "media_files_child_activity_idx")
   @@map("media_files")
 }
 

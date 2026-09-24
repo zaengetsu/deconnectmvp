@@ -9,6 +9,8 @@ import { gamificationService } from '../../features/gamification/gamification.se
 import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { LEVEL_NAMES } from '../../lib/constants';
 import type { Child, ChildActivity, RewardRequest } from '../../types/database.types';
+import { CornerRing } from '@rekonect/brand';
+import { RkAllClear, RkFeature, RkHeader, RkPrompt, RkStat } from '../../components/rk/RkDecor';
 
 /** Tableau de bord parent — porté de la maquette Rekonect (écran pHome). */
 
@@ -74,10 +76,7 @@ const ParentDashboard: React.FC = () => {
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
         {/* ── En-tête ─────────────────────────────────────────── */}
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.1em', color: 'var(--rk-text3)' }}>{today}</div>
@@ -102,20 +101,13 @@ const ParentDashboard: React.FC = () => {
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, flexShrink: 0,
             }}>{initial}</button>
           </div>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 22 }}>
 
           {/* ── À faire maintenant ────────────────────────────── */}
           {pending.length > 0 && (
-            <button onClick={() => history.push('/parent/validations')} style={{
-              display: 'block', width: '100%', borderRadius: 22, padding: 20,
-              background: 'var(--rk-indigo)',
-              backgroundImage:
-                'radial-gradient(circle at 88% 130%, rgba(255,255,255,.16) 0 42%, transparent 43%),' +
-                'radial-gradient(circle at 88% 130%, rgba(255,255,255,.12) 62%, transparent 63%)',
-              color: '#fff', boxShadow: '0 14px 30px -14px var(--rk-navshadow)',
-            }}>
+            <RkFeature tone="indigo" onClick={() => history.push('/parent/validations')} label="Ouvrir les validations">
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', opacity: .75 }}>À FAIRE MAINTENANT</div>
               <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-.025em', marginTop: 8 }}>
                 {pending.length} activité{pending.length > 1 ? 's' : ''} attend{pending.length > 1 ? 'ent' : ''}<br />votre validation
@@ -141,28 +133,20 @@ const ParentDashboard: React.FC = () => {
                 </span>
                 <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 800 }}>Ouvrir →</span>
               </div>
-            </button>
+            </RkFeature>
+          )}
+          {pending.length === 0 && children.length > 0 && (
+            <RkAllClear title="Tout est à jour" text="Aucune activité n'attend votre validation. Profitez-en !" />
           )}
 
           {/* ── Trois compteurs ───────────────────────────────── */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
-            <div style={{ background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: '14px 12px' }}>
-              <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: 'var(--rk-text)' }}>{children.length}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--rk-text3)', marginTop: 2, lineHeight: 1.3 }}>Enfants</div>
-            </div>
-            <div style={{ background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: '14px 12px' }}>
-              <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: 'var(--rk-sage)' }}>{validatedWeek}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--rk-text3)', marginTop: 2, lineHeight: 1.3 }}>Validées<br />cette semaine</div>
-            </div>
-            <div
-              onClick={() => history.push('/parent/rewards')}
-              style={{ background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: '14px 12px', cursor: 'pointer' }}
-            >
-              <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', color: 'var(--rk-amber)' }}>{rewardReqs.length}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--rk-text3)', marginTop: 2, lineHeight: 1.3 }}>
-                Demande{rewardReqs.length > 1 ? 's' : ''} de<br />récompense
-              </div>
-            </div>
+            <RkStat value={children.length} label="Enfants" />
+            <RkStat color="var(--rk-sage)" value={validatedWeek} label={<>Validées<br />cette semaine</>} />
+            <RkStat
+              color="var(--rk-amber)" value={rewardReqs.length} onClick={() => history.push('/parent/rewards')}
+              label={<>Demande{rewardReqs.length > 1 ? 's' : ''} de<br />récompense</>}
+            />
           </div>
 
           {/* ── Mes enfants ───────────────────────────────────── */}
@@ -175,13 +159,12 @@ const ParentDashboard: React.FC = () => {
             </div>
 
             {children.length === 0 ? (
-              <button onClick={() => history.push('/parent/create-child')} style={{
-                width: '100%', background: 'var(--rk-surface)', border: '1px dashed var(--rk-border)',
-                borderRadius: 18, padding: '26px 18px', textAlign: 'center',
-                fontSize: 14, color: 'var(--rk-text3)',
-              }}>
-                Ajoutez votre premier enfant
-              </button>
+              <RkPrompt
+                title="Ajoutez votre premier enfant"
+                text="Son profil, son âge et son appareil : deux minutes suffisent."
+                img="/images/categories/family.png"
+                onClick={() => history.push('/parent/create-child')}
+              />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {children.map(child => {
@@ -265,28 +248,34 @@ const ParentDashboard: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <button onClick={() => history.push('/parent/activities')} style={{
                 background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: 16,
+                position: 'relative', overflow: 'hidden',
               }}>
+                <CornerRing size={96} width={14} color="var(--rk-indigo)" alpha={0.09} overflow={0.4} />
                 <div style={{
+                  position: 'relative',
                   width: 36, height: 36, borderRadius: 12, background: 'var(--rk-indigosoft)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10,
                 }}>
                   <img src="/images/categories/books.png" alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--rk-text)' }}>Catalogue</div>
-                <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>Activités prêtes à assigner</div>
+                <div style={{ position: 'relative', fontSize: 13, fontWeight: 700, color: 'var(--rk-text)' }}>Catalogue</div>
+                <div style={{ position: 'relative', fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>Activités prêtes à assigner</div>
               </button>
 
               <button onClick={() => history.push(children[0] ? `/parent/children/${children[0].id}/assign` : '/parent/children')} style={{
                 background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: 16,
+                position: 'relative', overflow: 'hidden',
               }}>
+                <CornerRing size={96} width={14} color="var(--rk-accent)" alpha={0.09} overflow={0.4} />
                 <div style={{
+                  position: 'relative',
                   width: 36, height: 36, borderRadius: 12, background: 'var(--rk-accentsoft)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10,
                 }}>
                   <img src="/images/categories/calendar.png" alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--rk-text)' }}>Assigner</div>
-                <div style={{ fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>Semaine à venir</div>
+                <div style={{ position: 'relative', fontSize: 13, fontWeight: 700, color: 'var(--rk-text)' }}>Assigner</div>
+                <div style={{ position: 'relative', fontSize: 11, color: 'var(--rk-text3)', marginTop: 2 }}>Semaine à venir</div>
               </button>
             </div>
           </div>

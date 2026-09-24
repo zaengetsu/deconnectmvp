@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { activitiesService } from '../../features/activities/activities.service';
 import { getCategoryStyle } from '../../lib/categoryStyle';
 import type { Activity, ActivityCategory } from '../../types/database.types';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Catalogue d'activités — porté de la maquette Rekonect (écran pCatalog). */
 
@@ -51,10 +52,7 @@ const ActivityCatalogPage: React.FC = () => {
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 18px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader padding="calc(env(safe-area-inset-top) + 16px) 22px 18px">
           <button onClick={back} style={{ fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12 }}>← Accueil</button>
           <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
             Catalogue
@@ -81,7 +79,7 @@ const ActivityCatalogPage: React.FC = () => {
               }}
             />
           </div>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '16px 0 140px' }}>
           <div className="rk-sc" style={{ display: 'flex', gap: 7, overflowX: 'auto', padding: '0 22px 16px' }}>

@@ -9,6 +9,8 @@ import { notificationService } from '../../features/notifications/notification.s
 import { LEVEL_NAMES } from '../../lib/constants';
 import { getCategoryStyle } from '../../lib/categoryStyle';
 import type { ChildActivity, Reward } from '../../types/database.types';
+import { CornerRing, ProgressRing, Sticker } from '@rekonect/brand';
+import { RkFeature, RkHero, RkPrompt, RkStat } from '../../components/rk/RkDecor';
 
 /** Accueil enfant — porté de la maquette Rekonect (écran cHome). */
 
@@ -84,14 +86,7 @@ const ChildHomePage: React.FC = () => {
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
         {/* ── En-tête accent ──────────────────────────────────── */}
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 12px) 22px 26px',
-          background: 'var(--rk-accent)',
-          backgroundImage:
-            'radial-gradient(circle at 85% 125%, rgba(255,255,255,.2) 0 40%, transparent 41%),' +
-            'radial-gradient(circle at 85% 125%, rgba(255,255,255,.14) 60%, transparent 61%)',
-          color: 'var(--rk-accentink)',
-        }}>
+        <RkHero tone="accent" padding="calc(env(safe-area-inset-top) + 12px) 22px 26px">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <button onClick={() => history.push('/child/profile')} style={{ flexShrink: 0 }}>
               {isImg ? (
@@ -138,7 +133,7 @@ const ChildHomePage: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
+        </RkHero>
 
         <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -147,13 +142,15 @@ const ChildHomePage: React.FC = () => {
             <div style={{
               display: 'flex', alignItems: 'center', gap: 14, background: 'var(--rk-surface)',
               border: '1px solid var(--rk-border)', borderRadius: 20, padding: 16,
+              position: 'relative', overflow: 'hidden',
             }}>
+              <CornerRing size={130} width={18} color="var(--rk-accent)" alpha={0.14} overflow={0.35} />
               <div style={{
                 width: 50, height: 50, borderRadius: 16, background: 'var(--rk-accentsoft)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                fontSize: 20, fontWeight: 800, color: 'var(--rk-text)',
+                fontSize: 20, fontWeight: 800, color: 'var(--rk-text)', position: 'relative',
               }}>{streak}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--rk-text)', letterSpacing: '-.02em' }}>
                   {streak} jour{streak > 1 ? 's' : ''} d'affilée
                 </div>
@@ -166,24 +163,9 @@ const ChildHomePage: React.FC = () => {
 
           {/* ── Trois compteurs ───────────────────────────────── */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
-            <div style={{ background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: '14px 12px', textAlign: 'center' }}>
-              <div style={{ fontSize: 21, fontWeight: 800, color: 'var(--rk-accent)', letterSpacing: '-.03em' }}>
-                {stats?.totalEarned ?? selectedChild.total_points}
-              </div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--rk-text3)', marginTop: 3 }}>TOTAL GAGNÉ</div>
-            </div>
-            <div style={{ background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: '14px 12px', textAlign: 'center' }}>
-              <div style={{ fontSize: 21, fontWeight: 800, color: 'var(--rk-text)', letterSpacing: '-.03em', fontVariantNumeric: 'tabular-nums' }}>
-                {available}
-              </div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--rk-text3)', marginTop: 3 }}>DISPONIBLES</div>
-            </div>
-            <div style={{ background: 'var(--rk-surface)', border: '1px solid var(--rk-border)', borderRadius: 18, padding: '14px 12px', textAlign: 'center' }}>
-              <div style={{ fontSize: 21, fontWeight: 800, color: 'var(--rk-sage)', letterSpacing: '-.03em' }}>
-                {stats?.activitiesValidated ?? 0}
-              </div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--rk-text3)', marginTop: 3 }}>RÉUSSIES</div>
-            </div>
+            <RkStat align="center" color="var(--rk-accent)" value={stats?.totalEarned ?? selectedChild.total_points} label="Total gagné" />
+            <RkStat align="center" value={available} label="Disponibles" ring="var(--rk-accent)" />
+            <RkStat align="center" color="var(--rk-sage)" value={stats?.activitiesValidated ?? 0} label="Réussies" />
           </div>
 
           {/* ── Défis du jour ─────────────────────────────────── */}
@@ -196,12 +178,12 @@ const ChildHomePage: React.FC = () => {
             </div>
 
             {today.length === 0 ? (
-              <button onClick={() => history.push('/child/activities')} style={{
-                width: '100%', background: 'var(--rk-surface)', border: '1px dashed var(--rk-border)',
-                borderRadius: 18, padding: '22px 16px', textAlign: 'center', fontSize: 14, color: 'var(--rk-text3)',
-              }}>
-                Va choisir un défi pour aujourd'hui
-              </button>
+              <RkPrompt
+                title="Choisis ton défi du jour"
+                text="Vélo, lecture, cuisine… il y en a pour toutes les envies."
+                img="/images/categories/track.png"
+                onClick={() => history.push('/child/activities')}
+              />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {today.map(ca => {
@@ -276,18 +258,28 @@ const ChildHomePage: React.FC = () => {
 
           {/* ── Presque ───────────────────────────────────────── */}
           {nextReward && (
-            <button onClick={() => history.push('/child/rewards')} style={{
-              display: 'block', width: '100%', borderRadius: 22, padding: 18,
-              background: 'var(--rk-surface2)', border: '1px solid var(--rk-border)',
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: 'var(--rk-text3)' }}>PRESQUE</div>
-              <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-.02em', color: 'var(--rk-text)', marginTop: 6 }}>
-                Il te manque {missing} points pour {nextReward.title.toLowerCase()}
+            <RkFeature tone="ink" onClick={() => history.push('/child/rewards')} label="Voir mes récompenses"
+              decor={{ rings: 'right', ringsSize: 200, halo: 'right', haloColor: 'var(--rk-accent)', haloSize: 150 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', opacity: .6 }}>PRESQUE</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-.02em', marginTop: 6, lineHeight: 1.3 }}>
+                    {missing > 0
+                      ? <>Il te manque {missing} points pour {nextReward.title.toLowerCase()}</>
+                      : <>Tu peux demander {nextReward.title.toLowerCase()} !</>}
+                  </div>
+                  <Sticker tilt={-3} size="sm" bg="var(--rk-accent)" fg="var(--rk-accentink)" style={{ marginTop: 12 }}>
+                    {nextReward.required_points} pts
+                  </Sticker>
+                </div>
+                <ProgressRing
+                  value={rewardProgress} size={78} thickness={7} label="Progression vers la récompense"
+                  color="var(--rk-accent)" track="rgba(255,255,255,.14)" inner="#16182B"
+                >
+                  <span style={{ fontSize: 16, color: '#fff' }}>{rewardProgress}%</span>
+                </ProgressRing>
               </div>
-              <div style={{ height: 8, borderRadius: 999, background: 'var(--rk-surface)', overflow: 'hidden', marginTop: 13 }}>
-                <div style={{ height: '100%', width: `${rewardProgress}%`, borderRadius: 999, background: 'var(--rk-accent)' }} />
-              </div>
-            </button>
+            </RkFeature>
           )}
         </div>
       </div>

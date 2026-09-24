@@ -11,6 +11,8 @@ import {
   OFFER_KINDS,
   OFFER_TRIGGERS,
   PARTNER_KINDS,
+  PARTNER_LEAD_KINDS,
+  PARTNER_LEAD_STATUSES,
   PARTNER_MEMBER_ROLES,
   PARTNER_STATUSES,
 } from './domain';
@@ -46,6 +48,11 @@ export type RefreshInput = z.infer<typeof RefreshInput>;
 
 export const ForgotPasswordInput = z.object({ email });
 export const ResetPasswordInput = z.object({ token: z.string().min(20), password });
+/** Compte connecté : le mot de passe actuel est exigé pour changer le mot de passe ou l'adresse. */
+export const ChangePasswordInput = z.object({ currentPassword: z.string().min(1), newPassword: password });
+export type ChangePasswordInput = z.infer<typeof ChangePasswordInput>;
+export const ChangeEmailInput = z.object({ email, password: z.string().min(1) });
+export type ChangeEmailInput = z.infer<typeof ChangeEmailInput>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordInput>;
 
 export const ChildLinkInput = z.object({
@@ -66,10 +73,13 @@ export const AcceptPartnerInvitationInput = z.object({
 export type AcceptPartnerInvitationInput = z.infer<typeof AcceptPartnerInvitationInput>;
 
 // ─── Familles ────────────────────────────────────────────────────────────────
+/** Avatar : image du catalogue de l'app (/images/avatars/…), adresse web ou couleur (#RRGGBB). */
+const avatar = z.string().trim().max(500).regex(/^(https?:\/\/|\/images\/|#[0-9A-Fa-f]{3,8}$)/, 'Avatar invalide');
+
 export const CreateChildInput = z.object({
   displayName: z.string().trim().min(1).max(40),
   age: z.number().int().min(MIN_CHILD_AGE).max(MAX_CHILD_AGE),
-  avatarUrl: url.optional(),
+  avatarUrl: avatar.optional(),
 });
 export type CreateChildInput = z.infer<typeof CreateChildInput>;
 
@@ -94,7 +104,8 @@ export const CreateFamilyInvitationInput = z.object({
 });
 export type CreateFamilyInvitationInput = z.infer<typeof CreateFamilyInvitationInput>;
 
-export const AcceptFamilyInvitationInput = z.object({ token: z.string().min(10) });
+/** Jeton long (lien) ou code court à 6 caractères saisi dans l'app. */
+export const AcceptFamilyInvitationInput = z.object({ token: z.string().trim().min(6).max(64) });
 
 // ─── Activités ───────────────────────────────────────────────────────────────
 export const ActivityQuery = z.object({
@@ -131,7 +142,7 @@ export type AssignActivityInput = z.infer<typeof AssignActivityInput>;
 export const SubmitActivityInput = z.object({
   note: z.string().max(1000).optional(),
   proofUrl: url.optional(),
-  proofType: z.enum(['photo', 'text']).optional(),
+  proofType: z.enum(['photo', 'video', 'text']).optional(),
 });
 export type SubmitActivityInput = z.infer<typeof SubmitActivityInput>;
 
@@ -248,6 +259,18 @@ export const UpdatePartnerInput = CreatePartnerInput.omit({ ownerEmail: true }).
 export type UpdatePartnerInput = z.infer<typeof UpdatePartnerInput>;
 
 export const SetPartnerStatusInput = z.object({ status: z.enum(PARTNER_STATUSES) });
+
+/** Formulaire « Être rappelé » de la landing partenaires. `website` est un piège à robots : il doit rester vide. */
+export const PartnerLeadInput = z.object({
+  fullName: z.string().trim().min(2, 'Indiquez votre nom').max(120),
+  organization: z.string().trim().min(2, 'Indiquez votre organisation').max(160),
+  email,
+  kind: z.enum(PARTNER_LEAD_KINDS),
+  message: z.string().trim().max(1000).optional(),
+  website: z.string().max(200).optional(),
+});
+export type PartnerLeadInput = z.infer<typeof PartnerLeadInput>;
+export const UpdatePartnerLeadInput = z.object({ status: z.enum(PARTNER_LEAD_STATUSES) });
 
 export const InvitePartnerMemberInput = z.object({ email, role: z.enum(PARTNER_MEMBER_ROLES).default('editor') });
 export type InvitePartnerMemberInput = z.infer<typeof InvitePartnerMemberInput>;

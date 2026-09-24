@@ -3,30 +3,26 @@ import { ApiError } from '@rekonect/api-client';
 import { type FormEvent, type ReactNode, useState } from 'react';
 import { Button, Field, TextInput } from './components';
 import { useSession } from './session';
+import { AuthBackdrop, ELEVATION, LogoMark } from './decor';
 import { C } from './tokens';
 
 /** Logo double cercle (couleur du premier anneau selon le portail). */
 export function Logo({ size = 32, first = '#fff', second = C.coral }: { size?: number; first?: string; second?: string }) {
-  const r = Math.round(size * 0.5625);
-  return (
-    <div aria-hidden style={{ width: size, height: size, position: 'relative', flexShrink: 0 }}>
-      <div style={{ position: 'absolute', left: 0, top: Math.round(size * 0.22), width: r, height: r, borderRadius: '50%', border: `2.5px solid ${first}` }} />
-      <div style={{ position: 'absolute', left: Math.round(size * 0.375), top: Math.round(size * 0.22), width: r, height: r, borderRadius: '50%', border: `2.5px solid ${second}` }} />
-    </div>
-  );
+  return <LogoMark size={size} a={first} b={second} stroke={2.5} />;
 }
 
 /** Carte centrée des écrans d'accès (connexion, invitation, mot de passe). */
 export function AuthLayout({ badge, title, subtitle, children }: { badge: ReactNode; title: ReactNode; subtitle?: ReactNode; children: ReactNode }) {
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div style={{ width: 420, maxWidth: '100%' }}>
+    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
+      <AuthBackdrop />
+      <div style={{ width: 420, maxWidth: '100%', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22, justifyContent: 'center' }}>
           <Logo size={28} first={C.primary} />
           <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-.03em' }}>Rekonect</div>
           {badge}
         </div>
-        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 22, padding: 28 }}>
+        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 22, padding: 28, boxShadow: ELEVATION[2] }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.03em', margin: 0 }}>{title}</h1>
           {subtitle && <p style={{ fontSize: 14, color: C.muted, margin: '6px 0 22px', lineHeight: 1.5 }}>{subtitle}</p>}
           {children}

@@ -9,6 +9,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { useAuthStore } from '../../stores/auth.store';
 import { useAppStore } from '../../stores/app.store';
 import { useRk, type RkTheme } from '../../components/rk/RkShell';
+import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Réglages — porté de la maquette Rekonect (écran pSettings). */
 
@@ -73,15 +74,12 @@ const SettingsPage: React.FC = () => {
     <IonPage><IonContent fullscreen>
       <div className="rk-app rk-screen" style={{ minHeight: '100%', background: 'var(--rk-bg)' }}>
 
-        <div style={{
-          padding: 'calc(env(safe-area-inset-top) + 16px) 22px 20px',
-          background: 'var(--rk-surface)', borderBottom: '1px solid var(--rk-border)',
-        }}>
+        <RkHeader>
           <button onClick={back} style={{ fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', marginBottom: 12 }}>← Accueil</button>
           <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>
             Réglages
           </h1>
-        </div>
+        </RkHeader>
 
         <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 22 }}>
 
