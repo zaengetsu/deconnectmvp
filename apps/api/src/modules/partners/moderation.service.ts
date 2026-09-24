@@ -110,6 +110,8 @@ export class ModerationService {
 
   /** Crée (ou met à jour) la récompense catalogue ou l'activité correspondant à l'offre. */
   private async materialize(tx: Tx, o: Awaited<ReturnType<Tx['partnerOffer']['findUniqueOrThrow']>>) {
+    // Récompense enfant « après des activités » : pas d'entrée au catalogue de points, elle se débloque comme un bon.
+    if (o.kind === 'child_reward' && !o.requiredPoints) return {};
     if (o.kind === 'child_reward') {
       const data = {
         title: o.title,

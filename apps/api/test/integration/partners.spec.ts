@@ -271,6 +271,24 @@ describe('Partenaires : réseau, lieux, ciblage, offres, modération, caisse, me
       await h.http.post(`/v1/rewards/${mine.body.id}/request`).set(auth(a.child.token)).expect(409);
     });
 
+    it('récompense enfant « après des activités » : pas de points dépensés, débloquée comme un bon', async () => {
+      const brand = await createPartner(h);
+      const cat = await sportCategory();
+      const sport = await h.prisma.activity.findFirstOrThrow({ where: { categoryId: cat.id, activityType: 'catalog' } });
+      await h.http.post(`/v1/partner/${brand.partnerId}/offers`).set(auth(brand.token)).send({ kind: 'child_reward', title: 'Sans condition' }).expect(400);
+      const offer = await publishOffer(h, brand, { kind: 'child_reward', title: 'Initiation escalade gratuite', triggerType: 'category_validated', triggerCategoryId: cat.id, triggerThreshold: 2 });
+      expect(offer.rewardId).toBeNull();
+      const f = await familyWithChild(h, { name: 'Léa' });
+      await optIn(h, f.parent.token);
+      await setFamilyPlan(h, f.parent.userId, 'family_plus');
+      const before = (await h.prisma.child.findUniqueOrThrow({ where: { id: f.childId } })).totalPoints;
+      for (let i = 0; i < 2; i++) await completeActivity(h, f.parent, f.child, sport.id);
+      await h.drain();
+      const claims = (await h.http.get('/v1/offer-claims').set(auth(f.parent.token))).body;
+      expect(claims).toEqual([expect.objectContaining({ offer: expect.objectContaining({ title: 'Initiation escalade gratuite' }), child: expect.objectContaining({ displayName: 'Léa' }) })]);
+      expect((await h.prisma.child.findUniqueOrThrow({ where: { id: f.childId } })).totalPoints).toBeGreaterThan(before);
+    });
+
     it('défi sponsorisé visible dans le catalogue des seules familles consentantes', async () => {
       const brand = await createPartner(h);
       const cat = await sportCategory();

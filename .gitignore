@@ -36,3 +36,7 @@ next-env.d.ts
 .transfer/
 apps/api/test/support/.test-db.json
 apps/api/src/generated/
+
+# Playwright
+e2e/test-results/
+e2e/playwright-report/

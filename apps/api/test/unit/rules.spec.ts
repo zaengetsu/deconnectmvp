@@ -147,7 +147,7 @@ describe('politique de notification', () => {
 
 describe('règles des offres partenaires', () => {
   const now = new Date('2026-09-23T10:00:00Z');
-  const base = { status: 'published', startsAt: null, endsAt: null, stockTotal: null, stockUsed: 0 };
+  const base: import('../../src/modules/partners/offer-rules').OfferWindow = { status: 'published', startsAt: null, endsAt: null, stockTotal: null, stockUsed: 0 };
   it('offre active, stock, statut affiché', () => {
     expect(isOfferLive(base, now)).toBe(true);
     expect(isOfferLive({ ...base, status: 'paused' }, now)).toBe(false);

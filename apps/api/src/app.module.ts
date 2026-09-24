@@ -1,3 +1,4 @@
+import { MediaModule } from './modules/media/media.module';
 import { Controller, Get, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ActivitiesModule } from './modules/activities/activities.module';
@@ -44,6 +45,7 @@ export const DOMAIN_MODULES = [
   BillingModule,
   NotificationsModule,
   AdminModule,
+  MediaModule,
 ];
 
 @Module({

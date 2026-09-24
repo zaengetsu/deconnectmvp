@@ -564,6 +564,42 @@ export class AdminService {
     return { success: true };
   }
 
+  /** Export CSV des familles (séparateur « ; », BOM pour Excel) : pas de données enfants nominatives. */
+  async familiesCsv(q: { q?: string; plan?: string; status?: string }) {
+    const rows: Awaited<ReturnType<AdminService['families']>>['items'] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.families({ ...q, limit: 200, cursor });
+      rows.push(...page.items);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [
+      'famille;parent;email;ville;enfants;plan;inscrite le;dernière activité;statut',
+      ...rows.map((r) =>
+        [r.name, r.parentName, r.email, r.city, r.children, r.planName, r.createdAt?.toISOString().slice(0, 10) ?? "", r.lastActivityAt?.toISOString().slice(0, 10) ?? '', r.statusLabel]
+          .map(cell)
+          .join(';'),
+      ),
+    ];
+    return '\uFEFF' + lines.join('\n');
+  }
+
+  /** Bandeau de la page Partenaires. */
+  async partnerStats() {
+    const since = new Date(this.clock.now().getTime() - 30 * DAY);
+    const [accounts, activeOffers, used, subs] = await Promise.all([
+      this.prisma.partner.count(),
+      this.prisma.partnerOffer.count({ where: { status: 'published', OR: [{ endsAt: null }, { endsAt: { gt: this.clock.now() } }] } }),
+      this.prisma.offerClaim.count({ where: { status: 'redeemed', redeemedAt: { gte: since } } }),
+      this.prisma.subscription.findMany({ where: { partnerId: { not: null }, amountCents: { gt: 0 } }, select: { status: true, amountCents: true, billingInterval: true, quantity: true } }),
+    ]);
+    const mrr = subs
+      .filter((s) => subscriptionGrantsAccess(s.status))
+      .reduce((sum, s) => sum + monthlyAmountCents(s.amountCents, s.billingInterval as 'month' | 'year', s.quantity), 0);
+    return { accounts, activeOffers, vouchersUsed30d: used, partnerMrrCents: mrr };
+  }
+
   // ─── Recherche ⌘K ──────────────────────────────────────────────────────────
 
   async search(term: string) {

@@ -22,7 +22,9 @@
     "pretest": "prisma generate",
     "pretest:coverage": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
-    "prisma:resolve-baseline": "prisma migrate resolve --applied 20260924000000_baseline"
+    "prisma:resolve-baseline": "prisma migrate resolve --applied 20260924000000_baseline",
+    "demo:data": "ts-node --transpile-only scripts/demo-data.ts",
+    "db:apply-migrations": "ts-node --transpile-only scripts/apply-migrations.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.6",

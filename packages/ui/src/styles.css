@@ -1,0 +1,18 @@
+/* Base commune (bloc <helmet> des maquettes) + états non exprimables en style en ligne. */
+body{margin:0;background:#F6F4F1;font-family:'Manrope','Manrope Variable',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#16182B}
+*{box-sizing:border-box}
+a{color:#3C41A8;text-decoration:none}a:hover{color:#262A78}
+button{font-family:inherit;cursor:pointer;border:none;background:none;padding:0;color:inherit;text-align:left}
+button:disabled{cursor:default}
+input,textarea,select{font-family:inherit;color:#16182B}
+.rk-row:hover{background:#FBFAF8}
+.rk-input{outline:none;transition:border-color .12s}
+.rk-input:focus{border-color:var(--rk-focus,#3C41A8)!important}
+.rk-input::placeholder{color:#8A8FA6;font-weight:500}
+.rk-focusable:focus-visible{outline:2px solid #3C41A8;outline-offset:2px}
+.rk-spin{animation:rk-spin .8s linear infinite}
+@keyframes rk-spin{to{transform:rotate(360deg)}}
+@keyframes rk-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.rk-toast{animation:rk-fade .18s ease-out}
+.rk-skeleton{background:linear-gradient(90deg,#F1EEE9 25%,#F6F4F1 50%,#F1EEE9 75%);background-size:200% 100%;animation:rk-sk 1.2s infinite}
+@keyframes rk-sk{to{background-position:-200% 0}}

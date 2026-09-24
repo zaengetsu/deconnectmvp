@@ -286,7 +286,8 @@ const offerBase = z.object({
 export function offerIssues(o: Partial<z.infer<typeof offerBase>>): string[] {
   const issues: string[] = [];
   if (o.minAge != null && o.maxAge != null && o.minAge > o.maxAge) issues.push("L'âge minimum dépasse l'âge maximum");
-  if (o.kind === 'child_reward' && !o.requiredPoints) issues.push('Une récompense enfant demande un nombre de points');
+  if (o.kind === 'child_reward' && !o.requiredPoints && (!o.triggerType || o.triggerType === 'none'))
+    issues.push('Une récompense enfant s’obtient contre des points ou après des activités');
   if (o.kind === 'parent_voucher' && (!o.triggerType || o.triggerType === 'none'))
     issues.push('Un bon parent doit préciser ce qui le débloque');
   if (o.triggerType === 'activity_validated' && !o.triggerActivityId) issues.push("Choisissez l'activité déclencheuse");

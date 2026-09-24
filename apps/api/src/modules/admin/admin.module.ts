@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Module, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Module, Param, ParseUUIDPipe, Patch, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   AdminEventQuery,
   AdminFamilyQuery,
@@ -146,6 +147,19 @@ export class AdminController {
   @Get('families')
   families(@Query(zod(AdminFamilyQuery)) q: z.infer<typeof AdminFamilyQuery>) {
     return this.admin.families(q);
+  }
+
+  @Get('families.csv')
+  async familiesCsv(@Query(zod(AdminFamilyQuery)) q: z.infer<typeof AdminFamilyQuery>, @Res() res: Response) {
+    const csv = await this.admin.familiesCsv(q);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="familles-rekonect.csv"`);
+    res.send(csv);
+  }
+
+  @Get('partner-stats')
+  partnerStats() {
+    return this.admin.partnerStats();
   }
 
   @Get('families/:id')

@@ -29,6 +29,9 @@ const targetingOf = (o: OfferRow): Targeting => ({
  * Toutes les vérifications (consentement, plan, zone, âge, période, stock, limite par famille)
  * sont faites dans la transaction qui attribue le code.
  */
+/** Offres débloquées par les efforts de l'enfant : bons parents et récompenses enfant « après des activités ». */
+const UNLOCKABLE_KINDS = ['parent_voucher', 'child_reward'];
+
 @Injectable()
 export class OfferEngine implements OnModuleInit, PartnerRewardsPort {
   constructor(
@@ -50,7 +53,7 @@ export class OfferEngine implements OnModuleInit, PartnerRewardsPort {
       if (activity && !activity.partnerEligible) return;
       const offers = await tx.partnerOffer.findMany({
         where: {
-          kind: 'parent_voucher',
+          kind: { in: UNLOCKABLE_KINDS },
           status: 'published',
           OR: [
             { triggerType: 'activity_validated', triggerActivityId: p.activityId },
@@ -70,7 +73,7 @@ export class OfferEngine implements OnModuleInit, PartnerRewardsPort {
     });
 
     this.registry.on('goal.completed', 'partners.unlock', async (e, tx) => {
-      const offers = await tx.partnerOffer.findMany({ where: { kind: 'parent_voucher', status: 'published', triggerType: 'goal_completed' } });
+      const offers = await tx.partnerOffer.findMany({ where: { kind: { in: UNLOCKABLE_KINDS }, status: 'published', triggerType: 'goal_completed' } });
       for (const offer of offers) {
         if (!(await this.audience.isFamilyEligible(tx, targetingOf(offer), e.payload.parentId))) continue;
         await this.unlock(tx, offer, { parentId: e.payload.parentId, childId: null, sourceKey: `goal:${e.payload.goalId}` });
@@ -225,7 +228,7 @@ export class OfferEngine implements OnModuleInit, PartnerRewardsPort {
   /** Bons en cours d'obtention pour la famille, avec la progression (« 6 / 10 activités »). */
   async progress(p: UserPrincipal) {
     const offers = await this.prisma.partnerOffer.findMany({
-      where: { kind: 'parent_voucher', status: 'published', triggerType: { in: ['activity_validated', 'category_validated'] } },
+      where: { kind: { in: UNLOCKABLE_KINDS }, status: 'published', triggerType: { in: ['activity_validated', 'category_validated'] } },
       include: { partner: { select: { name: true, color: true, logoUrl: true } }, triggerCategory: { select: { name: true } }, triggerActivity: { select: { title: true } } },
     });
     const now = this.clock.now();

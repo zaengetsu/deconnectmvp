@@ -807,6 +807,7 @@ model ProcessedEvent {
 
 model Partner {
   id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  media              MediaFile[]
   name               String
   slug               String              @unique(map: "partners_slug_key")
   kind               String              @default("brand")
@@ -1008,4 +1009,18 @@ model OfferImpression {
 
   @@id([offerId, viewerKey, day])
   @@map("offer_impressions")
+}
+
+model MediaFile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId   String?  @map("partner_id") @db.Uuid
+  uploadedBy  String?  @map("uploaded_by") @db.Uuid
+  contentType String   @map("content_type")
+  size        Int
+  data        Bytes
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  partner     Partner? @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId], map: "media_files_partner_idx")
+  @@map("media_files")
 }

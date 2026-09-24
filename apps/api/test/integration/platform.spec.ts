@@ -184,7 +184,7 @@ describe('Plateforme : outbox, verrous, worker, temps réel, pont Supabase', () 
       const other = await registerParent(h);
       const parentSocket = connect(f.parent.token);
       const otherSocket = connect(other.token);
-      await Promise.all([parentSocket, otherSocket].map((s) => new Promise((r) => s.on('connect', r))));
+      await Promise.all([parentSocket, otherSocket].map((s) => new Promise<void>((r) => s.on("connect", () => r()))));
       await new Promise((r) => setTimeout(r, 100));
       const leaked: unknown[] = [];
       otherSocket.on('notification', (m) => leaked.push(m));

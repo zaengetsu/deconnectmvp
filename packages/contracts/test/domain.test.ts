@@ -59,7 +59,8 @@ describe('offerIssues', () => {
     expect(issues).toHaveLength(4);
   });
   it('exige les cibles des déclencheurs et les points', () => {
-    expect(offerIssues({ kind: 'child_reward' })).toContain('Une récompense enfant demande un nombre de points');
+    expect(offerIssues({ kind: 'child_reward' })).toContain('Une récompense enfant s’obtient contre des points ou après des activités');
+    expect(offerIssues({ kind: 'child_reward', triggerType: 'goal_completed' })).toEqual([]);
     expect(offerIssues({ kind: 'sponsored_activity', triggerType: 'activity_validated' })).toContain("Choisissez l'activité déclencheuse");
     expect(offerIssues({ kind: 'sponsored_activity', triggerType: 'category_validated' })).toContain('Choisissez la catégorie déclencheuse');
   });

@@ -1,0 +1,12 @@
+{
+  "name": "@rekonect/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Parcours de bout en bout des portails web (API + worker + jeu de démonstration requis).",
+  "scripts": {
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
