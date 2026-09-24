@@ -85,7 +85,7 @@ export class BillingService {
   async ensurePrices(planId: string) {
     const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
     if (!plan || !plan.isActive) throw notFound('PLAN_NOT_FOUND', 'Plan introuvable');
-    if (plan.stripeProductId && (plan.monthlyPriceCents == null || plan.stripeMonthlyPriceId) && (plan.annualPriceCents == null || plan.stripeAnnualPriceId)) return plan;
+    if (plan.stripeProductId && (!plan.monthlyPriceCents || plan.stripeMonthlyPriceId) && (!plan.annualPriceCents || plan.stripeAnnualPriceId)) return plan;
     const ids = await this.gateway.syncPlanPrices(plan);
     return this.prisma.plan.update({
       where: { id: planId },
@@ -133,7 +133,7 @@ export class BillingService {
   }
 
   invoices(owner: BillingOwner) {
-    return this.prisma.invoice.findMany({ where: ownerWhere(owner), orderBy: { issuedAt: 'desc' }, take: 24 });
+    return this.prisma.invoice.findMany({ where: ownerWhere(owner), orderBy: [{ periodStart: { sort: 'desc', nulls: 'last' } }, { issuedAt: 'desc' }], take: 24 });
   }
 
   // ─── Actions ───────────────────────────────────────────────────────────────

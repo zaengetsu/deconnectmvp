@@ -25,7 +25,13 @@ export class TokenVerifier {
 
   async verify(token: string): Promise<Principal | null> {
     try {
-      return principalFromClaims(await this.jwt.verifyAsync<AccessClaims>(token));
+      const principal = principalFromClaims(await this.jwt.verifyAsync<AccessClaims>(token));
+      // Un compte désactivé par le support perd l'accès immédiatement, sans attendre l'expiration du jeton.
+      if (principal?.kind === 'user') {
+        const user = await this.prisma.user.findUnique({ where: { id: principal.userId }, select: { disabledAt: true } });
+        if (!user || user.disabledAt) return null;
+      }
+      return principal;
     } catch {
       return this.env.SUPABASE_JWT_SECRET ? this.verifySupabase(token) : null;
     }

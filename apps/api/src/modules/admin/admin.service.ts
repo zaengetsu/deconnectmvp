@@ -80,7 +80,7 @@ export class AdminService {
     const prevFrom = new Date(from.getTime() - days * DAY);
 
     const [activeNow, activePrev, kidsNow, kidsBefore, newFamilies, validatedNow, validatedPrev, rejectedNow, activeKids, familiesTotal] = await Promise.all([
-      this.activeFamilies(from, now),
+      this.activeFamilies(from, new Date(now.getTime() + 1)),
       this.activeFamilies(prevFrom, from),
       this.prisma.child.count({ where: { isActive: true } }),
       this.prisma.child.count({ where: { isActive: true, createdAt: { lt: from } } }),

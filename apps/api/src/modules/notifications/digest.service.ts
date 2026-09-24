@@ -86,7 +86,7 @@ export class DigestService {
       const today = localDateString(this.clock.now(), tz);
       if (ca.scheduledFor?.toISOString().slice(0, 10) !== today) continue;
       const res = await this.prisma.tx((tx) => this.notifications.enqueue(tx, templates.parentPlannedReminder(ca.child, ca.activity, ca.id, today)));
-      if (res.status !== 'duplicate') sent++;
+      if (res.status === 'sent' || res.status === 'scheduled') sent++;
     }
     return sent;
   }
@@ -104,7 +104,7 @@ export class DigestService {
     for (const r of reached) {
       if (r.goalMinutes == null || r.minutes > r.goalMinutes) continue;
       const res = await this.prisma.tx((tx) => this.notifications.enqueue(tx, templates.screenTimeGoal(r.child, r.minutes, yesterday)));
-      if (res.status !== 'duplicate') sent++;
+      if (res.status === 'sent' || res.status === 'scheduled') sent++;
     }
 
     const children = await this.prisma.child.findMany({ where: { isActive: true, screenTime: { some: {} } }, select: { id: true, displayName: true, age: true, parentId: true } });
@@ -119,7 +119,7 @@ export class DigestService {
       const drop = Math.round(((p - c) / p) * 100);
       if (drop < SCREEN_TIME_MIN_DROP_PERCENT) continue;
       const res = await this.prisma.tx((tx) => this.notifications.enqueue(tx, templates.screenTimeImproved(child, drop, isoWeekKey(today))));
-      if (res.status !== 'duplicate') sent++;
+      if (res.status === 'sent' || res.status === 'scheduled') sent++;
     }
     return sent;
   }

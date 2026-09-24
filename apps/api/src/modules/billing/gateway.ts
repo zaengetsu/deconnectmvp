@@ -148,7 +148,7 @@ export class FakeBillingGateway extends BillingGateway {
     this.calls.push({ method: 'syncPlanPrices', args: plan.id });
     const productId = plan.stripeProductId ?? this.id('prod');
     const make = (amount: number | null, interval: 'month' | 'year', current: string | null) => {
-      if (amount == null) return null;
+      if (!amount) return null;
       if (current && this.prices.get(current)?.amount === amount) return current;
       const id = this.id(`price_${plan.id}_${interval}`);
       this.prices.set(id, { amount, interval });

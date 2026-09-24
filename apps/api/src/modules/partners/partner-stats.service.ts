@@ -71,7 +71,8 @@ export class PartnerStatsService {
     const now = this.clock.now();
     const from = new Date(now.getTime() - days * 86_400_000);
     const prevFrom = new Date(from.getTime() - days * 86_400_000);
-    const [curr, prev] = await Promise.all([this.periodCounts(ids, from, now), this.periodCounts(ids, prevFrom, from)]);
+    const [curr, prev] = await Promise.all([this.periodCounts(ids, from, new Date(now.getTime() + 1)), // borne incluant l'instant présent
+      this.periodCounts(ids, prevFrom, from)]);
 
     const offers = await this.prisma.partnerOffer.findMany({ where: { partnerId: { in: partnerIds } }, include: offerInclude, orderBy: { publishedAt: 'desc' } });
     const presented = offers.map((o) => presentOffer(o, now));

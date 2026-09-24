@@ -16,7 +16,13 @@
     "test:coverage": "jest --runInBand --coverage",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "prisma:seed": "ts-node --transpile-only prisma/seed.ts"
+    "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
+    "prebuild": "prisma generate",
+    "pretypecheck": "prisma generate",
+    "pretest": "prisma generate",
+    "pretest:coverage": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:resolve-baseline": "prisma migrate resolve --applied 20260924000000_baseline"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.6",

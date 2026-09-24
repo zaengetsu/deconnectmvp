@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { seed } from '../../prisma/seed';
 import { AppModule } from '../../src/app.module';
+import { BillingGateway, FakeBillingGateway } from '../../src/modules/billing/gateway';
 import { DeliveryService } from '../../src/modules/notifications/delivery.service';
 import { DigestService } from '../../src/modules/notifications/digest.service';
 import { FakePushTransport, PushTransport } from '../../src/modules/notifications/channels/push';
@@ -21,6 +22,7 @@ export interface Harness {
   clock: FixedClock;
   mailer: MemoryMailer;
   push: FakePushTransport;
+  billing: FakeBillingGateway;
   relay: OutboxRelay;
   scheduler: NotificationScheduler;
   deliveries: DeliveryService;
@@ -49,6 +51,7 @@ export async function createHarness(): Promise<Harness> {
   const clock = new FixedClock(TEST_NOW);
   const mailer = new MemoryMailer();
   const push = new FakePushTransport();
+  const billing = new FakeBillingGateway();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(Clock)
     .useValue(clock)
@@ -56,6 +59,8 @@ export async function createHarness(): Promise<Harness> {
     .useValue(mailer)
     .overrideProvider(PushTransport)
     .useValue(push)
+    .overrideProvider(BillingGateway)
+    .useValue(billing)
     .compile();
 
   const app = moduleRef.createNestApplication({ logger: false, rawBody: true });
@@ -70,6 +75,7 @@ export async function createHarness(): Promise<Harness> {
     clock,
     mailer,
     push,
+    billing,
     relay,
     scheduler: app.get(NotificationScheduler),
     deliveries: app.get(DeliveryService),

@@ -70,6 +70,12 @@ export class NotificationService {
       status = when > now ? 'scheduled' : 'sent';
     }
 
+    // Une notification bloquée par les préférences n'est tracée qu'une fois par clé (l'index unique ne couvre que sent/scheduled).
+    if (status === 'suppressed' && draft.dedupKey) {
+      const seen = await tx.notification.findFirst({ where: { dedupKey: draft.dedupKey, status: 'suppressed' }, select: { id: true } });
+      if (seen) return { id: null, status: 'duplicate' };
+    }
+
     // Regroupement : une notification vivante et non lue du même groupe absorbe la nouvelle.
     if (draft.groupKey && status === 'sent') {
       const [group] = await tx.$queryRaw<{ id: string; data: Record<string, unknown> | null; priority: NotificationPriority }[]>`

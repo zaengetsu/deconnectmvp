@@ -12,4 +12,5 @@ Object.assign(process.env, {
   BREVO_API_KEY: '',
   APNS_KEY_ID: '',
   FCM_SERVICE_ACCOUNT_JSON: '',
+  SUPABASE_JWT_SECRET: 'supabase-test-secret-supabase-test-secret',
 });

@@ -154,7 +154,7 @@ export class StripeGateway extends BillingGateway {
     const productId =
       plan.stripeProductId ?? (await this.api.products.create({ name: `Rekonect ${plan.name}`, metadata: { planId: plan.id } })).id;
     const ensure = async (amount: number | null, interval: 'month' | 'year', current: string | null) => {
-      if (amount == null) return null;
+      if (!amount) return null;
       if (current) {
         const existing = await this.api.prices.retrieve(current);
         if (existing.unit_amount === amount && existing.active) return current;
