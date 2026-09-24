@@ -326,3 +326,17 @@ Côté parent : activités en attente de validation depuis la veille (1 par jour
 
 ### Restent côté app (jusqu'à la phase 2)
 L'alerte « mot de passe modifié » et « nouvelle connexion » des comptes Supabase Auth restent envoyées par l'app : le serveur ne voit pas ces événements tant que l'authentification n'est pas passée sur l'API. Les emails de bienvenue, de profil enfant et « activité envoyée » ne partent plus de l'app.
+
+---
+
+## 18. Scripts de livraison et de mise à jour
+
+Réglages personnels (clé App Store Connect, Firebase) : copier `.release.env.example` en `~/.rekonect/release.env`. L'URL de l'API et les clés Supabase de l'app vont dans `apps/mobile/.env.production.local` (Vite ne lit pas le `.env` de la racine ; le script recopie les clés `VITE_*` s'il les y trouve).
+
+| Commande | Rôle |
+|---|---|
+| `pnpm resync` (`./scripts/resync.sh`) | Récupère le code (paquet `.transfer` ou `origin`), `pnpm install`, construit les paquets partagés, génère Prisma, marque la baseline sur une ancienne base Supabase, sauvegarde (`pg_dump`) puis applique les migrations, construit l'API. Options : `--stash`, `--seed`, `--check`, `--mobile`, `--yes`. |
+| `pnpm release:testflight` (`./scripts/testflight.sh`) | Vérifie clé ASC, état git et URL d'API, incrémente le build (`version.json`), archive, exporte, valide et envoie sur App Store Connect. `--dry-run` pour ne vérifier que la configuration. |
+| `pnpm release:firebase [android\|ios\|all]` (`./scripts/firebase.sh`) | Même préparation, puis APK (et/ou IPA « release-testing ») envoyés aux testeurs Firebase App Distribution avec les derniers commits en notes. |
+
+Les deux scripts de livraison refusent une API locale ou non HTTPS (le téléphone d'un testeur ne la joindrait pas), sauf `--allow-local-api`, et refusent de livrer des modifications non commitées, sauf `--allow-dirty`.

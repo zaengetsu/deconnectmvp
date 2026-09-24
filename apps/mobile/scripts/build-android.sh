@@ -28,8 +28,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-FIREBASE_APP_ID="1:410630450375:android:f012e7c0ddc7b92a21a2e2"
-TESTERS="leonceyopa@gmail.com,stella.berthier@yahoo.fr,i.berthier@wineor.fr"
+FIREBASE_APP_ID="${FIREBASE_ANDROID_APP_ID:-1:410630450375:android:f012e7c0ddc7b92a21a2e2}"
+TESTERS="${FIREBASE_TESTERS:-leonceyopa@gmail.com,stella.berthier@yahoo.fr,i.berthier@wineor.fr}"
 
 cd "$PROJECT_DIR"
 
@@ -71,8 +71,9 @@ fi
 export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
 
 # ─── Build web + projet natif ─────────────────────────────────
-echo "🔨 Building web assets..."
-npm run build
+if [ -f ../../pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then PM="pnpm"; else PM="npm"; fi
+echo "🔨 Building web assets ($PM run build)..."
+$PM run build
 
 if [ ! -d android ]; then
   echo "📱 Génération du projet natif Android (npx cap add android)..."
@@ -151,7 +152,11 @@ echo "📦 Building APK..."
 
 APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
 
-if [ "$MODE" = "distribute" ]; then
+if [ "$MODE" = "distribute" ] && [ "${FIREBASE_SKIP_DISTRIBUTE:-0}" = 1 ]; then
+  # Appelé par scripts/firebase.sh, qui se charge de l'envoi (testeurs, groupes, notes).
+  echo "✅ APK prêt : $APK_PATH"
+  exit 0
+elif [ "$MODE" = "distribute" ]; then
   command -v firebase >/dev/null 2>&1 || {
     echo "❌ firebase-tools introuvable (npm i -g firebase-tools)." >&2; exit 1; }
   echo "🚀 Distributing via Firebase App Distribution..."
@@ -159,7 +164,7 @@ if [ "$MODE" = "distribute" ]; then
     "$APK_PATH" \
     --app "$FIREBASE_APP_ID" \
     --testers "$TESTERS" \
-    --release-notes "Deconnect beta — $(date '+%d/%m/%Y %H:%M')"
+    --release-notes "Rekonect beta — $(date '+%d/%m/%Y %H:%M')"
   echo ""
   echo "✅ APK distribué aux testeurs"
 else
