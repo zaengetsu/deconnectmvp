@@ -56,7 +56,7 @@ if [ ! -d ios ] || [ ! -d node_modules ]; then
   "$SCRIPT_DIR/install.sh"
 fi
 
-if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then PM="pnpm"; else PM="npm"; fi
+if [ -f ../../pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then PM="pnpm"; else PM="npm"; fi
 
 APP_ID="$(grep -Eo "appId: *'[^']+'" capacitor.config.ts 2>/dev/null | sed "s/.*'\(.*\)'/\1/")"
 APP_ID="${APP_ID:-ceo.services.rekonect}"

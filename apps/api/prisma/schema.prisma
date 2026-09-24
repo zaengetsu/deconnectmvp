@@ -1,0 +1,1011 @@
+// Schéma Prisma de Rekonect.
+// Les tables existantes conservent leurs noms snake_case (@@map / @map) : le schéma est
+// compatible octet pour octet avec la base Supabase actuelle (voir prisma/migrations).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Identité ────────────────────────────────────────────────────────────────
+
+model User {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String          @unique(map: "users_email_key")
+  passwordHash    String?         @map("password_hash")
+  role            String          @default("parent")
+  fullName        String?         @map("full_name")
+  emailVerifiedAt DateTime?       @map("email_verified_at") @db.Timestamptz(6)
+  lastLoginAt     DateTime?       @map("last_login_at") @db.Timestamptz(6)
+  disabledAt      DateTime?       @map("disabled_at") @db.Timestamptz(6)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  refreshTokens   RefreshToken[]
+  partnerMembers  PartnerMember[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String?   @map("user_id") @db.Uuid
+  childId    String?   @map("child_id") @db.Uuid
+  tokenHash  String    @unique(map: "refresh_tokens_token_hash_key") @map("token_hash")
+  familyId   String    @map("family_id") @db.Uuid
+  deviceId   String?   @map("device_id")
+  userAgent  String?   @map("user_agent")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  replacedBy String?   @map("replaced_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  child      Child?    @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([familyId], map: "refresh_tokens_family_idx")
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  token     String    @unique(map: "password_reset_tokens_token_key")
+  expiresAt DateTime  @default(dbgenerated("(now() + '01:00:00'::interval)")) @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("password_reset_tokens")
+}
+
+// ─── Familles ────────────────────────────────────────────────────────────────
+
+model Profile {
+  id          String    @id @db.Uuid
+  email       String
+  fullName    String?   @map("full_name")
+  role        String    @default("parent")
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  parentRole  String?   @default("parent") @map("parent_role")
+  avatarEmoji String?   @default("👤") @map("avatar_emoji")
+  country     String?   @default("FR")
+  city        String?
+  postalCode  String?   @map("postal_code")
+  region      String?
+  latitude    Float?
+  longitude   Float?
+
+  children                Child[]
+  createdActivities       Activity[]               @relation("ActivityCreatedBy")
+  rewards                 Reward[]
+  subscriptions           Subscription[]
+  notificationPreferences NotificationPreference[]
+  pushTokens              PushToken[]
+  familyGoals             FamilyGoal[]
+  familyRituals           FamilyRitual[]
+  familyInvitations       FamilyInvitation[]
+  ownedFamilyMembers      FamilyMember[]           @relation("FamilyOwner")
+  memberships             FamilyMember[]           @relation("FamilyMember")
+  childInvitations        ChildInvitation[]
+  childLinkTokens         ChildLinkToken[]
+  offerClaims             OfferClaim[]
+  assignedActivities      ChildActivity[]          @relation("AssignedBy")
+  validatedActivities     ChildActivity[]          @relation("ValidatedBy")
+  handledRewardRequests   RewardRequest[]
+  ledgerEntries           PointsLedger[]
+  subscriptionEvents      SubscriptionEvent[]
+  invoices                Invoice[]
+  promoRedemptions        PromoRedemption[]
+  activityReports         ActivityReport[]
+
+  @@map("profiles")
+}
+
+model Child {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId          String    @map("parent_id") @db.Uuid
+  displayName       String    @map("display_name")
+  age               Int
+  avatarUrl         String?   @map("avatar_url")
+  totalPoints       Int       @default(0) @map("total_points")
+  level             Int       @default(1)
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  pinHash           String?   @map("pin_hash")
+  streakDays        Int       @default(0) @map("streak_days")
+  lastActivityDate  DateTime? @map("last_activity_date") @db.Date
+  authUserId        String?   @map("auth_user_id") @db.Uuid
+  deviceLinkedAt    DateTime? @map("device_linked_at") @db.Timestamptz(6)
+  failedPinAttempts Int       @default(0) @map("failed_pin_attempts")
+  pinLockedUntil    DateTime? @map("pin_locked_until") @db.Timestamptz(6)
+
+  parent                  Profile                  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  activities              ChildActivity[]
+  badges                  ChildBadge[]
+  ledger                  PointsLedger[]
+  rewardRequests          RewardRequest[]
+  rewards                 Reward[]
+  pushTokens              PushToken[]
+  notificationPreferences NotificationPreference[]
+  screenTime              ScreenTimeDaily[]
+  linkTokens              ChildLinkToken[]
+  invitations             ChildInvitation[]
+  refreshTokens           RefreshToken[]
+  friendsInitiated        ChildFriend[]            @relation("FriendInitiator")
+  friendsReceived         ChildFriend[]            @relation("FriendTarget")
+  duosInitiated           DuoChallenge[]           @relation("DuoInitiator")
+  duosPartnered           DuoChallenge[]           @relation("DuoPartner")
+  actorNotifications      Notification[]
+  offerClaims             OfferClaim[]
+
+  @@map("children")
+}
+
+model FamilyMember {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId     String    @map("owner_id") @db.Uuid
+  memberId    String?   @map("member_id") @db.Uuid
+  memberEmail String    @map("member_email")
+  memberRole  String    @default("co_parent") @map("member_role")
+  childIds    String[]  @map("child_ids") @db.Uuid
+  status      String    @default("pending")
+  invitedAt   DateTime? @default(now()) @map("invited_at") @db.Timestamptz(6)
+  joinedAt    DateTime? @map("joined_at") @db.Timestamptz(6)
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  owner       Profile   @relation("FamilyOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  member      Profile?  @relation("FamilyMember", fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("family_members")
+}
+
+model FamilyInvitation {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId     String    @map("owner_id") @db.Uuid
+  memberRole  String    @default("co_parent") @map("member_role")
+  inviteEmail String?   @map("invite_email")
+  token       String    @unique(map: "family_invitations_token_key") @default(dbgenerated("encode(gen_random_bytes(20), 'hex'::text)"))
+  status      String    @default("pending")
+  expiresAt   DateTime  @default(dbgenerated("(now() + '7 days'::interval)")) @map("expires_at") @db.Timestamptz(6)
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  owner       Profile   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@map("family_invitations")
+}
+
+model ChildInvitation {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  childId    String    @map("child_id") @db.Uuid
+  parentId   String    @map("parent_id") @db.Uuid
+  method     String
+  recipient  String
+  token      String    @unique(map: "child_invitations_token_key")
+  status     String    @default("pending")
+  expiresAt  DateTime  @default(dbgenerated("(now() + '7 days'::interval)")) @map("expires_at") @db.Timestamptz(6)
+  acceptedAt DateTime? @map("accepted_at") @db.Timestamptz(6)
+  createdAt  DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  child      Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  parent     Profile   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@map("child_invitations")
+}
+
+model ChildLinkToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  childId   String    @map("child_id") @db.Uuid
+  parentId  String    @map("parent_id") @db.Uuid
+  token     String    @unique(map: "child_link_tokens_token_key")
+  pinHash   String?   @map("pin_hash")
+  deviceId  String?   @map("device_id")
+  status    String    @default("pending")
+  expiresAt DateTime  @default(dbgenerated("(now() + '00:15:00'::interval)")) @map("expires_at") @db.Timestamptz(6)
+  linkedAt  DateTime? @map("linked_at") @db.Timestamptz(6)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  shortCode String?   @map("short_code")
+  child     Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  parent    Profile   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@map("child_link_tokens")
+}
+
+model Subscription {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId             String?             @map("parent_id") @db.Uuid
+  partnerId            String?             @map("partner_id") @db.Uuid
+  plan                 String              @default("free")
+  status               String              @default("active")
+  startedAt            DateTime?           @default(now()) @map("started_at") @db.Timestamptz(6)
+  expiresAt            DateTime?           @map("expires_at") @db.Timestamptz(6)
+  stripeCustomerId     String?             @map("stripe_customer_id")
+  stripeSubscriptionId String?             @map("stripe_subscription_id")
+  createdAt            DateTime?           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime?           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  billingInterval      String              @default("month") @map("billing_interval")
+  amountCents          Int                 @default(0) @map("amount_cents")
+  currency             String              @default("eur")
+  stripePriceId        String?             @map("stripe_price_id")
+  currentPeriodEnd     DateTime?           @map("current_period_end") @db.Timestamptz(6)
+  cancelAtPeriodEnd    Boolean             @default(false) @map("cancel_at_period_end")
+  canceledAt           DateTime?           @map("canceled_at") @db.Timestamptz(6)
+  cancelReason         String?             @map("cancel_reason")
+  compPlan             String?             @map("comp_plan")
+  compUntil            DateTime?           @map("comp_until") @db.Timestamptz(6)
+  quantity             Int                 @default(1)
+  parent               Profile?            @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  partner              Partner?            @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  planRef              Plan                @relation("SubscriptionPlan", fields: [plan], references: [id], onUpdate: NoAction)
+  compPlanRef          Plan?               @relation("SubscriptionCompPlan", fields: [compPlan], references: [id], onUpdate: NoAction)
+  events               SubscriptionEvent[]
+
+  @@map("subscriptions")
+}
+
+model Plan {
+  id                   String         @id
+  audience             String
+  name                 String
+  tagline              String?
+  tag                  String?
+  color                String         @default("#3C41A8")
+  monthlyPriceCents    Int?           @map("monthly_price_cents")
+  annualPriceCents     Int?           @map("annual_price_cents")
+  currency             String         @default("eur")
+  stripeProductId      String?        @map("stripe_product_id")
+  stripeMonthlyPriceId String?        @map("stripe_monthly_price_id")
+  stripeAnnualPriceId  String?        @map("stripe_annual_price_id")
+  limits               Json           @default("{}")
+  features             String[]       @default([])
+  sortOrder            Int            @default(0) @map("sort_order")
+  isPublic             Boolean        @default(true) @map("is_public")
+  isActive             Boolean        @default(true) @map("is_active")
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  subscriptions        Subscription[] @relation("SubscriptionPlan")
+  compSubscriptions    Subscription[] @relation("SubscriptionCompPlan")
+  promoCodes           PromoCode[]
+
+  @@map("plans")
+}
+
+model SubscriptionEvent {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscriptionId String?       @map("subscription_id") @db.Uuid
+  parentId       String?       @map("parent_id") @db.Uuid
+  partnerId      String?       @map("partner_id") @db.Uuid
+  type           String
+  description    String
+  amountCents    Int           @default(0) @map("amount_cents")
+  plan           String?
+  stripeEventId  String?       @map("stripe_event_id")
+  occurredAt     DateTime      @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onUpdate: NoAction)
+  parent         Profile?      @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  partner        Partner?      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@map("subscription_events")
+}
+
+model Invoice {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId        String?   @map("parent_id") @db.Uuid
+  partnerId       String?   @map("partner_id") @db.Uuid
+  stripeInvoiceId String?   @map("stripe_invoice_id")
+  number          String?
+  label           String
+  amountCents     Int       @map("amount_cents")
+  currency        String    @default("eur")
+  status          String
+  hostedUrl       String?   @map("hosted_url")
+  pdfUrl          String?   @map("pdf_url")
+  periodStart     DateTime? @map("period_start") @db.Timestamptz(6)
+  periodEnd       DateTime? @map("period_end") @db.Timestamptz(6)
+  issuedAt        DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  parent          Profile?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  partner         Partner?  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+model StripeWebhookEvent {
+  id         String   @id
+  type       String
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  @@map("stripe_webhook_events")
+}
+
+model PromoCode {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                  String            @unique(map: "promo_codes_code_key")
+  description           String
+  kind                  String
+  percentOff            Int?              @map("percent_off")
+  amountOffCents        Int?              @map("amount_off_cents")
+  durationMonths        Int?              @map("duration_months")
+  planId                String?           @map("plan_id")
+  sponsorPartnerId      String?           @map("sponsor_partner_id") @db.Uuid
+  maxRedemptions        Int?              @map("max_redemptions")
+  redemptions           Int               @default(0)
+  startsAt              DateTime?         @map("starts_at") @db.Timestamptz(6)
+  expiresAt             DateTime?         @map("expires_at") @db.Timestamptz(6)
+  isActive              Boolean           @default(true) @map("is_active")
+  stripeCouponId        String?           @map("stripe_coupon_id")
+  stripePromotionCodeId String?           @map("stripe_promotion_code_id")
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  plan                  Plan?             @relation(fields: [planId], references: [id], onUpdate: NoAction)
+  sponsor               Partner?          @relation(fields: [sponsorPartnerId], references: [id], onUpdate: NoAction)
+  uses                  PromoRedemption[]
+  targetedOffers        PartnerOffer[]
+
+  @@map("promo_codes")
+}
+
+model PromoRedemption {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promoCodeId String    @map("promo_code_id") @db.Uuid
+  parentId    String    @map("parent_id") @db.Uuid
+  redeemedAt  DateTime  @default(now()) @map("redeemed_at") @db.Timestamptz(6)
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  parent      Profile   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@unique([promoCodeId, parentId], map: "promo_redemptions_key")
+  @@map("promo_redemptions")
+}
+
+// ─── Activités ───────────────────────────────────────────────────────────────
+
+model ActivityCategory {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  slug            String         @unique(map: "activity_categories_slug_key")
+  description     String?
+  icon            String?
+  createdAt       DateTime?      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime?      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  activities      Activity[]
+  offers          PartnerOffer[] @relation("OfferCategory")
+  triggeredOffers PartnerOffer[] @relation("OfferTriggerCategory")
+
+  @@map("activity_categories")
+}
+
+model Activity {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId      String?           @map("category_id") @db.Uuid
+  createdBy       String?           @map("created_by") @db.Uuid
+  title           String
+  description     String?
+  instructions    String?
+  points          Int               @default(10)
+  durationMinutes Int?              @map("duration_minutes")
+  minAge          Int?              @default(9) @map("min_age")
+  maxAge          Int?              @default(14) @map("max_age")
+  difficulty      String            @default("easy")
+  activityType    String            @default("catalog") @map("activity_type")
+  isPublic        Boolean           @default(true) @map("is_public")
+  isActive        Boolean           @default(true) @map("is_active")
+  createdAt       DateTime?         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime?         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  partnerId       String?           @map("partner_id") @db.Uuid
+  imageUrl        String?           @map("image_url")
+  catalogStatus   String            @default("published") @map("catalog_status")
+  proofRequired   Boolean           @default(false) @map("proof_required")
+  partnerEligible Boolean           @default(true) @map("partner_eligible")
+  category        ActivityCategory? @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
+  creator         Profile?          @relation("ActivityCreatedBy", fields: [createdBy], references: [id], onUpdate: NoAction)
+  partner         Partner?          @relation(fields: [partnerId], references: [id], onUpdate: NoAction)
+  childActivities ChildActivity[]
+  duos            DuoChallenge[]
+  rituals         FamilyRitual[]
+  sponsoredBy     PartnerOffer[]    @relation("OfferActivity")
+  triggeredOffers PartnerOffer[]    @relation("OfferTriggerActivity")
+  reports         ActivityReport[]
+
+  @@map("activities")
+}
+
+model ActivityReport {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  activityId String    @map("activity_id") @db.Uuid
+  parentId   String?   @map("parent_id") @db.Uuid
+  reason     String
+  details    String?
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolution String?
+  activity   Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  parent     Profile?  @relation(fields: [parentId], references: [id], onUpdate: NoAction)
+
+  @@map("activity_reports")
+}
+
+model ChildActivity {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  childId         String    @map("child_id") @db.Uuid
+  activityId      String    @map("activity_id") @db.Uuid
+  status          String    @default("available")
+  submittedAt     DateTime? @map("submitted_at") @db.Timestamptz(6)
+  validatedAt     DateTime? @map("validated_at") @db.Timestamptz(6)
+  rejectedAt      DateTime? @map("rejected_at") @db.Timestamptz(6)
+  validatedBy     String?   @map("validated_by") @db.Uuid
+  rejectionReason String?   @map("rejection_reason")
+  earnedPoints    Int?      @default(0) @map("earned_points")
+  childNote       String?   @map("child_note")
+  parentNote      String?   @map("parent_note")
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  proofUrl        String?   @map("proof_url")
+  proofType       String?   @map("proof_type")
+  assignedBy      String?   @map("assigned_by") @db.Uuid
+  assignedByRole  String?   @map("assigned_by_role")
+  scheduledFor    DateTime? @map("scheduled_for") @db.Date
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  recurrenceType  String?   @default("none") @map("recurrence_type")
+  recurrenceDays  Int[]     @map("recurrence_days")
+  child           Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  activity        Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  assigner        Profile?  @relation("AssignedBy", fields: [assignedBy], references: [id], onUpdate: NoAction)
+  validator       Profile?  @relation("ValidatedBy", fields: [validatedBy], references: [id], onUpdate: NoAction)
+
+  @@index([childId, status], map: "child_activities_child_status_idx")
+  @@map("child_activities")
+}
+
+// ─── Récompenses & gamification ──────────────────────────────────────────────
+
+model Reward {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId       String?         @map("parent_id") @db.Uuid
+  childId        String?         @map("child_id") @db.Uuid
+  title          String
+  description    String?
+  requiredPoints Int             @map("required_points")
+  rewardType     String          @default("custom") @map("reward_type")
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime?       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime?       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  rewardCategory String?         @map("reward_category")
+  partnerOfferId String?         @map("partner_offer_id") @db.Uuid
+  imageUrl       String?         @map("image_url")
+  sourceRewardId String?         @map("source_reward_id") @db.Uuid
+  parent         Profile?        @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  sourceReward   Reward?         @relation("RewardSource", fields: [sourceRewardId], references: [id], onUpdate: NoAction)
+  copies         Reward[]        @relation("RewardSource")
+  child          Child?          @relation(fields: [childId], references: [id], onDelete: Cascade)
+  partnerOffer   PartnerOffer?   @relation("RewardOffer", fields: [partnerOfferId], references: [id], onUpdate: NoAction)
+  requests       RewardRequest[]
+  offerReward    PartnerOffer[]  @relation("OfferReward")
+
+  @@map("rewards")
+}
+
+model RewardRequest {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  childId     String       @map("child_id") @db.Uuid
+  rewardId    String       @map("reward_id") @db.Uuid
+  status      String       @default("pending")
+  requestedAt DateTime?    @default(now()) @map("requested_at") @db.Timestamptz(6)
+  approvedAt  DateTime?    @map("approved_at") @db.Timestamptz(6)
+  rejectedAt  DateTime?    @map("rejected_at") @db.Timestamptz(6)
+  handledBy   String?      @map("handled_by") @db.Uuid
+  parentNote  String?      @map("parent_note")
+  createdAt   DateTime?    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime?    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  child       Child        @relation(fields: [childId], references: [id], onDelete: Cascade)
+  reward      Reward       @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  handler     Profile?     @relation(fields: [handledBy], references: [id], onUpdate: NoAction)
+  offerClaims OfferClaim[]
+
+  @@index([childId, status], map: "reward_requests_child_status_idx")
+  @@map("reward_requests")
+}
+
+model Badge {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  description    String?
+  icon           String?
+  conditionType  String       @map("condition_type")
+  conditionValue Int          @map("condition_value")
+  createdAt      DateTime?    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime?    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  children       ChildBadge[]
+
+  @@map("badges")
+}
+
+model ChildBadge {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  childId   String    @map("child_id") @db.Uuid
+  badgeId   String    @map("badge_id") @db.Uuid
+  earnedAt  DateTime? @default(now()) @map("earned_at") @db.Timestamptz(6)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  child     Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  badge     Badge     @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, badgeId], map: "child_badges_child_id_badge_id_key")
+  @@map("child_badges")
+}
+
+model PointsLedger {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  childId    String    @map("child_id") @db.Uuid
+  sourceType String    @map("source_type")
+  sourceId   String?   @map("source_id") @db.Uuid
+  points     Int
+  reason     String?
+  createdBy  String?   @map("created_by") @db.Uuid
+  createdAt  DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  child      Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  creator    Profile?  @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
+
+  @@map("points_ledger")
+}
+
+// ─── Social & rituels ────────────────────────────────────────────────────────
+
+model ChildFriend {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  childId                   String    @map("child_id") @db.Uuid
+  friendChildId             String    @map("friend_child_id") @db.Uuid
+  status                    String    @default("pending")
+  approvedByInitiatorParent Boolean   @default(false) @map("approved_by_initiator_parent")
+  approvedByFriendParent    Boolean   @default(false) @map("approved_by_friend_parent")
+  createdAt                 DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  child                     Child     @relation("FriendInitiator", fields: [childId], references: [id], onDelete: Cascade)
+  friend                    Child     @relation("FriendTarget", fields: [friendChildId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, friendChildId], map: "child_friends_child_id_friend_child_id_key")
+  @@index([childId], map: "child_friends_child_idx")
+  @@index([friendChildId], map: "child_friends_friend_idx")
+  @@map("child_friends")
+}
+
+model DuoChallenge {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  activityId       String    @map("activity_id") @db.Uuid
+  initiatorChildId String    @map("initiator_child_id") @db.Uuid
+  partnerChildId   String    @map("partner_child_id") @db.Uuid
+  status           String    @default("invited")
+  startsAt         DateTime? @map("starts_at") @db.Timestamptz(6)
+  expiresAt        DateTime  @default(dbgenerated("(now() + '48:00:00'::interval)")) @map("expires_at") @db.Timestamptz(6)
+  bonusPoints      Int       @default(20) @map("bonus_points")
+  initiatorDoneAt  DateTime? @map("initiator_done_at") @db.Timestamptz(6)
+  partnerDoneAt    DateTime? @map("partner_done_at") @db.Timestamptz(6)
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  activity         Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  initiator        Child     @relation("DuoInitiator", fields: [initiatorChildId], references: [id], onDelete: Cascade)
+  partner          Child     @relation("DuoPartner", fields: [partnerChildId], references: [id], onDelete: Cascade)
+
+  @@index([status, expiresAt], map: "duo_status_idx")
+  @@map("duo_challenges")
+}
+
+model FamilyRitual {
+  id              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId        String                   @map("parent_id") @db.Uuid
+  activityId      String?                  @map("activity_id") @db.Uuid
+  title           String
+  description     String?
+  weekday         Int
+  startTime       DateTime                 @map("start_time") @db.Time(6)
+  durationMinutes Int                      @default(60) @map("duration_minutes")
+  points          Int                      @default(20)
+  isActive        Boolean                  @default(true) @map("is_active")
+  createdAt       DateTime?                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime?                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  parent          Profile                  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  activity        Activity?                @relation(fields: [activityId], references: [id], onUpdate: NoAction)
+  occurrences     FamilyRitualOccurrence[]
+
+  @@map("family_rituals")
+}
+
+model FamilyRitualOccurrence {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ritualId    String       @map("ritual_id") @db.Uuid
+  scheduledAt DateTime     @map("scheduled_at") @db.Timestamptz(6)
+  status      String       @default("planned")
+  doneAt      DateTime?    @map("done_at") @db.Timestamptz(6)
+  attendees   String[]     @default(dbgenerated("ARRAY[]::uuid[]")) @db.Uuid
+  createdAt   DateTime?    @default(now()) @map("created_at") @db.Timestamptz(6)
+  ritual      FamilyRitual @relation(fields: [ritualId], references: [id], onDelete: Cascade)
+
+  @@unique([ritualId, scheduledAt], map: "family_ritual_occurrences_ritual_id_scheduled_at_key")
+  @@map("family_ritual_occurrences")
+}
+
+model FamilyGoal {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId         String    @map("parent_id") @db.Uuid
+  weekStart        DateTime  @map("week_start") @db.Date
+  targetActivities Int       @default(5) @map("target_activities")
+  achievedAt       DateTime? @map("achieved_at") @db.Timestamptz(6)
+  createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  parent           Profile   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, weekStart], map: "family_goals_parent_id_week_start_key")
+  @@map("family_goals")
+}
+
+model ScreenTimeDaily {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  childId     String    @map("child_id") @db.Uuid
+  day         DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  minutes     Int
+  goalMinutes Int?      @map("goal_minutes")
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  child       Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, day], map: "screen_time_daily_child_id_day_key")
+  @@map("screen_time_daily")
+}
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+model Notification {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientType String                 @map("recipient_type")
+  recipientId   String                 @map("recipient_id") @db.Uuid
+  title         String
+  body          String
+  icon          String?                @default("🔔")
+  route         String?
+  data          Json?                  @default("{}")
+  isRead        Boolean?               @default(false) @map("is_read")
+  createdAt     DateTime?              @default(now()) @map("created_at") @db.Timestamptz(6)
+  type          String?
+  category      String?
+  priority      String                 @default("normal")
+  entityType    String?                @map("entity_type")
+  entityId      String?                @map("entity_id") @db.Uuid
+  actorChildId  String?                @map("actor_child_id") @db.Uuid
+  channels      String[]               @default(["in_app"])
+  status        String                 @default("sent")
+  scheduledAt   DateTime?              @map("scheduled_at") @db.Timestamptz(6)
+  sentAt        DateTime?              @map("sent_at") @db.Timestamptz(6)
+  readAt        DateTime?              @map("read_at") @db.Timestamptz(6)
+  dedupKey      String?                @map("dedup_key")
+  groupKey      String?                @map("group_key")
+  expiresAt     DateTime?              @map("expires_at") @db.Timestamptz(6)
+  actorChild    Child?                 @relation(fields: [actorChildId], references: [id], onUpdate: NoAction)
+  deliveries    NotificationDelivery[]
+
+  @@index([recipientType, recipientId, createdAt(sort: Desc)], map: "notifications_recipient_idx")
+  @@map("notifications")
+}
+
+model NotificationDelivery {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  notificationId String       @map("notification_id") @db.Uuid
+  channel        String
+  status         String       @default("pending")
+  attempts       Int          @default(0)
+  nextAttemptAt  DateTime     @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  sentCount      Int          @default(0) @map("sent_count")
+  targetCount    Int          @default(0) @map("target_count")
+  lastError      String?      @map("last_error")
+  deliveredAt    DateTime?    @map("delivered_at") @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, channel], map: "notification_deliveries_notif_channel_key")
+  @@map("notification_deliveries")
+}
+
+model NotificationPreference {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId            String    @map("parent_id") @db.Uuid
+  childId             String?   @map("child_id") @db.Uuid
+  activitySuggestions Boolean   @default(true) @map("activity_suggestions")
+  validationReminders Boolean   @default(true) @map("validation_reminders")
+  rewardUpdates       Boolean   @default(true) @map("reward_updates")
+  congratulations     Boolean   @default(true)
+  quietHoursStart     DateTime? @map("quiet_hours_start") @db.Time(6)
+  quietHoursEnd       DateTime? @map("quiet_hours_end") @db.Time(6)
+  createdAt           DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  pushEnabled         Boolean   @default(true) @map("push_enabled")
+  emailEnabled        Boolean   @default(true) @map("email_enabled")
+  inAppEnabled        Boolean   @default(true) @map("in_app_enabled")
+  activityCompleted   Boolean   @default(true) @map("activity_completed")
+  activityValidation  Boolean   @default(true) @map("activity_validation")
+  activityPlanned     Boolean   @default(true) @map("activity_planned")
+  rewardUnlocked      Boolean   @default(true) @map("reward_unlocked")
+  rewardPending       Boolean   @default(true) @map("reward_pending")
+  familyActivities    Boolean   @default(true) @map("family_activities")
+  familyInvitations   Boolean   @default(true) @map("family_invitations")
+  goals               Boolean   @default(true)
+  dailySummary        Boolean   @default(false) @map("daily_summary")
+  weeklySummary       Boolean   @default(true) @map("weekly_summary")
+  screenTimeGoal      Boolean   @default(true) @map("screen_time_goal")
+  screenTimeSummary   Boolean   @default(false) @map("screen_time_summary")
+  tips                Boolean   @default(true)
+  productNews         Boolean   @default(false) @map("product_news")
+  timezone            String    @default("Europe/Paris")
+  channelOverrides    Json      @default("{}") @map("channel_overrides")
+  partnerOffers       Boolean   @default(false) @map("partner_offers")
+  parent              Profile   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  child               Child?    @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model PushToken {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String?   @map("user_id") @db.Uuid
+  childId     String?   @map("child_id") @db.Uuid
+  token       String    @unique(map: "push_tokens_token_key")
+  platform    String
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  environment String    @default("production")
+  lastSeenAt  DateTime? @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  user        Profile?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  child       Child?    @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@map("push_tokens")
+}
+
+model EmailEvent {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientEmail String    @map("recipient_email")
+  eventType      String    @map("event_type")
+  payload        Json?
+  status         String    @default("pending")
+  sentAt         DateTime? @map("sent_at") @db.Timestamptz(6)
+  error          String?
+  createdAt      DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("email_events")
+}
+
+// ─── Événements ──────────────────────────────────────────────────────────────
+
+model OutboxEvent {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Ordre de publication strict (deux événements de la même milliseconde restent ordonnés).
+  seq           BigInt           @default(autoincrement())
+  type          String
+  version       Int              @default(1)
+  aggregateType String           @map("aggregate_type")
+  aggregateId   String           @map("aggregate_id")
+  actor         Json?
+  payload       Json             @default("{}")
+  correlationId String?          @map("correlation_id")
+  occurredAt    DateTime         @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  status        String           @default("pending")
+  attempts      Int              @default(0)
+  nextAttemptAt DateTime         @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  lastError     String?          @map("last_error")
+  publishedAt   DateTime?        @map("published_at") @db.Timestamptz(6)
+  processed     ProcessedEvent[]
+
+  @@index([aggregateType, aggregateId], map: "outbox_events_aggregate_idx")
+  @@map("outbox_events")
+}
+
+model ProcessedEvent {
+  eventId     String      @map("event_id") @db.Uuid
+  consumer    String
+  processedAt DateTime    @default(now()) @map("processed_at") @db.Timestamptz(6)
+  event       OutboxEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, consumer])
+  @@map("processed_events")
+}
+
+// ─── Partenaires ─────────────────────────────────────────────────────────────
+
+model Partner {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String
+  slug               String              @unique(map: "partners_slug_key")
+  kind               String              @default("brand")
+  description        String?
+  websiteUrl         String?             @map("website_url")
+  logoUrl            String?             @map("logo_url")
+  contactEmail       String?             @map("contact_email")
+  status             String              @default("pending")
+  createdBy          String?             @map("created_by") @db.Uuid
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  parentPartnerId    String?             @map("parent_partner_id") @db.Uuid
+  color              String              @default("#3C41A8")
+  subtitle           String?
+  parentPartner      Partner?            @relation("PartnerNetwork", fields: [parentPartnerId], references: [id], onUpdate: NoAction)
+  stores             Partner[]           @relation("PartnerNetwork")
+  members            PartnerMember[]
+  offers             PartnerOffer[]
+  activities         Activity[]
+  places             PartnerPlace[]      @relation("PlaceOwner")
+  linkedPlaces       PartnerPlace[]      @relation("PlaceLinked")
+  subscriptions      Subscription[]
+  subscriptionEvents SubscriptionEvent[]
+  invoices           Invoice[]
+  promoCodes         PromoCode[]
+
+  @@index([parentPartnerId], map: "partners_parent_idx")
+  @@map("partners")
+}
+
+model PartnerPlace {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId       String         @map("partner_id") @db.Uuid
+  linkedPartnerId String?        @map("linked_partner_id") @db.Uuid
+  name            String
+  address         String?
+  postalCode      String?        @map("postal_code")
+  city            String?
+  latitude        Float?
+  longitude       Float?
+  managerName     String?        @map("manager_name")
+  accessLevel     String         @default("delegated") @map("access_level")
+  isActive        Boolean        @default(true) @map("is_active")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  partner         Partner        @relation("PlaceOwner", fields: [partnerId], references: [id], onDelete: Cascade)
+  linkedPartner   Partner?       @relation("PlaceLinked", fields: [linkedPartnerId], references: [id], onUpdate: NoAction)
+  targetedOffers  PartnerOffer[]
+  redemptions     OfferClaim[]
+
+  @@index([partnerId], map: "partner_places_partner_idx")
+  @@map("partner_places")
+}
+
+model PartnerMember {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId       String    @map("partner_id") @db.Uuid
+  userId          String?   @map("user_id") @db.Uuid
+  email           String
+  role            String    @default("editor")
+  status          String    @default("invited")
+  inviteTokenHash String?   @map("invite_token_hash")
+  inviteExpiresAt DateTime? @map("invite_expires_at") @db.Timestamptz(6)
+  invitedAt       DateTime  @default(now()) @map("invited_at") @db.Timestamptz(6)
+  joinedAt        DateTime? @map("joined_at") @db.Timestamptz(6)
+  title           String?
+  partner         Partner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user            User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, email], map: "partner_members_partner_email_key")
+  @@index([userId], map: "partner_members_user_idx")
+  @@map("partner_members")
+}
+
+model PartnerOffer {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId         String             @map("partner_id") @db.Uuid
+  kind              String
+  title             String
+  description       String?
+  imageUrl          String?            @map("image_url")
+  terms             String?
+  minAge            Int                @default(3) @map("min_age")
+  maxAge            Int                @default(18) @map("max_age")
+  requiredPoints    Int?               @map("required_points")
+  durationMinutes   Int?               @map("duration_minutes")
+  categoryId        String?            @map("category_id") @db.Uuid
+  triggerType       String             @default("none") @map("trigger_type")
+  triggerActivityId String?            @map("trigger_activity_id") @db.Uuid
+  triggerCategoryId String?            @map("trigger_category_id") @db.Uuid
+  triggerThreshold  Int                @default(1) @map("trigger_threshold")
+  codeMode          String             @default("rekonect") @map("code_mode")
+  genericCode       String?            @map("generic_code")
+  discountLabel     String?            @map("discount_label")
+  stockTotal        Int?               @map("stock_total")
+  stockUsed         Int                @default(0) @map("stock_used")
+  perFamilyLimit    Int                @default(1) @map("per_family_limit")
+  startsAt          DateTime?          @map("starts_at") @db.Timestamptz(6)
+  endsAt            DateTime?          @map("ends_at") @db.Timestamptz(6)
+  status            String             @default("draft")
+  activityId        String?            @map("activity_id") @db.Uuid
+  rewardId          String?            @map("reward_id") @db.Uuid
+  submittedAt       DateTime?          @map("submitted_at") @db.Timestamptz(6)
+  reviewedAt        DateTime?          @map("reviewed_at") @db.Timestamptz(6)
+  reviewedBy        String?            @map("reviewed_by") @db.Uuid
+  rejectionReason   String?            @map("rejection_reason")
+  publishedAt       DateTime?          @map("published_at") @db.Timestamptz(6)
+  createdBy         String?            @map("created_by") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  partner           Partner            @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  category          ActivityCategory?  @relation("OfferCategory", fields: [categoryId], references: [id], onUpdate: NoAction)
+  triggerActivity   Activity?          @relation("OfferTriggerActivity", fields: [triggerActivityId], references: [id], onUpdate: NoAction)
+  triggerCategory   ActivityCategory?  @relation("OfferTriggerCategory", fields: [triggerCategoryId], references: [id], onUpdate: NoAction)
+  activity          Activity?          @relation("OfferActivity", fields: [activityId], references: [id], onUpdate: NoAction)
+  reward            Reward?            @relation("OfferReward", fields: [rewardId], references: [id], onUpdate: NoAction)
+  rewards           Reward[]           @relation("RewardOffer")
+  claims            OfferClaim[]
+  codes             VoucherCode[]
+  metrics           OfferMetricDaily[]
+  triggerWindowDays Int?               @map("trigger_window_days")
+  targetType        String             @default("national") @map("target_type")
+  targetPlaceId     String?            @map("target_place_id") @db.Uuid
+  targetRadiusKm    Int?               @map("target_radius_km")
+  targetPostalCodes String[]           @default([]) @map("target_postal_codes")
+  targetPromoCodeId String?            @map("target_promo_code_id") @db.Uuid
+  redemptionMethod  String             @default("qr") @map("redemption_method")
+  reviewNote        String?            @map("review_note")
+  brandReviewedAt   DateTime?          @map("brand_reviewed_at") @db.Timestamptz(6)
+  brandReviewedBy   String?            @map("brand_reviewed_by") @db.Uuid
+  targetPlace       PartnerPlace?      @relation(fields: [targetPlaceId], references: [id], onUpdate: NoAction)
+  targetPromoCode   PromoCode?         @relation(fields: [targetPromoCodeId], references: [id], onUpdate: NoAction)
+  impressions       OfferImpression[]
+
+  @@index([partnerId, status], map: "partner_offers_partner_idx")
+  @@map("partner_offers")
+}
+
+model OfferClaim {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  offerId           String         @map("offer_id") @db.Uuid
+  parentId          String         @map("parent_id") @db.Uuid
+  childId           String?        @map("child_id") @db.Uuid
+  rewardRequestId   String?        @map("reward_request_id") @db.Uuid
+  sourceKey         String         @map("source_key")
+  status            String         @default("unlocked")
+  code              String?
+  unlockedAt        DateTime       @default(now()) @map("unlocked_at") @db.Timestamptz(6)
+  redeemedAt        DateTime?      @map("redeemed_at") @db.Timestamptz(6)
+  expiresAt         DateTime?      @map("expires_at") @db.Timestamptz(6)
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  redeemedPlaceId   String?        @map("redeemed_place_id") @db.Uuid
+  redeemedBy        String?        @map("redeemed_by") @db.Uuid
+  basketAmountCents Int?           @map("basket_amount_cents")
+  redeemedPlace     PartnerPlace?  @relation(fields: [redeemedPlaceId], references: [id], onUpdate: NoAction)
+  offer             PartnerOffer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  parent            Profile        @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  child             Child?         @relation(fields: [childId], references: [id], onUpdate: NoAction)
+  rewardRequest     RewardRequest? @relation(fields: [rewardRequestId], references: [id], onUpdate: NoAction)
+  codes             VoucherCode[]
+
+  @@unique([offerId, sourceKey], map: "offer_claims_source_key")
+  @@index([parentId, status], map: "offer_claims_parent_idx")
+  @@map("offer_claims")
+}
+
+model VoucherCode {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  offerId    String       @map("offer_id") @db.Uuid
+  code       String
+  status     String       @default("available")
+  claimId    String?      @map("claim_id") @db.Uuid
+  assignedAt DateTime?    @map("assigned_at") @db.Timestamptz(6)
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  offer      PartnerOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  claim      OfferClaim?  @relation(fields: [claimId], references: [id], onUpdate: NoAction)
+
+  @@unique([offerId, code], map: "voucher_codes_offer_code_key")
+  @@map("voucher_codes")
+}
+
+model OfferMetricDaily {
+  offerId     String       @map("offer_id") @db.Uuid
+  day         DateTime     @db.Date
+  views       Int          @default(0)
+  unlocks     Int          @default(0)
+  redemptions Int          @default(0)
+  offer       PartnerOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@id([offerId, day])
+  @@map("offer_metrics_daily")
+}
+
+model OfferImpression {
+  offerId   String       @map("offer_id") @db.Uuid
+  viewerKey String       @map("viewer_key")
+  day       DateTime     @db.Date
+  offer     PartnerOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@id([offerId, viewerKey, day])
+  @@map("offer_impressions")
+}

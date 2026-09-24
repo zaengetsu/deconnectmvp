@@ -93,7 +93,7 @@ if ! node_version_ok; then
   exit 1
 fi
 
-if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then PM="pnpm"; else PM="npm"; fi
+if [ -f ../../pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then PM="pnpm"; else PM="npm"; fi
 
 # ─── Build web + sync ─────────────────────────────────────────
 echo "🔨 Build des assets web ($PM run build)..."

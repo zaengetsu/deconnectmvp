@@ -1,0 +1,291 @@
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import type {
+  AcceptPartnerInvitationInput,
+  ChildLinkInput,
+  ChildPinLoginInput,
+  LoginInput,
+  RegisterInput,
+  ResetPasswordInput,
+} from '@rekonect/contracts';
+import { ENV, type Env } from '../../config/env';
+import type { Principal } from '../../platform/auth/principal';
+import { Clock } from '../../platform/clock';
+import { hashSecret, isLegacyHash, normalizeShortCode, randomToken, sha256, verifySecret } from '../../platform/crypto';
+import { EventBus } from '../../platform/events/event-bus';
+import { badRequest, conflict, notFound, tooMany, unauthorized } from '../../platform/http/errors';
+import { Mailer } from '../../platform/mail/mailer';
+import { mails } from '../../platform/mail/templates';
+import { PrismaService } from '../../platform/prisma/prisma.service';
+import { TokenService } from './token.service';
+
+export const PIN_MAX_ATTEMPTS = 5;
+export const PIN_LOCK_MINUTES = 15;
+
+interface Meta {
+  userAgent?: string | null;
+}
+
+@Injectable()
+export class AuthService {
+  private readonly logger = new Logger('Auth');
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tokens: TokenService,
+    private readonly events: EventBus,
+    private readonly mailer: Mailer,
+    private readonly clock: Clock,
+    @Inject(ENV) private readonly env: Env,
+  ) {}
+
+  // ─── Parents ───────────────────────────────────────────────────────────────
+
+  async register(input: RegisterInput, meta: Meta = {}) {
+    const exists = await this.prisma.user.findUnique({ where: { email: input.email } });
+    if (exists) throw conflict('EMAIL_TAKEN', 'Un compte existe déjà avec cet email');
+    const passwordHash = await hashSecret(input.password);
+
+    return this.prisma.tx(async (tx) => {
+      const user = await tx.user.create({
+        data: { email: input.email, passwordHash, role: 'parent', fullName: input.fullName, lastLoginAt: this.clock.now() },
+      });
+      await tx.profile.create({ data: { id: user.id, email: user.email, fullName: input.fullName, role: 'parent' } });
+      await tx.subscription.create({ data: { parentId: user.id, plan: 'free', status: 'active' } });
+      await tx.notificationPreference.create({ data: { parentId: user.id } });
+      await this.events.publish(tx, 'user.registered', {
+        aggregateType: 'user',
+        aggregateId: user.id,
+        payload: { userId: user.id, role: 'parent', email: user.email },
+        actor: { kind: 'parent', id: user.id },
+      });
+      const pair = await this.tokens.issue({ userId: user.id, role: 'parent' }, meta, tx);
+      return { ...this.stripId(pair), user: this.publicUser(user) };
+    });
+  }
+
+  async login(input: LoginInput, meta: Meta = {}) {
+    const user = await this.prisma.user.findUnique({ where: { email: input.email } });
+    // Même message que le compte existe ou non : pas d'énumération des emails.
+    const ok = await verifySecret(user?.passwordHash, input.password);
+    if (!user || !ok) throw unauthorized('INVALID_CREDENTIALS', 'Email ou mot de passe incorrect');
+    if (user.disabledAt) throw unauthorized('ACCOUNT_DISABLED', 'Ce compte est désactivé');
+
+    const data: { lastLoginAt: Date; passwordHash?: string } = { lastLoginAt: this.clock.now() };
+    if (user.passwordHash && isLegacyHash(user.passwordHash)) data.passwordHash = await hashSecret(input.password);
+    await this.prisma.user.update({ where: { id: user.id }, data });
+
+    const pair = await this.tokens.issue({ userId: user.id, role: user.role as 'parent' | 'admin' | 'partner' }, meta);
+    return { ...this.stripId(pair), user: this.publicUser(user) };
+  }
+
+  refresh(refreshToken: string, meta: Meta = {}) {
+    return this.tokens.rotate(refreshToken, meta.userAgent);
+  }
+
+  async logout(refreshToken: string | undefined, p: Principal, pushToken?: string) {
+    if (refreshToken) await this.tokens.revoke(refreshToken);
+    if (pushToken) {
+      // Un appareil déconnecté ne doit plus recevoir les notifications de ce compte.
+      await this.prisma.pushToken.deleteMany({
+        where: p.kind === 'child' ? { token: pushToken, childId: p.childId } : { token: pushToken, userId: p.userId },
+      });
+    }
+    return { success: true };
+  }
+
+  async me(p: Principal) {
+    if (p.kind === 'child') {
+      const child = await this.prisma.child.findUnique({ where: { id: p.childId } });
+      if (!child) throw notFound('CHILD_NOT_FOUND', 'Profil introuvable');
+      return { kind: 'child' as const, child: this.publicChild(child) };
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: p.userId },
+      include: { partnerMembers: { where: { status: 'active' }, include: { partner: true } } },
+    });
+    if (!user) throw notFound('USER_NOT_FOUND', 'Compte introuvable');
+    return {
+      kind: 'user' as const,
+      user: this.publicUser(user),
+      partners: user.partnerMembers.map((m) => ({
+        id: m.partner.id,
+        name: m.partner.name,
+        slug: m.partner.slug,
+        status: m.partner.status,
+        logoUrl: m.partner.logoUrl,
+        role: m.role,
+      })),
+    };
+  }
+
+  // ─── Mot de passe ──────────────────────────────────────────────────────────
+
+  async forgotPassword(email: string): Promise<{ success: true }> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user && !user.disabledAt) {
+      const raw = randomToken(32);
+      const now = this.clock.now();
+      await this.prisma.tx(async (tx) => {
+        await tx.passwordResetToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: now } });
+        await tx.passwordResetToken.create({
+          data: { userId: user.id, token: sha256(raw), expiresAt: new Date(now.getTime() + 3_600_000) },
+        });
+      });
+      const base =
+        user.role === 'admin' ? this.env.WEB_ADMIN_URL : user.role === 'partner' ? this.env.WEB_PARTNERS_URL : this.env.MOBILE_APP_URL;
+      const url = `${base.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(raw)}`;
+      const res = await this.mailer.send(mails.passwordReset(user.email, url));
+      if (res.status === 'failed') this.logger.warn(`Email de réinitialisation non envoyé : ${res.error}`);
+    }
+    return { success: true };
+  }
+
+  async resetPassword(input: ResetPasswordInput) {
+    const now = this.clock.now();
+    const row = await this.prisma.passwordResetToken.findUnique({ where: { token: sha256(input.token) } });
+    if (!row || row.usedAt || row.expiresAt <= now) throw badRequest('RESET_TOKEN_INVALID', 'Lien invalide ou expiré');
+    const passwordHash = await hashSecret(input.password);
+    const user = await this.prisma.tx(async (tx) => {
+      await tx.passwordResetToken.update({ where: { id: row.id }, data: { usedAt: now } });
+      const u = await tx.user.update({ where: { id: row.userId }, data: { passwordHash } });
+      await this.tokens.revokeAllForUser(u.id, tx);
+      return u;
+    });
+    await this.mailer.send(mails.passwordChanged(user.email));
+    return { success: true };
+  }
+
+  // ─── Enfants ───────────────────────────────────────────────────────────────
+
+  /** L'appareil de l'enfant échange le QR / code court + un PIN choisi contre une session enfant. */
+  async claimChildLink(input: ChildLinkInput, meta: Meta = {}) {
+    const now = this.clock.now();
+    const raw = input.code.trim();
+    const where = /^[0-9a-fA-F]{32}$/.test(raw)
+      ? { token: raw.toLowerCase() }
+      : { shortCode: normalizeShortCode(raw) };
+    const link = await this.prisma.childLinkToken.findFirst({
+      where: { ...where, status: 'pending', expiresAt: { gt: now } },
+      orderBy: { createdAt: 'desc' },
+      include: { child: true, parent: { select: { fullName: true } } },
+    });
+    if (!link || !link.child.isActive) {
+      throw badRequest('LINK_CODE_INVALID', "Code invalide ou expiré. Demande à ton parent d'en générer un nouveau.");
+    }
+    const pinHash = await hashSecret(input.pin);
+
+    return this.prisma.tx(async (tx) => {
+      const claimed = await tx.childLinkToken.updateMany({
+        where: { id: link.id, status: 'pending' },
+        data: { status: 'linked', linkedAt: now, pinHash, deviceId: input.deviceId ?? null },
+      });
+      if (claimed.count === 0) throw badRequest('LINK_CODE_INVALID', 'Ce code vient déjà d’être utilisé.');
+      const child = await tx.child.update({
+        where: { id: link.childId },
+        data: { pinHash, failedPinAttempts: 0, pinLockedUntil: null, deviceLinkedAt: now },
+      });
+      await this.events.publish(tx, 'child.device_linked', {
+        aggregateType: 'child',
+        aggregateId: child.id,
+        payload: { childId: child.id, parentId: child.parentId },
+        actor: { kind: 'child', id: child.id },
+      });
+      const pair = await this.tokens.issue({ childId: child.id, parentId: child.parentId }, { deviceId: input.deviceId, ...meta }, tx);
+      return { ...this.stripId(pair), child: this.publicChild(child), parentName: link.parent.fullName };
+    });
+  }
+
+  /** Reconnexion de l'enfant avec son PIN : 5 essais, puis blocage 15 minutes (migration 016). */
+  async childPinLogin(input: ChildPinLoginInput, meta: Meta = {}) {
+    const now = this.clock.now();
+    const child = await this.prisma.child.findFirst({ where: { id: input.childId, isActive: true } });
+    if (!child) throw notFound('CHILD_NOT_FOUND', 'Profil introuvable');
+
+    if (child.pinLockedUntil && child.pinLockedUntil > now) {
+      throw tooMany('PIN_LOCKED', `Trop de tentatives. Réessaie dans ${PIN_LOCK_MINUTES} minutes.`, {
+        lockedUntil: child.pinLockedUntil,
+      });
+    }
+    const attemptsSoFar = child.pinLockedUntil ? 0 : child.failedPinAttempts;
+    if (!child.pinHash) throw badRequest('PIN_NOT_SET', 'Aucun PIN configuré');
+
+    if (!(await verifySecret(child.pinHash, input.pin))) {
+      const attempts = attemptsSoFar + 1;
+      const locked = attempts >= PIN_MAX_ATTEMPTS;
+      await this.prisma.child.update({
+        where: { id: child.id },
+        data: {
+          failedPinAttempts: locked ? 0 : attempts,
+          pinLockedUntil: locked ? new Date(now.getTime() + PIN_LOCK_MINUTES * 60_000) : null,
+        },
+      });
+      if (locked) throw tooMany('PIN_LOCKED', `Trop de tentatives. Réessaie dans ${PIN_LOCK_MINUTES} minutes.`);
+      throw unauthorized('PIN_INVALID', 'PIN incorrect');
+    }
+
+    const data: { failedPinAttempts: number; pinLockedUntil: null; pinHash?: string } = { failedPinAttempts: 0, pinLockedUntil: null };
+    if (isLegacyHash(child.pinHash)) data.pinHash = await hashSecret(input.pin);
+    const updated = await this.prisma.child.update({ where: { id: child.id }, data });
+    const pair = await this.tokens.issue({ childId: child.id, parentId: child.parentId }, { deviceId: input.deviceId, ...meta });
+    return { ...this.stripId(pair), child: this.publicChild(updated) };
+  }
+
+  // ─── Partenaires ───────────────────────────────────────────────────────────
+
+  async acceptPartnerInvitation(input: AcceptPartnerInvitationInput, meta: Meta = {}) {
+    const now = this.clock.now();
+    const member = await this.prisma.partnerMember.findFirst({
+      where: { inviteTokenHash: sha256(input.token), status: 'invited' },
+      include: { partner: true },
+    });
+    if (!member || (member.inviteExpiresAt && member.inviteExpiresAt <= now)) {
+      throw badRequest('INVITATION_INVALID', 'Invitation invalide ou expirée');
+    }
+    const existing = await this.prisma.user.findUnique({ where: { email: member.email } });
+    if (existing && existing.role !== 'partner') {
+      throw conflict('EMAIL_TAKEN', 'Cet email est déjà utilisé par un compte Rekonect. Demandez une invitation sur une autre adresse.');
+    }
+    const passwordHash = await hashSecret(input.password);
+
+    return this.prisma.tx(async (tx) => {
+      const user = existing
+        ? await tx.user.update({ where: { id: existing.id }, data: { passwordHash, fullName: input.fullName, lastLoginAt: now } })
+        : await tx.user.create({
+            data: { email: member.email, passwordHash, role: 'partner', fullName: input.fullName, emailVerifiedAt: now, lastLoginAt: now },
+          });
+      await tx.partnerMember.update({
+        where: { id: member.id },
+        data: { userId: user.id, status: 'active', joinedAt: now, inviteTokenHash: null, inviteExpiresAt: null },
+      });
+      if (member.role === 'owner' && member.partner.status === 'pending') {
+        await tx.partner.update({ where: { id: member.partnerId }, data: { status: 'active' } });
+      }
+      const pair = await this.tokens.issue({ userId: user.id, role: 'partner' }, meta, tx);
+      return { ...this.stripId(pair), user: this.publicUser(user), partnerId: member.partnerId };
+    });
+  }
+
+  // ─── Présentation ──────────────────────────────────────────────────────────
+
+  private stripId<T extends { id: string }>(pair: T): Omit<T, 'id'> {
+    const { id: _id, ...rest } = pair;
+    return rest;
+  }
+
+  publicUser(u: { id: string; email: string; role: string; fullName: string | null; createdAt: Date }) {
+    return { id: u.id, email: u.email, role: u.role, fullName: u.fullName, createdAt: u.createdAt };
+  }
+
+  publicChild(c: { id: string; displayName: string; avatarUrl: string | null; age: number; level: number; totalPoints: number; parentId: string; streakDays: number }) {
+    return {
+      id: c.id,
+      displayName: c.displayName,
+      avatarUrl: c.avatarUrl,
+      age: c.age,
+      level: c.level,
+      totalPoints: c.totalPoints,
+      streakDays: c.streakDays,
+      parentId: c.parentId,
+    };
+  }
+}

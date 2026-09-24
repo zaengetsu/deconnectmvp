@@ -63,7 +63,7 @@ node_version_ok && ok "Node $(node --version)" \
    n'installe pas le binaire natif de rolldown et le build web échoue.
    Avec nvm :  nvm install $(cat .nvmrc 2>/dev/null || echo 22)"
 
-if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
+if [ -f ../../pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
   PM="pnpm"
 else
   PM="npm"

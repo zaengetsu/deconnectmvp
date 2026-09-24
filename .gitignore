@@ -27,3 +27,12 @@ npm-debug.log*
 
 # Testing
 coverage/
+
+# Monorepo
+.turbo/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.transfer/
+apps/api/test/support/.test-db.json
+apps/api/src/generated/
