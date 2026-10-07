@@ -314,7 +314,7 @@ Ajouter les testeurs sur [appstoreconnect.apple.com](https://appstoreconnect.app
 # Ou manuellement
 firebase appdistribution:distribute \
   android/app/build/outputs/apk/debug/app-debug.apk \
-  --app "1:410630450375:android:f012e7c0ddc7b92a21a2e2" \
+  --app "1:835280216367:android:d0ffc52d400b6aa8da01da" \
   --testers "email1@test.com,email2@test.com" \
   --release-notes "Description du build"
 ```
@@ -333,7 +333,7 @@ Le testeur devra activer "Sources inconnues" dans les paramètres Android.
 | `Unsupported class file major version` | `export JAVA_HOME=$(/usr/libexec/java_home -v 17)` |
 | `adb: no devices` | Lancer l'émulateur : `emulator -avd Pixel8_API34 &` |
 | `SDK location not found` | Vérifier `android/local.properties` contient `sdk.dir` |
-| Crash Android push notifications | Vérifier que `android/app/google-services.json` existe |
+| Crash Android push notifications | Vérifier que `apps/mobile/google-services.json` (ou `~/.rekonect/google-services.json`) existe |
 | `pod install` échoue | `cd ios/App && pod install --repo-update` |
 | Android Studio crash macOS 14 | Bug connu. Utiliser le terminal à la place (tout est en CLI) |
 
@@ -344,7 +344,7 @@ Le testeur devra activer "Sources inconnues" dans les paramètres Android.
 | Fichier | Description |
 |---------|-------------|
 | `capacitor.config.ts` | Config Capacitor (appId, plugins, serveur) |
-| `android/app/google-services.json` | Config Firebase pour push Android |
+| `google-services.json` | Config Firebase (projet `rekonect-47771`) — gitignoré, recopié dans `android/app/` par `build-android.sh` |
 | `ios/ExportOptions.plist` | Options d'export pour archive iOS |
 | `scripts/build-ios.sh` | Script build iOS |
 | `scripts/build-android.sh` | Script build Android |

@@ -28,7 +28,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-FIREBASE_APP_ID="${FIREBASE_ANDROID_APP_ID:-1:410630450375:android:f012e7c0ddc7b92a21a2e2}"
+FIREBASE_APP_ID="${FIREBASE_ANDROID_APP_ID:-1:835280216367:android:d0ffc52d400b6aa8da01da}"
 TESTERS="${FIREBASE_TESTERS:-leonceyopa@gmail.com,stella.berthier@yahoo.fr,i.berthier@wineor.fr}"
 
 cd "$PROJECT_DIR"
@@ -82,6 +82,19 @@ fi
 
 echo "🤖 Syncing Capacitor Android..."
 npx cap sync android
+
+# Config Firebase (projet rekonect-47771) : android/ est régénéré par `cap add`,
+# on y recopie donc google-services.json à chaque build (push notifications).
+GS_JSON=""
+for f in "$PROJECT_DIR/google-services.json" "$HOME/.rekonect/google-services.json"; do
+  [ -f "$f" ] && { GS_JSON="$f"; break; }
+done
+if [ -n "$GS_JSON" ]; then
+  cp "$GS_JSON" android/app/google-services.json
+  echo "🔥 google-services.json copié ($GS_JSON)"
+else
+  echo "⚠️  google-services.json introuvable (apps/mobile/ ou ~/.rekonect/) : push Android désactivées." >&2
+fi
 
 # version.json fait foi (android/ est gitignoré, donc régénérable)
 apply_android_version

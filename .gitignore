@@ -44,3 +44,6 @@ e2e/playwright-report/
 # Livraison : secrets locaux et sauvegardes de base
 .release.env
 backups/
+
+# Config Firebase Android (copiée dans android/app/ par build-android.sh)
+apps/mobile/google-services.json

@@ -13,7 +13,7 @@
 #   --no-bump · --build <n> · --commit · --allow-dirty · --allow-local-api · --dry-run
 #
 # Réglages (~/.rekonect/release.env ou <racine>/.release.env) :
-#   FIREBASE_ANDROID_APP_ID   (défaut : 1:410630450375:android:f012e7c0ddc7b92a21a2e2)
+#   FIREBASE_ANDROID_APP_ID   (défaut : 1:835280216367:android:d0ffc52d400b6aa8da01da)
 #   FIREBASE_IOS_APP_ID       requis pour ios
 #   FIREBASE_TESTERS, FIREBASE_GROUPS
 #   GOOGLE_APPLICATION_CREDENTIALS  compte de service (sinon `firebase login`)
@@ -45,7 +45,7 @@ echo "🔥 Rekonect → Firebase App Distribution ($PLATFORM)"
 step "Vérifications"
 load_release_env
 use_node
-FIREBASE_ANDROID_APP_ID="${FIREBASE_ANDROID_APP_ID:-1:410630450375:android:f012e7c0ddc7b92a21a2e2}"
+FIREBASE_ANDROID_APP_ID="${FIREBASE_ANDROID_APP_ID:-1:835280216367:android:d0ffc52d400b6aa8da01da}"
 FIREBASE_TESTERS="${FIREBASE_TESTERS:-leonceyopa@gmail.com,stella.berthier@yahoo.fr,i.berthier@wineor.fr}"
 FIREBASE_GROUPS="${FIREBASE_GROUPS:-}"
 if ! command -v firebase >/dev/null 2>&1; then
