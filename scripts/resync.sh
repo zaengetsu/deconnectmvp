@@ -114,11 +114,15 @@ DB_HOST="$(printf '%s' "$DB_URL" | sed -E 's#^[a-z]+://([^@]*@)?([^:/?]+).*#\2#'
 REMOTE=1
 case "$DB_HOST" in localhost|127.0.0.1|postgres|host.docker.internal) REMOTE=0 ;; esac
 ok "Base : $DB_HOST$([ "$REMOTE" = 1 ] && echo ' (distante)')"
+missing_hint() {
+  case "$1" in
+    SUPABASE_JWT_SECRET) echo "les anciennes versions de l'app (connectées via Supabase) ne pourront plus appeler l'API" ;;
+    BREVO_API_KEY) echo "les emails restent en file sans être envoyés" ;;
+    STRIPE_SECRET_KEY) echo "les paiements sont désactivés" ;;
+  esac
+}
 for k in SUPABASE_JWT_SECRET BREVO_API_KEY STRIPE_SECRET_KEY; do
-  [ -n "$(env_value "$k" "$API_DIR/.env")" ] || warn "$k vide : $(case $k in
-    SUPABASE_JWT_SECRET) echo "les anciennes versions de l'app (connectées via Supabase) ne pourront plus appeler l'API";;
-    BREVO_API_KEY) echo "les emails restent en file sans être envoyés";;
-    STRIPE_SECRET_KEY) echo "les paiements sont désactivés";; esac)"
+  [ -n "$(env_value "$k" "$API_DIR/.env")" ] || warn "$k vide : $(missing_hint "$k")"
 done
 
 # ─── 4. Prisma et migrations ──────────────────────────────────
