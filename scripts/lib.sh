@@ -91,6 +91,11 @@ check_mobile_env() {
    Ajoutez VITE_API_URL=https://api.votre-domaine dans apps/mobile/.env.production.local"
   fi
   case "$api" in
+    *votre-domaine*|*example.com*|*exemple*)
+      fail "VITE_API_URL=$api est une valeur d'exemple : l'app ne joindrait aucune API.
+   Mettez l'URL publique réelle de l'API dans apps/mobile/.env.production.local" ;;
+  esac
+  case "$api" in
     *localhost*|*127.0.0.1*|*192.168.*|http://*)
       if [ "${ALLOW_LOCAL_API:-0}" != 1 ]; then
         fail "VITE_API_URL=$api n'est pas joignable depuis le téléphone d'un testeur (adresse locale ou non HTTPS).
