@@ -1,0 +1,39 @@
+# Contexte des images infrastructure/docker/*.Dockerfile — ce qui ne doit jamais y entrer.
+
+# ── Dépendances et builds (reconstruits dans l'image, pour Linux) ──
+**/node_modules
+**/.pnpm-store
+**/.next
+**/dist
+**/.turbo
+**/out
+**/coverage
+**/*.tsbuildinfo
+apps/api/src/generated
+
+# ── Secrets et fichiers d'environnement ──
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+.release.env
+backups
+
+# ── Natif mobile, anciens artefacts, sauvegardes ──
+ios
+android
+build
+apps/mobile/ios
+apps/mobile/android
+.transfer
+supabase
+Services
+*.dc.html
+
+# ── Git, outils locaux ──
+.git
+.github
+.DS_Store
+*.log
+e2e/test-results
+e2e/playwright-report

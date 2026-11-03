@@ -2,6 +2,8 @@ import type { NextConfig } from 'next';
 
 const config: NextConfig = {
   reactStrictMode: true,
+  // Serveur autonome (.next/standalone) : c'est ce que copie l'image Docker (infrastructure/docker).
+  output: 'standalone',
   transpilePackages: ['@rekonect/brand', '@rekonect/ui', '@rekonect/api-client'],
   poweredByHeader: false,
   async headers() {

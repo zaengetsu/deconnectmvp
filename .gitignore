@@ -9,6 +9,9 @@ build/
 .env
 .env.local
 .env.*.local
+# Déploiement Scaleway : secrets de production et de staging (modèle : .env.production.example)
+.env.production
+.env.staging
 
 # IDE
 .vscode/

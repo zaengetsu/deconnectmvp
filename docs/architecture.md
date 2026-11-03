@@ -384,3 +384,41 @@ Routes ajoutées : `POST /v1/auth/password/change`, `POST /v1/auth/email`, `POST
 Migration `20260925000100_mobile_sans_supabase` : colonnes `kind`, `child_id`, `child_activity_id` sur `media_files` ; `short_code` sur `family_invitations` ; les anciens triggers de génération de jetons ne remplissent plus que les valeurs absentes (ils écrasaient le lien de réinitialisation de mot de passe de l'API) ; comptes `auth.users` recopiés dans `users` et tenus à jour par trigger tant que d'anciennes versions de l'app créent des comptes Supabase (seuls les comptes jamais connectés via l'API sont modifiés).
 
 Transition : les anciennes versions installées continuent de fonctionner (pont `SUPABASE_JWT_SECRET`, pont supabase-js → outbox du §17). Une fois tous les appareils mis à jour : vider `SUPABASE_JWT_SECRET`, puis retirer le pont outbox et les Edge Functions.
+
+---
+
+## 21. Mise en ligne sur Scaleway (API, worker, admin, partenaires)
+
+Même hébergement et mêmes scripts que Dedalle : **Serverless Containers** et registre d'images Scaleway (`fr-par`), images construites et poussées depuis le poste. La base reste chez Supabase.
+
+| Conteneur | Image | Processus | Échelle |
+|---|---|---|---|
+| `api` | `api` | `dist/main.js` : REST `/v1` + WebSocket `/realtime` | 0 → 2, délai de requête 15 min (WebSocket) |
+| `worker` | `api` (même image, `REKONECT_PROCESS=worker`) | `dist/worker.js` : outbox, livraisons, emails, crons | **1 → 1, toujours allumé** |
+| `admin` | `admin` | Next.js standalone | 0 → 2 |
+| `partners` | `partners` | Next.js standalone (landing à `/`) | 0 → 2 |
+
+En staging, les conteneurs portent le suffixe `-staging` dans le namespace `rekonect-staging`.
+
+**Le worker** n'a pas de trafic entrant : à 0 instance minimum il ne démarrerait jamais, et plus aucune notification, aucun email ni aucun cron ne partirait. Il ouvre une sonde `GET /health` sur `WORKER_HTTP_PORT` (posé par le script ; vide en local, pour ne pas disputer le port 3000 à l'API), qui vérifie aussi la base. Plusieurs workers resteraient sans doublon (verrous `SKIP LOCKED` et consultatifs), mais un seul suffit.
+
+**La base** passe par le pooler Supabase en **mode session** (port 5432 de `*.pooler.supabase.com`, joignable en IPv4). Le mode transaction (6543, `pgbouncer=true`) que Dedalle utilise ne convient pas ici : `LISTEN/NOTIFY`, qui porte le temps réel et le réveil du worker, n'y fonctionne pas. Chaque processus ouvre un pool de `DATABASE_POOL_MAX` connexions plus une connexion `LISTEN` : au pic, (2 API + 1 worker) × (pool + 1) doit tenir dans le pool du projet Supabase. `DIRECT_URL`, facultative, sert au poste qui déploie (migrations, sauvegarde).
+
+**Variables** : un seul fichier `.env.production` (ou `.env.staging`) à la racine, ignoré par git, modèle `.env.production.example`. Le script répartit : l'API et le worker reçoivent tout sauf `NEXT_PUBLIC_*`, `VITE_*` et `DIRECT_URL` ; les fronts ne reçoivent que les `NEXT_PUBLIC_*`. Les fronts inlinent au build un placeholder `__NEXT_PUBLIC_API_URL__`, remplacé au démarrage par l'entrypoint (une image par front, valable pour tous les environnements) ; sans la variable, le conteneur refuse de démarrer.
+
+| Commande | Rôle |
+|---|---|
+| `./infrastructure/scaleway/setup.sh production` | Une fois : registre, namespace, quatre conteneurs (sondes HTTP si la CLI les connaît) |
+| `pnpm deploy:prod [api\|admin\|partners]` | Contrôles du fichier d'env., sauvegarde `pg_dump` puis migrations **avant** les images, build `linux/amd64`, push, mise à jour image + variables en un appel, purge du registre (3 derniers commits gardés), test de fumée. `api` déploie aussi le worker. Options : `--allow-dirty`, `--skip-migrate`, `--no-backup`, `--skip-prune`, `--no-smoke` |
+| `./infrastructure/scaleway/push-env.sh production [apps…]` | Renvoyer les variables sans reconstruire |
+| `pnpm deploy:status production` | Conteneurs et images servies, domaines, test de fumée, état des migrations |
+| `pnpm deploy:smoke production` | API (santé, route publique, CORS des fronts et du mobile, socket.io, webhook Stripe), worker, fronts (statiques, placeholders, URL d'API) |
+| `./infrastructure/scaleway/db-status.sh production [--resolve-baseline]` | Base à jour, en retard ou injoignable ; marquage unique de la baseline sur une ancienne base Supabase |
+| `./infrastructure/scaleway/domains.sh production [--create]` | CNAME à poser, puis rattachement des domaines et certificats |
+| `./infrastructure/scaleway/registry-prune.sh [--dry-run]` | Purge manuelle du registre |
+
+Le contrôle préalable refuse d'envoyer un fichier incohérent : URL locales ou non HTTPS, `CORS_ORIGINS` sans les deux fronts ou sans les origines Capacitor (`capacitor://localhost`, `http://localhost`), pooler en mode transaction, secret JWT d'exemple, JSON FCM invalide, `NOTIFICATIONS_ENGINE` autre que `api`. Il signale sans bloquer ce qui désactive une fonction (Stripe, Brevo, push vides, clé Stripe de test en production, pont `SUPABASE_JWT_SECRET` encore ouvert).
+
+**Accès au back-office** : un compte n'a qu'un rôle, et le rôle `admin` couperait un parent de ses routes. Le statut admin vit donc aussi à part, dans `users.is_admin` : un membre de l'équipe qui est parent garde le rôle `parent` avec `is_admin = true`. `AuthGuard` le traite en admin, pour la requête seulement, sur les routes que son rôle n'ouvre pas ; les routes parent le voient toujours en parent. Le statut est lu en base à chaque fois, le retirer coupe l'accès immédiatement. La liste des administrateurs et les emails `admin` passent par `ADMIN_USERS` (`platform/auth/admin-access.ts`), qui compte les deux formes. Pas encore d'écran pour accorder ou retirer ce statut : cela se fait par une migration.
+
+Après la mise en ligne : déclarer le webhook Stripe sur `<PUBLIC_API_URL>/v1/billing/webhook`, puis mettre l'URL de l'API dans `apps/mobile/.env.production.local` avant `pnpm release:testflight` / `release:firebase`. Bascule vers les domaines personnalisés sans coupure : rattacher d'abord (`domains.sh --create`), attendre le certificat, puis changer les URL du fichier et redéployer.

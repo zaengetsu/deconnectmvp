@@ -21,7 +21,12 @@
     "db:seed": "pnpm --filter @rekonect/api prisma:seed",
     "resync": "./scripts/resync.sh",
     "release:testflight": "./scripts/testflight.sh",
-    "release:firebase": "./scripts/firebase.sh"
+    "release:firebase": "./scripts/firebase.sh",
+    "deploy:setup": "./infrastructure/scaleway/setup.sh",
+    "deploy:prod": "./infrastructure/scaleway/deploy-local.sh production",
+    "deploy:staging": "./infrastructure/scaleway/deploy-local.sh staging",
+    "deploy:status": "./infrastructure/scaleway/status.sh",
+    "deploy:smoke": "./infrastructure/scaleway/smoke.sh"
   },
   "devDependencies": {
     "turbo": "^2.5.8",

@@ -10,6 +10,12 @@ export const EnvSchema = z.object({
   /** URL publique de l'API (liens vers les visuels téléversés). */
   PUBLIC_API_URL: z.string().default('http://localhost:3000'),
   DATABASE_URL: z.string().min(1),
+  /**
+   * Connexions Postgres par processus (pool Prisma). En production sur le pooler Supabase en mode
+   * session, la somme sur tous les conteneurs (API × instances + worker) doit rester sous la
+   * taille du pool du projet : voir docs/architecture.md §21.
+   */
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).default(10),
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET doit contenir au moins 32 caractères'),
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).default(900),
   REFRESH_TTL_DAYS: z.coerce.number().int().min(1).default(30),
