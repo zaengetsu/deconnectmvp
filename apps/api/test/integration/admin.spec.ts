@@ -1,4 +1,5 @@
 import { auth, catalogActivity, completeActivity, createAdmin, familyWithChild, registerParent, setFamilyPlan } from '../support/fixtures';
+import { adminContacts } from '../../src/modules/emails/recipients';
 import { createHarness, type Harness, resetDb, TEST_NOW } from '../support/harness';
 
 describe('Back-office Rekonect', () => {
@@ -17,6 +18,39 @@ describe('Back-office Rekonect', () => {
     const parent = await registerParent(h);
     await h.http.get('/v1/admin/overview').set(auth(parent.token)).expect(403);
     await h.http.get('/v1/admin/overview').expect(401);
+  });
+
+  describe('statut admin à part du rôle (users.is_admin)', () => {
+    const parentAdmin = async () => {
+      const parent = await registerParent(h);
+      await h.prisma.user.update({ where: { id: parent.userId }, data: { isAdmin: true } });
+      return parent;
+    };
+
+    it('ouvre le back-office à un parent, sans le couper des routes parent ni changer son rôle', async () => {
+      const parent = await parentAdmin();
+      await h.http.get('/v1/admin/overview').set(auth(parent.token)).expect(200);
+      await h.http.get('/v1/rewards/catalog').set(auth(parent.token)).expect(200);
+      const user = await h.prisma.user.findUniqueOrThrow({ where: { id: parent.userId } });
+      expect(user.role).toBe('parent');
+    });
+
+    it('retirer le statut coupe l’accès, sans attendre l’expiration du jeton', async () => {
+      const parent = await parentAdmin();
+      await h.http.get('/v1/admin/overview').set(auth(parent.token)).expect(200);
+      await h.prisma.user.update({ where: { id: parent.userId }, data: { isAdmin: false } });
+      await h.http.get('/v1/admin/overview').set(auth(parent.token)).expect(403);
+    });
+
+    it('compte parmi les administrateurs et ne peut pas être désactivé depuis le back-office', async () => {
+      const parent = await parentAdmin();
+      const admins = await h.http.get('/v1/admin/admins').set(auth(admin.token)).expect(200);
+      expect(admins.body.map((a: { id: string }) => a.id)).toEqual(expect.arrayContaining([admin.userId, parent.userId]));
+      expect(await adminContacts(h.prisma)).toEqual(expect.arrayContaining([expect.objectContaining({ id: parent.userId })]));
+      await h.http.patch(`/v1/admin/users/${parent.userId}/disabled`).set(auth(admin.token)).send({ disabled: true }).expect(404);
+      const user = await h.prisma.user.findUniqueOrThrow({ where: { id: parent.userId } });
+      expect(user.disabledAt).toBeNull();
+    });
   });
 
   describe('pilotage', () => {

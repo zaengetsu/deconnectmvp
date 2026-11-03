@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { levelName, monthlyAmountCents, REWARD_CATEGORY_LABELS, subscriptionGrantsAccess } from '@rekonect/contracts';
 import { z } from 'zod';
 import { ENV, type Env } from '../../config/env';
+import { ADMIN_USERS } from '../../platform/auth/admin-access';
 import { Clock } from '../../platform/clock';
 import { hashSecret } from '../../platform/crypto';
 import { OutboxRelay } from '../../platform/events/outbox-relay';
@@ -532,7 +533,7 @@ export class AdminService {
   }
 
   async setUserDisabled(id: string, disabled: boolean) {
-    const res = await this.prisma.user.updateMany({ where: { id, role: { not: 'admin' } }, data: { disabledAt: disabled ? this.clock.now() : null } });
+    const res = await this.prisma.user.updateMany({ where: { id, role: { not: 'admin' }, isAdmin: false }, data: { disabledAt: disabled ? this.clock.now() : null } });
     if (res.count === 0) throw notFound('USER_NOT_FOUND', 'Compte introuvable');
     if (disabled) await this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: this.clock.now() } });
     return { success: true };
@@ -675,7 +676,7 @@ export class AdminService {
   }
 
   admins() {
-    return this.prisma.user.findMany({ where: { role: 'admin' }, select: { id: true, email: true, fullName: true, lastLoginAt: true, disabledAt: true, createdAt: true } });
+    return this.prisma.user.findMany({ where: ADMIN_USERS, select: { id: true, email: true, fullName: true, lastLoginAt: true, disabledAt: true, createdAt: true } });
   }
 
   async createAdmin(input: { email: string; fullName: string; password: string }) {

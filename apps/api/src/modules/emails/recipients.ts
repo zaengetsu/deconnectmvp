@@ -1,4 +1,5 @@
 // Destinataires des emails automatiques et petits formats d'affichage.
+import { ADMIN_USERS } from '../../platform/auth/admin-access';
 import type { EmailCategory } from '../../platform/mail/catalog';
 import type { PrismaService, Tx } from '../../platform/prisma/prisma.service';
 
@@ -57,7 +58,7 @@ export async function partnerContacts(db: Db, partnerId: string, roles: string[]
 
 /** Équipe Rekonect (comptes admin actifs). */
 export async function adminContacts(db: Db): Promise<Contact[]> {
-  const admins = await db.user.findMany({ where: { role: 'admin', disabledAt: null }, select: { id: true, email: true, fullName: true } });
+  const admins = await db.user.findMany({ where: { ...ADMIN_USERS, disabledAt: null }, select: { id: true, email: true, fullName: true } });
   return admins.map((a) => ({ id: a.id, email: a.email, name: a.fullName }));
 }
 

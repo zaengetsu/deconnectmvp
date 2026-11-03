@@ -19,6 +19,8 @@ model User {
   email           String          @unique(map: "users_email_key")
   passwordHash    String?         @map("password_hash")
   role            String          @default("parent")
+  /// Accès au back-office, indépendant du rôle : un parent peut aussi être administrateur.
+  isAdmin         Boolean         @default(false) @map("is_admin")
   fullName        String?         @map("full_name")
   emailVerifiedAt DateTime?       @map("email_verified_at") @db.Timestamptz(6)
   lastLoginAt     DateTime?       @map("last_login_at") @db.Timestamptz(6)
@@ -1035,18 +1037,18 @@ model OfferImpression {
 }
 
 model MediaFile {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// offer : visuel partenaire (public) · proof : preuve d'activité d'un enfant.
-  kind        String   @default("offer")
-  childId         String? @map("child_id") @db.Uuid
-  childActivityId String? @map("child_activity_id") @db.Uuid
-  partnerId   String?  @map("partner_id") @db.Uuid
-  uploadedBy  String?  @map("uploaded_by") @db.Uuid
-  contentType String   @map("content_type")
-  size        Int
-  data        Bytes
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  partner     Partner? @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  kind            String   @default("offer")
+  childId         String?  @map("child_id") @db.Uuid
+  childActivityId String?  @map("child_activity_id") @db.Uuid
+  partnerId       String?  @map("partner_id") @db.Uuid
+  uploadedBy      String?  @map("uploaded_by") @db.Uuid
+  contentType     String   @map("content_type")
+  size            Int
+  data            Bytes
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  partner         Partner? @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@index([partnerId], map: "media_files_partner_idx")
   @@index([childActivityId], map: "media_files_child_activity_idx")

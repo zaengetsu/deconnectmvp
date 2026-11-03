@@ -1,7 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { forbidden, unauthorized } from '../http/errors';
-import { type Audience, IS_PUBLIC, ROLES } from './principal';
+import { PrismaService } from '../prisma/prisma.service';
+import { type Audience, IS_PUBLIC, type Principal, ROLES } from './principal';
 import { TokenVerifier } from './token-verifier';
 
 /**
@@ -14,6 +15,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly verifier: TokenVerifier,
     private readonly reflector: Reflector,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -32,8 +34,19 @@ export class AuthGuard implements CanActivate {
     const audiences = this.reflector.getAllAndOverride<Audience[] | undefined>(ROLES, targets);
     if (audiences?.length) {
       const audience: Audience = principal.kind === 'child' ? 'child' : principal.role;
-      if (!audiences.includes(audience)) throw forbidden();
+      if (!audiences.includes(audience)) {
+        if (!audiences.includes('admin') || !(await this.isBackofficeAdmin(principal))) throw forbidden();
+        // Les services lisent aussi le rôle (AccessService, actorOf) : admin pour cette requête seulement.
+        req.principal = { ...principal, role: 'admin' };
+      }
     }
     return true;
+  }
+
+  /** Lu en base à chaque fois : retirer le statut coupe l'accès sans attendre l'expiration du jeton. */
+  private async isBackofficeAdmin(principal: Principal): Promise<boolean> {
+    if (principal.kind !== 'user') return false;
+    const user = await this.prisma.user.findUnique({ where: { id: principal.userId }, select: { isAdmin: true } });
+    return !!user?.isAdmin;
   }
 }
