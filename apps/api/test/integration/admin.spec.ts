@@ -35,6 +35,12 @@ describe('Back-office Rekonect', () => {
       expect(user.role).toBe('parent');
     });
 
+    it('le profil expose le statut : le back-office s’en sert pour accepter la connexion', async () => {
+      const parent = await parentAdmin();
+      const me = await h.http.get('/v1/auth/me').set(auth(parent.token)).expect(200);
+      expect(me.body.user).toMatchObject({ role: 'parent', isAdmin: true });
+    });
+
     it('retirer le statut coupe l’accès, sans attendre l’expiration du jeton', async () => {
       const parent = await parentAdmin();
       await h.http.get('/v1/admin/overview').set(auth(parent.token)).expect(200);

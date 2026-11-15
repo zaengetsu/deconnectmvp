@@ -14,6 +14,8 @@ export interface Me {
   email: string;
   fullName: string | null;
   role: 'parent' | 'admin' | 'partner';
+  /** Accès au back-office, indépendant du rôle (users.is_admin). */
+  isAdmin?: boolean;
 }
 export interface AuthResult {
   accessToken: string;

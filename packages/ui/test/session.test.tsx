@@ -73,6 +73,16 @@ describe('session', () => {
     expect(new WrongPortalError('admin').message).toMatch(/pas accès/);
   });
 
+  it('statut admin : un parent is_admin ouvre le back-office, mais pas le portail partenaires', async () => {
+    const parentAdmin = { id: 'p', email: 'parent-admin@x.fr', role: 'parent', isAdmin: true };
+    const session = () => makeHttp((url) => (url.endsWith('/v1/auth/me') ? json(200, { kind: 'user', user: parentAdmin }) : json(404, {})), { accessToken: 'a', refreshToken: 'r' });
+    const admin = render(<SessionProvider baseUrl="" storageKey="k" roles={['admin']} http={session()}><Who /></SessionProvider>);
+    expect(await screen.findByText('parent-admin@x.fr')).toBeInTheDocument();
+    admin.unmount();
+    render(<SessionProvider baseUrl="" storageKey="k" roles={['partner']} http={session()}><Who /></SessionProvider>);
+    await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('anonymous'));
+  });
+
   it('invitation, mot de passe oublié, réinitialisation', async () => {
     const http = makeHttp((url, init) => {
       if (url.endsWith('/partner-invitations/accept')) return json(200, { accessToken: 'a', refreshToken: 'r', user: { id: 'u', email: 'n@x.fr', role: 'partner' } });

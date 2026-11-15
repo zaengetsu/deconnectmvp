@@ -34,7 +34,8 @@ export function SessionProvider({ baseUrl, storageKey, roles, children, http: pr
 
   const accept = useCallback(
     async (me: Me) => {
-      if (!roles.includes(me.role)) {
+      // Un parent de l'équipe (is_admin) ouvre le back-office sans changer de rôle.
+      if (!roles.includes(me.role) && !(me.isAdmin && roles.includes('admin'))) {
         http.setSession(null);
         throw new WrongPortalError(me.role);
       }

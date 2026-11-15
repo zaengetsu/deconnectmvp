@@ -336,8 +336,8 @@ export class AuthService {
     return rest;
   }
 
-  publicUser(u: { id: string; email: string; role: string; fullName: string | null; createdAt: Date }) {
-    return { id: u.id, email: u.email, role: u.role, fullName: u.fullName, createdAt: u.createdAt };
+  publicUser(u: { id: string; email: string; role: string; isAdmin: boolean; fullName: string | null; createdAt: Date }) {
+    return { id: u.id, email: u.email, role: u.role, isAdmin: u.isAdmin, fullName: u.fullName, createdAt: u.createdAt };
   }
 
   publicChild(c: { id: string; displayName: string; avatarUrl: string | null; age: number; level: number; totalPoints: number; parentId: string; streakDays: number; lastActivityDate?: Date | null; isActive?: boolean }) {
