@@ -29,7 +29,7 @@ done
 require_tools scw jq dig
 require_env_file
 NS_ID=$(namespace_id); export NS_ID
-EXISTING=$(scw container domain list region="$REGION" -o json 2>/dev/null)
+EXISTING=$(scw container domain list project-id="$PROJECT_ID" region="$REGION" -o json 2>/dev/null)
 host_of() { printf '%s' "${1#http*://}" | cut -d/ -f1; }
 
 TODO=()
@@ -85,12 +85,12 @@ done
 echo -e "\n${BLUE}Émission des certificats par Scaleway…${NC}"
 DEADLINE=$((SECONDS + 420))
 while [ $SECONDS -lt $DEADLINE ]; do
-  PENDING=$(scw container domain list region="$REGION" -o json 2>/dev/null | jq -r '[.[] | select(.status != "ready" and .status != "error")] | length')
+  PENDING=$(scw container domain list project-id="$PROJECT_ID" region="$REGION" -o json 2>/dev/null | jq -r '[.[] | select(.status != "ready" and .status != "error")] | length')
   [ "${PENDING:-0}" = "0" ] && break
   printf "\r  %s domaine(s) en cours…   " "$PENDING"; sleep 10
 done
 printf "\r%*s\r" 50 ""
-scw container domain list region="$REGION" -o json 2>/dev/null | jq -r '.[] | "\(.status)\t\(.hostname)\t\(.error_message // "")"' \
+scw container domain list project-id="$PROJECT_ID" region="$REGION" -o json 2>/dev/null | jq -r '.[] | "\(.status)\t\(.hostname)\t\(.error_message // "")"' \
   | while IFS=$'\t' read -r st host err; do
       case "$st" in
         ready) ok "https://$host — certificat en place" ;;

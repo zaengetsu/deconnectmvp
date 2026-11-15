@@ -14,7 +14,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR" || exit 1
 
 REGION="${SCW_DEFAULT_REGION:-fr-par}"
-REGISTRY_NAMESPACE="rekonect-registry"
+# Rekonect a son propre projet Scaleway, quel que soit le projet par défaut de la CLI. Le nom du
+# registre, lui, est unique chez Scaleway tous projets confondus.
+PROJECT_NAME="rekonect"
+REGISTRY_NAMESPACE="rekonect-images"
 REGISTRY="rg.${REGION}.scw.cloud/${REGISTRY_NAMESPACE}"
 APPS=(api worker admin partners)
 
@@ -35,6 +38,22 @@ select_env() {
     staging)    ENV_FILE=".env.staging";    NAMESPACE="rekonect-staging"; SUFFIX="-staging"; TAG_PREFIX="staging" ;;
     *) die "Environnement inconnu : « ${ENV} » (production | staging)" ;;
   esac
+  use_project
+}
+
+# ── Projet ────────────────────────────────────────────────────
+project_id() {
+  { scw account project list name="$PROJECT_NAME" -o json 2>/dev/null || true; } \
+    | jq -r --arg n "$PROJECT_NAME" '.[]? | select(.name == $n) | .id' | head -n1
+}
+
+# Les `list` de la CLI couvrent tous les projets du compte et les `create` visent son projet par
+# défaut : sans ce cadrage, un script agirait sur le namespace homonyme d'un autre projet.
+use_project() {
+  command -v scw > /dev/null 2>&1 || return 0
+  PROJECT_ID=$(project_id)
+  [ -n "$PROJECT_ID" ] && export SCW_DEFAULT_PROJECT_ID="$PROJECT_ID"
+  return 0
 }
 
 require_env_file() {
@@ -63,7 +82,8 @@ image_of() {   # l'image construite pour une application (le worker partage cell
 container_name() { echo "$1$SUFFIX"; }
 
 namespace_id() {
-  scw container namespace list name="$NAMESPACE" region="$REGION" -o json 2>/dev/null | jq -r '.[0].id // empty'
+  [ -n "${PROJECT_ID:-}" ] || return 0
+  scw container namespace list project-id="$PROJECT_ID" name="$NAMESPACE" region="$REGION" -o json 2>/dev/null | jq -r '.[0].id // empty'
 }
 
 # Identifiant d'un conteneur, retrouvé par son nom dans le namespace de l'environnement.

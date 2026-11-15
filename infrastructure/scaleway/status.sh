@@ -31,7 +31,7 @@ for app in "${APPS[@]}"; do
 done
 
 echo -e "\n${BLUE}━━━ Domaines ━━━${NC}"
-scw container domain list region="$REGION" -o json 2>/dev/null | jq -r '.[] | "\(.status)\t\(.hostname)\t\(.error_message // "")"' \
+scw container domain list project-id="$PROJECT_ID" region="$REGION" -o json 2>/dev/null | jq -r '.[] | "\(.status)\t\(.hostname)\t\(.error_message // "")"' \
   | while IFS=$'\t' read -r st host err; do
       case "$st" in
         ready) ok "https://$host" ;;

@@ -5,7 +5,7 @@
 #   ./infrastructure/scaleway/setup.sh production
 #   ./infrastructure/scaleway/setup.sh staging
 #
-# Idempotent : ce qui existe déjà est laissé tel quel. Crée le registre d'images, le namespace
+# Idempotent : ce qui existe déjà est laissé tel quel. Crée le projet, le registre d'images, le namespace
 # de l'environnement et quatre conteneurs, d'abord sur une image alpine de remplacement :
 # le premier `deploy-local.sh` y pose les vraies images et les variables.
 #
@@ -26,8 +26,18 @@ echo -e "${BLUE}╔════════════════════�
 printf "${BLUE}║  Infrastructure Scaleway Rekonect · %-9s║${NC}\n" "$ENV"
 echo -e "${BLUE}╚══════════════════════════════════════════════╝${NC}"
 
+step "Projet $PROJECT_NAME"
+if [ -n "${PROJECT_ID:-}" ]; then
+  ok "existe déjà ($PROJECT_ID)"
+else
+  scw account project create name="$PROJECT_NAME" description="Rekonect" > /dev/null
+  use_project
+  [ -n "${PROJECT_ID:-}" ] || die "projet $PROJECT_NAME introuvable après sa création"
+  ok "créé ($PROJECT_ID)"
+fi
+
 step "Registre d'images ($REGISTRY_NAMESPACE)"
-if [ -n "$(scw registry namespace list name="$REGISTRY_NAMESPACE" region="$REGION" -o json | jq -r '.[0].id // empty')" ]; then
+if [ -n "$(scw registry namespace list project-id="$PROJECT_ID" name="$REGISTRY_NAMESPACE" region="$REGION" -o json | jq -r '.[0].id // empty')" ]; then
   ok "existe déjà"
 else
   scw registry namespace create name="$REGISTRY_NAMESPACE" is-public=false region="$REGION" > /dev/null
@@ -67,7 +77,7 @@ create_container() {
     # memory-limit-bytes n'accepte que des Go (« 1GB », « 0.5GB ») : la CLI refuse les octets.
     res=(mvcpu-limit="$cpu" memory-limit-bytes="$(awk -v m="$mem" 'BEGIN { printf "%gGB", m / 1024 }')")
     # Sonde HTTP : un conteneur qui écoute mais ne joint plus la base est redémarré.
-    extra=(https-connections-only=true liveness-probe.http.path="$probe" liveness-probe.interval=30s liveness-probe.failure-threshold=3)
+    extra=(https-connections-only=true liveness-probe.http.path="$probe" liveness-probe.interval=30s liveness-probe.timeout=5s liveness-probe.failure-threshold=3)
   else
     res=(cpu-limit="$cpu" memory-limit="$mem")
     extra=(http-option=redirected)

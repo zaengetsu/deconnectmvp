@@ -391,6 +391,8 @@ Transition : les anciennes versions installées continuent de fonctionner (pont 
 
 Même hébergement et mêmes scripts que Dedalle : **Serverless Containers** et registre d'images Scaleway (`fr-par`), images construites et poussées depuis le poste. La base reste chez Supabase.
 
+Rekonect a son propre **projet Scaleway, `rekonect`**, avec le registre `rekonect-images` : les scripts visent ce projet quel que soit le projet par défaut de la CLI (`PROJECT_NAME` dans `lib.sh`). Un projet tout juste créé peut refuser les écritures quelques instants, le temps que les droits se propagent : relancer `setup.sh` suffit.
+
 | Conteneur | Image | Processus | Échelle |
 |---|---|---|---|
 | `api` | `api` | `dist/main.js` : REST `/v1` + WebSocket `/realtime` | 0 → 2, délai de requête 15 min (WebSocket) |

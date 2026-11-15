@@ -13,6 +13,8 @@
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 require_tools scw jq
+use_project
+[ -n "${PROJECT_ID:-}" ] || die "projet $PROJECT_NAME introuvable"
 
 KEEP=3
 DRY_RUN="${DRY_RUN:-0}"
@@ -30,7 +32,7 @@ case "$KEEP" in ''|*[!0-9]*) die "--keep attend un entier" ;; esac
 # Images servies, tous namespaces confondus (production et staging partagent le registre). Si la
 # liste ne se lit pas, on s'arrête : purger sans connaître l'état déployé, c'est risquer de
 # retirer l'image qu'un retour arrière demanderait dans l'heure.
-CONTAINERS_JSON=$(scw container container list region="$REGION" -o json) || die "lecture des conteneurs impossible — purge annulée"
+CONTAINERS_JSON=$(scw container container list project-id="$PROJECT_ID" region="$REGION" -o json) || die "lecture des conteneurs impossible — purge annulée"
 IN_USE=""
 for id in $(printf '%s' "$CONTAINERS_JSON" | jq -r '.[].id'); do
   img=$(container_json "$id" | jq -r '.image // .registry_image // empty') || die "conteneur $id illisible — purge annulée"
@@ -38,7 +40,7 @@ for id in $(printf '%s' "$CONTAINERS_JSON" | jq -r '.[].id'); do
 done
 [ -n "$IN_USE" ] || die "aucun conteneur ne déclare d'image — purge annulée"
 
-NS=$(scw registry namespace list name="$REGISTRY_NAMESPACE" region="$REGION" -o json | jq -r '.[0].id // empty')
+NS=$(scw registry namespace list project-id="$PROJECT_ID" name="$REGISTRY_NAMESPACE" region="$REGION" -o json | jq -r '.[0].id // empty')
 [ -n "$NS" ] || die "registre $REGISTRY_NAMESPACE introuvable"
 
 deleted=0; kept=0
