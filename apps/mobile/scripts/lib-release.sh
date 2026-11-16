@@ -46,6 +46,21 @@ apply_ios_version() {
 #    (erreur 90683 au traitement), même pour les APIs jamais appelées ;
 #  - ITSAppUsesNonExemptEncryption : sans elle, chaque build attend une
 #    réponse au questionnaire de conformité export avant distribution.
+# Icône et image de lancement : ios/ est régénéré (gitignoré) et `cap add ios` repose les
+# visuels par défaut de Capacitor. resources/ fait foi, à chaque build.
+apply_ios_assets() {
+  local icons="ios/App/App/Assets.xcassets/AppIcon.appiconset" splash="ios/App/App/Assets.xcassets/Splash.imageset" f
+  [ -d "$icons" ] || return 0
+  if [ -f resources/icon.png ]; then
+    for f in "$icons"/*.png; do cp resources/icon.png "$f"; done
+    echo "🎨 Icône appliquée depuis resources/icon.png"
+  fi
+  if [ -f resources/splash.png ] && [ -d "$splash" ]; then
+    for f in "$splash"/*.png; do cp resources/splash.png "$f"; done
+    echo "🎨 Image de lancement appliquée depuis resources/splash.png"
+  fi
+}
+
 apply_ios_info_plist() {
   PLIST="ios/App/App/Info.plist"
   [ -f "$PLIST" ] || return 0

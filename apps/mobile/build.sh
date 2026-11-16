@@ -122,6 +122,7 @@ npx cap sync ios
 # (ios/ est gitignoré, donc régénéré sans ces réglages)
 apply_ios_version
 apply_ios_info_plist
+apply_ios_assets
 
 if [ "$OPEN_XCODE" = 1 ]; then
   echo "🚀 Ouverture de Xcode..."
