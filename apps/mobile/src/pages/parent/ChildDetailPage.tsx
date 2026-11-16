@@ -12,6 +12,7 @@ import { gamificationService, getRealStreak } from '../../features/gamification/
 import { useRk, RkSheet } from '../../components/rk/RkShell';
 import { LEVEL_NAMES } from '../../lib/constants';
 import type { Child, ChildActivity, ChildBadge } from '../../types/database.types';
+import { RkMedal } from '../../components/rk/RkGlyph';
 import { RkHero } from '../../components/rk/RkDecor';
 
 /** Fiche enfant — porté de la maquette Rekonect (écran pKid). */
@@ -222,8 +223,8 @@ const ChildDetailPage: React.FC = () => {
                     <div style={{
                       width: 34, height: 34, borderRadius: 11, margin: '0 auto 7px',
                       background: BADGE_TINTS[i % BADGE_TINTS.length],
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                    }}>{b.badge?.icon ?? '🏅'}</div>
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rk-text)',
+                    }}><RkMedal size={18} /></div>
                     <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--rk-text)', lineHeight: 1.25 }}>
                       {b.badge?.name}
                     </div>

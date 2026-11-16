@@ -4,9 +4,11 @@ import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { RkHeader } from '../../components/rk/RkDecor';
+import { useAppStore } from '../../stores/app.store';
 
 /**
- * Mon compte — nom affiché, adresse email, mot de passe.
+ * Mon compte — nom affiché, adresse email, mot de passe, suppression du compte
+ * (exigée par l'App Store : un compte créé dans l'app doit pouvoir y être supprimé).
  * Style des formulaires de la maquette Rekonect (champs 52px, rayon 14).
  */
 
@@ -16,7 +18,8 @@ const strongEnough = (v: string) => v.length >= 8 && /[A-Z]/.test(v) && /\d/.tes
 const AccountPage: React.FC = () => {
   const history = useHistory();
   const back = useRkBack('/parent/settings');
-  const { user, profile, updateProfile, changeEmail, changePassword } = useAuthStore();
+  const { user, profile, updateProfile, changeEmail, changePassword, deleteAccount } = useAuthStore();
+  const { switchToParent } = useAppStore();
 
   // Brouillons : tant que l'utilisateur n'a rien tapé, on affiche la valeur
   // du profil (qui peut arriver après le premier rendu).
@@ -27,7 +30,9 @@ const AccountPage: React.FC = () => {
   const [emailPwd, setEmailPwd] = useState('');
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
-  const [busy, setBusy] = useState<'name' | 'email' | 'password' | null>(null);
+  const [busy, setBusy] = useState<'name' | 'email' | 'password' | 'delete' | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deletePwd, setDeletePwd] = useState('');
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const say = (kind: 'ok' | 'err', text: string) => {
@@ -75,6 +80,19 @@ const AccountPage: React.FC = () => {
     } finally { setBusy(null); }
   };
 
+  const removeAccount = async () => {
+    if (!deletePwd) return say('err', 'Saisissez votre mot de passe pour confirmer.');
+    setBusy('delete');
+    try {
+      await deleteAccount(deletePwd);
+      switchToParent();
+      history.replace('/onboarding');
+    } catch (e) {
+      say('err', (e as Error).message || 'Impossible de supprimer le compte.');
+      setBusy(null);
+    }
+  };
+
   const label: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: 'var(--rk-text2)', marginBottom: 7 };
   const field = (filled: boolean): React.CSSProperties => ({
     width: '100%', height: 52, borderRadius: 14,
@@ -108,7 +126,7 @@ const AccountPage: React.FC = () => {
             ← Réglages
           </button>
           <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', margin: 0, color: 'var(--rk-text)' }}>Mon compte</h1>
-          <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>Nom, adresse email et mot de passe</p>
+          <p style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '5px 0 0' }}>Nom, adresse email, mot de passe et suppression</p>
         </RkHeader>
 
         <div style={{ padding: '18px 22px 140px' }}>
@@ -161,6 +179,49 @@ const AccountPage: React.FC = () => {
           }}>
             Mot de passe oublié ? Recevoir un lien de réinitialisation
           </button>
+
+          <div style={{ ...eyebrow, marginTop: 26 }}>SUPPRESSION DU COMPTE</div>
+          <div style={{ ...card, borderColor: 'var(--rk-raspsoft)' }}>
+            {!deleting ? (
+              <>
+                <div style={{ fontSize: 13, color: 'var(--rk-text2)', lineHeight: 1.5 }}>
+                  Supprime définitivement votre compte et les données de votre famille.
+                </div>
+                <button onClick={() => setDeleting(true)} style={{
+                  width: '100%', height: 48, borderRadius: 999, marginTop: 12,
+                  background: 'var(--rk-raspsoft)', color: 'var(--rk-rasp)', fontSize: 14, fontWeight: 700,
+                }}>
+                  Supprimer mon compte
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--rk-text)', marginBottom: 8 }}>Supprimer définitivement ?</div>
+                <ul style={{ fontSize: 13, color: 'var(--rk-text2)', lineHeight: 1.55, margin: '0 0 12px', paddingLeft: 18 }}>
+                  <li>Votre compte, les profils de vos enfants et leurs appareils liés.</li>
+                  <li>Activités, preuves envoyées, points, badges, récompenses et bons.</li>
+                  <li>Un abonnement payant n’est plus renouvelé ; la période en cours n’est pas remboursée automatiquement.</li>
+                  <li>Si vous êtes co-parent, seul votre compte est supprimé : la famille qui vous a invité est conservée.</li>
+                </ul>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--rk-rasp)', marginBottom: 12 }}>Cette action est irréversible.</div>
+                <div style={label}>Mot de passe</div>
+                <input type="password" value={deletePwd} onChange={e => setDeletePwd(e.target.value)} placeholder="Pour confirmer"
+                  aria-label="Mot de passe pour supprimer le compte" autoComplete="current-password" style={field(!!deletePwd)} />
+                <button onClick={removeAccount} disabled={!deletePwd || busy === 'delete'} style={{
+                  width: '100%', height: 48, borderRadius: 999, marginTop: 12,
+                  background: deletePwd ? 'var(--rk-rasp)' : 'var(--rk-surface2)', color: deletePwd ? '#fff' : 'var(--rk-text3)',
+                  fontSize: 14, fontWeight: 700,
+                }}>
+                  {busy === 'delete' ? 'Suppression…' : 'Supprimer définitivement'}
+                </button>
+                <button onClick={() => { setDeleting(false); setDeletePwd(''); }} style={{
+                  width: '100%', textAlign: 'center', fontSize: 13, fontWeight: 600, color: 'var(--rk-text3)', padding: 10, marginTop: 4,
+                }}>
+                  Annuler
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {notice && (

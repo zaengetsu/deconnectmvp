@@ -4,6 +4,7 @@ import { IonContent, IonPage, useIonViewWillEnter } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAppStore } from '../../stores/app.store';
 import { notificationService, type AppNotification } from '../../features/notifications/notification.service';
+import { RkGlyph } from '../../components/rk/RkGlyph';
 import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Messages de l'enfant — porté de la maquette Rekonect (écran cNotifs). */
@@ -95,9 +96,9 @@ const ChildNotificationsPage: React.FC = () => {
                 <div style={{
                   width: 36, height: 36, borderRadius: 11, flexShrink: 0,
                   background: tone.icon, opacity: tone.filled ? .85 : 1,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rk-text)',
                 }}>
-                  {tone.filled ? '' : n.icon}
+                  {tone.filled ? null : <RkGlyph kind={n.icon} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--rk-text)' }}>{n.title}</div>

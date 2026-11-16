@@ -10,6 +10,7 @@ import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { LEVEL_NAMES } from '../../lib/constants';
 import type { Child, ChildActivity, RewardRequest } from '../../types/database.types';
 import { CornerRing } from '@rekonect/brand';
+import { RkBell } from '../../components/rk/RkTabBar';
 import { RkAllClear, RkFeature, RkHeader, RkPrompt, RkStat } from '../../components/rk/RkDecor';
 
 /** Tableau de bord parent — porté de la maquette Rekonect (écran pHome). */
@@ -88,7 +89,7 @@ const ParentDashboard: React.FC = () => {
               width: 40, height: 40, borderRadius: 13, background: 'var(--rk-surface2)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative',
             }}>
-              <div style={{ width: 15, height: 15, borderRadius: '5px 5px 2px 2px', border: '2px solid var(--rk-text2)' }} />
+              <span style={{ display: 'flex', color: 'var(--rk-text2)' }}><RkBell /></span>
               {unread > 0 && (
                 <div style={{
                   position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: '50%',

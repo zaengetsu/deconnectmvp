@@ -66,7 +66,7 @@ export function toAppNotification(n: ApiNotification, recipientType: 'parent' | 
     recipient_id: recipientId,
     title: n.title,
     body: n.body,
-    icon: n.icon ?? '🔔',
+    icon: n.icon ?? 'bell',
     route: n.route,
     data: n.data ?? {},
     is_read: n.isRead,

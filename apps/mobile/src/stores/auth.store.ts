@@ -37,6 +37,8 @@ interface AuthState {
   updateProfile: (updates: Partial<Profile> & Record<string, unknown>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   changeEmail: (email: string, password: string) => Promise<void>;
+  /** Supprime définitivement le compte (confirmé par le mot de passe), puis ferme la session locale. */
+  deleteAccount: (password: string) => Promise<void>;
   /** Aligne le store sur la session stockée (après une connexion enfant, par exemple). */
   syncSession: () => Promise<void>;
   clearError: () => void;
@@ -173,6 +175,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const s = await sessionStore.get();
     if (s) await sessionStore.set({ ...s, email: res.user.email });
     set({ user: userOf(await sessionStore.get()), session: await sessionStore.get(), profile: await get().fetchProfile() });
+  },
+
+  deleteAccount: async (password) => {
+    // Le serveur efface le compte, la famille et toutes les sessions : pas de /logout derrière.
+    await api('DELETE', '/v1/auth/account', { password });
+    await sessionStore.clear();
+    set({ user: null, session: null, profile: null, isLoading: false });
   },
 
   syncSession: async () => {

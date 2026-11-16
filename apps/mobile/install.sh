@@ -16,6 +16,11 @@
 
 set -e
 
+# CocoaPods (Ruby) plante sans locale UTF-8 (« Unicode Normalization not
+# appropriate for ASCII-8BIT ») quand le shell appelant est en C/POSIX.
+export LANG="${LANG:-en_US.UTF-8}" LC_ALL="${LC_ALL:-en_US.UTF-8}"
+case "$LANG" in *UTF-8*|*utf8*) ;; *) export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 ;; esac
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 

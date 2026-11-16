@@ -6,10 +6,12 @@ import { useRkBack } from '../../hooks/useRkBack';
 import { RkSheet } from '../../components/rk/RkShell';
 import { billingService, euros, type FamilyPlan, type FamilySubscription, type Invoice } from '../../features/billing/billing.service';
 import { RkHeader } from '../../components/rk/RkDecor';
+import { BILLING_IN_APP } from '../../lib/billing-platform';
 
 /**
  * « Mon abonnement » : plan actuel, limites utilisées, changement de plan (Stripe),
  * code offert (CSE, mairie) et factures. Le paiement se fait sur la page sécurisée Stripe.
+ * Sur iOS, lecture seule (voir BILLING_IN_APP).
  */
 
 export function openExternal(url: string) {
@@ -107,7 +109,7 @@ const SubscriptionPage: React.FC = () => {
               ← Réglages
             </button>
             <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-.03em', color: 'var(--rk-text)', margin: 0 }}>Mon abonnement</h1>
-            <p style={{ fontSize: 14, color: 'var(--rk-text3)', margin: '6px 0 0' }}>Plan, limites et factures de la famille</p>
+            <p style={{ fontSize: 14, color: 'var(--rk-text3)', margin: '6px 0 0' }}>{BILLING_IN_APP ? 'Plan, limites et factures de la famille' : 'Plan et limites de la famille'}</p>
           </RkHeader>
 
           <div style={{ padding: '18px 22px 140px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -127,11 +129,11 @@ const SubscriptionPage: React.FC = () => {
                 <div style={eyebrow}>Votre plan</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, margin: '0 4px' }}>
                   <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--rk-text)', letterSpacing: '-.03em' }}>{sub.plan.name}</span>
-                  {sub.plan.monthlyPriceCents ? <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text3)' }}>{euros(sub.interval === 'year' ? sub.plan.annualPriceCents : sub.plan.monthlyPriceCents)} / {sub.interval === 'year' ? 'an' : 'mois'}</span> : null}
+                  {BILLING_IN_APP && sub.plan.monthlyPriceCents ? <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text3)' }}>{euros(sub.interval === 'year' ? sub.plan.annualPriceCents : sub.plan.monthlyPriceCents)} / {sub.interval === 'year' ? 'an' : 'mois'}</span> : null}
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--rk-text3)', margin: '6px 4px 0', lineHeight: 1.5 }}>
-                  {sub.source === 'comp' && sub.compUntil ? `Offert jusqu’au ${dateFr(sub.compUntil)}` : sub.cancelAtPeriodEnd && sub.currentPeriodEnd ? `Se termine le ${dateFr(sub.currentPeriodEnd)}` : sub.currentPeriodEnd ? `Prochain renouvellement le ${dateFr(sub.currentPeriodEnd)}` : 'Gratuit, sans engagement'}
-                  {sub.status === 'past_due' ? ' · paiement en attente' : ''}
+                  {sub.source === 'comp' && sub.compUntil ? `Offert jusqu’au ${dateFr(sub.compUntil)}` : sub.cancelAtPeriodEnd && sub.currentPeriodEnd ? `Se termine le ${dateFr(sub.currentPeriodEnd)}` : sub.currentPeriodEnd ? `Prochain renouvellement le ${dateFr(sub.currentPeriodEnd)}` : BILLING_IN_APP ? 'Gratuit, sans engagement' : ''}
+                  {BILLING_IN_APP && sub.status === 'past_due' ? ' · paiement en attente' : ''}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, margin: '16px 4px 4px' }}>
                   {LIMIT_ROWS.map((row) => {
@@ -154,7 +156,7 @@ const SubscriptionPage: React.FC = () => {
                     );
                   })}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
+                {BILLING_IN_APP && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
                   {sub.hasPaymentMethod && (
                     <button style={outline} disabled={!!busy} onClick={() => run('portal', async () => openExternal((await billingService.portal()).url))}>
                       Moyen de paiement et factures
@@ -170,10 +172,11 @@ const SubscriptionPage: React.FC = () => {
                       Annuler la résiliation
                     </button>
                   )}
-                </div>
+                </div>}
               </div>
             )}
 
+            {BILLING_IN_APP && (<>
             <div style={{ display: 'flex', alignItems: 'center', margin: '8px 4px 0' }}>
               <div style={{ ...eyebrow, margin: 0, flex: 1 }}>Plans</div>
               <div role="tablist" style={{ display: 'flex', gap: 4, background: 'var(--rk-track)', padding: 3, borderRadius: 11 }}>
@@ -239,6 +242,7 @@ const SubscriptionPage: React.FC = () => {
                 ))}
               </div>
             )}
+            </>)}
           </div>
 
           <RkSheet open={codeOpen} onClose={() => setCodeOpen(false)} title="J’ai un code" subtitle="Code transmis par votre CSE, votre mairie ou une offre Rekonect.">

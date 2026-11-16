@@ -8,6 +8,7 @@ import {
   isActionRequired,
   type AppNotification,
 } from '../../features/notifications/notification.service';
+import { RkGlyph } from '../../components/rk/RkGlyph';
 import { RkHeader } from '../../components/rk/RkDecor';
 
 /** Notifications parent — porté de la maquette Rekonect (écran pNotifs). */
@@ -151,8 +152,8 @@ const NotificationsPage: React.FC = () => {
                     >
                       <div style={{
                         width: 36, height: 36, borderRadius: 11, flexShrink: 0, background: tintOf(n),
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                      }}>{n.icon}</div>
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rk-text)',
+                      }}><RkGlyph kind={n.icon} /></div>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>{n.title}</div>

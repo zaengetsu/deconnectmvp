@@ -7,6 +7,7 @@ import { gamificationService } from '../../features/gamification/gamification.se
 import { LEVEL_NAMES, POINTS_CONFIG } from '../../lib/constants';
 import type { Badge, ChildBadge, PointsLedgerEntry } from '../../types/database.types';
 import { ProgressRing } from '@rekonect/brand';
+import { RkMedal } from '../../components/rk/RkGlyph';
 import { RkHero } from '../../components/rk/RkDecor';
 
 /** Points & niveaux — porté de la maquette Rekonect (écran cPoints). */
@@ -163,8 +164,8 @@ const ChildPointsPage: React.FC = () => {
                   <div style={{
                     width: 46, height: 46, borderRadius: '50%', margin: '0 auto 10px',
                     background: got ? 'var(--rk-ambersoft)' : 'var(--rk-surface2)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-                  }}>{b.icon || '🏅'}</div>
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rk-text)',
+                  }}><RkMedal size={22} /></div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--rk-text)', lineHeight: 1.3 }}>{b.name}</div>
                   <div style={{ fontSize: 10, color: 'var(--rk-text3)', marginTop: 3 }}>
                     {got ? 'Débloqué' : `${b.condition_value} pts`}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { RkGlyph } from '../rk/RkGlyph';
 import type { AppNotification } from '../../features/notifications/notification.service';
 
 /**
@@ -40,9 +41,9 @@ const NotificationToast: React.FC<NotificationToastProps> = ({ notification, onT
     >
       <div style={{
         width: 36, height: 36, borderRadius: 11, flexShrink: 0, background: tintOf(notification),
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rk-text)',
       }}>
-        {notification.icon}
+        <RkGlyph kind={notification.icon} />
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -64,7 +65,7 @@ const NotificationToast: React.FC<NotificationToastProps> = ({ notification, onT
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700,
         }}
       >
-        ✕
+        <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
       </button>
     </div>
   </div>

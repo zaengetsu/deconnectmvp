@@ -10,6 +10,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useAppStore } from '../../stores/app.store';
 import { useRk, type RkTheme } from '../../components/rk/RkShell';
 import { RkHeader } from '../../components/rk/RkDecor';
+import { BILLING_IN_APP } from '../../lib/billing-platform';
 
 /** Réglages — porté de la maquette Rekonect (écran pSettings). */
 
@@ -96,7 +97,7 @@ const SettingsPage: React.FC = () => {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--rk-text)' }}>{name}</div>
               <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>{profile?.email}</div>
-              <div style={{ fontSize: 11, color: 'var(--rk-indigo)', fontWeight: 700, marginTop: 4 }}>Modifier nom, email, mot de passe</div>
+              <div style={{ fontSize: 11, color: 'var(--rk-indigo)', fontWeight: 700, marginTop: 4 }}>Nom, email, mot de passe, suppression du compte</div>
             </div>
             <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
           </button>
@@ -201,7 +202,7 @@ const SettingsPage: React.FC = () => {
                 <RkTile icon={cardOutline} tint="var(--rk-indigosoft)" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Mon abonnement</div>
-                  <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>Plan, limites, code CSE ou mairie</div>
+                  <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>{BILLING_IN_APP ? 'Plan, limites, code CSE ou mairie' : 'Plan et limites'}</div>
                 </div>
                 <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
               </button>

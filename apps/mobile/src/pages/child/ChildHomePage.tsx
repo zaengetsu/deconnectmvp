@@ -10,6 +10,7 @@ import { LEVEL_NAMES } from '../../lib/constants';
 import { getCategoryStyle } from '../../lib/categoryStyle';
 import type { ChildActivity, Reward } from '../../types/database.types';
 import { CornerRing, ProgressRing, Sticker } from '@rekonect/brand';
+import { RkBell } from '../../components/rk/RkTabBar';
 import { RkFeature, RkHero, RkPrompt, RkStat } from '../../components/rk/RkDecor';
 
 /** Accueil enfant — porté de la maquette Rekonect (écran cHome). */
@@ -112,7 +113,7 @@ const ChildHomePage: React.FC = () => {
               width: 38, height: 38, borderRadius: 12, background: 'rgba(255,255,255,.25)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative',
             }}>
-              <div style={{ width: 14, height: 14, borderRadius: '5px 5px 2px 2px', border: '2px solid currentColor' }} />
+              <RkBell size={19} />
               {unread > 0 && (
                 <div style={{ position: 'absolute', top: 7, right: 8, width: 8, height: 8, borderRadius: '50%', background: '#D8556B' }} />
               )}

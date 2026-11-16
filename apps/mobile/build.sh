@@ -28,6 +28,11 @@
 
 set -e
 
+# CocoaPods (Ruby) plante sans locale UTF-8 (« Unicode Normalization not
+# appropriate for ASCII-8BIT ») quand le shell appelant est en C/POSIX.
+export LANG="${LANG:-en_US.UTF-8}" LC_ALL="${LC_ALL:-en_US.UTF-8}"
+case "$LANG" in *UTF-8*|*utf8*) ;; *) export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 ;; esac
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
@@ -183,19 +188,30 @@ fi
 echo "✅ Archive : $ARCHIVE_PATH"
 
 # ─── Export IPA ───────────────────────────────────────────────
-# Sans compte Apple connecté dans Xcode, la signature automatique à
-# l'export échoue ("Cloud signing permission error"). Si le profil
-# App Store est installé localement, on signe manuellement avec lui :
-# l'export re-signe l'app entière en Apple Distribution.
+# Signature manuelle seulement si tout est là : le profil App Store de
+# l'équipe ET le certificat « Apple Distribution » de cette équipe avec sa
+# clé privée (présent uniquement sur le Mac qui a fait la demande). Sinon,
+# signature automatique : Xcode (session de l'équipe ou clé API) fabrique
+# certificat et profil, comme pour l'app Services (même équipe).
 PROFILE_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
 HAS_PROFILE=0
 if [ "$METHOD" = "app-store-connect" ]; then
-  for p in "$PROFILE_DIR"/*.mobileprovision; do
+  for p in "$PROFILE_DIR"/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision; do
     [ -f "$p" ] || continue
-    if security cms -D -i "$p" 2>/dev/null | grep -q "<string>$PROFILE</string>"; then
-      HAS_PROFILE=1; break
+    PLIST="$(security cms -D -i "$p" 2>/dev/null)" || continue
+    pp() { /usr/libexec/PlistBuddy -c "Print :$1" /dev/stdin <<< "$PLIST" 2>/dev/null || true; }
+    [ "$(pp Name)" = "$PROFILE" ] || continue
+    if [ "$(pp TeamIdentifier:0)" != "$TEAM_ID" ]; then
+      echo "⚠️  Profil '$PROFILE' de l'équipe $(pp TeamIdentifier:0), pas $TEAM_ID — ignoré." >&2; continue
     fi
+    [ "$(pp Entitlements:application-identifier)" = "$TEAM_ID.$BUNDLE_ID" ] || continue
+    [ -z "$(pp ProvisionedDevices:0)" ] || continue   # profil de dev / ad hoc
+    HAS_PROFILE=1; break
   done
+  if [ "$HAS_PROFILE" = 1 ] && ! security find-identity -v -p codesigning 2>/dev/null | grep -q "Apple Distribution.*($TEAM_ID)"; then
+    echo "ℹ️  Profil '$PROFILE' présent mais aucun certificat Apple Distribution ($TEAM_ID) dans le trousseau : signature automatique."
+    HAS_PROFILE=0
+  fi
 fi
 
 EXPORT_PLIST="$OUT_DIR/ExportOptions.plist"

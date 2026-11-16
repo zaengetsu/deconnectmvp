@@ -79,6 +79,7 @@ const ValidationsPage: React.FC = () => {
     setProcessing(ca.id);
     try {
       await activitiesService.validateActivity(ca.id, user.id);
+      window.dispatchEvent(new Event('rk:validations'));
       setJustDone(prev => [{
         id: ca.id,
         title: ca.activity?.title ?? 'Activité',
@@ -96,6 +97,7 @@ const ValidationsPage: React.FC = () => {
     setProcessing(rejectTarget.id);
     try {
       await activitiesService.rejectActivity(rejectTarget.id, user.id, reason.trim());
+      window.dispatchEvent(new Event('rk:validations'));
       setJustDone(prev => [{
         id: rejectTarget.id,
         title: rejectTarget.activity?.title ?? 'Activité',

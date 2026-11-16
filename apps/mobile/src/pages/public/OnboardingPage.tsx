@@ -9,19 +9,26 @@ const SLIDES = [
   {
     title: <>Le temps d'écran<br />devient du temps vécu</>,
     body: 'Vous proposez des activités, votre enfant les choisit et les réalise. Chaque effort compte.',
-    caption: 'enfant qui pose son téléphone et sort jouer',
   },
   {
     title: <>Chaque effort<br />ouvre une porte</>,
     body: 'Les points gagnés se transforment en récompenses que vous définissez : une sortie, un privilège, un moment ensemble.',
-    caption: 'points, niveaux et récompense débloquée',
   },
   {
     title: <>Toute la famille,<br />au même endroit</>,
     body: 'Invitez un co-parent ou un éducateur. Chacun voit les progrès et peut valider.',
-    caption: 'parents et enfants autour du même tableau',
   },
 ];
+
+/** Illustrations des trois écrans (SVG 660×460, sans texte), dessinées pour la charte. */
+const OnboardingArt: React.FC<{ step: number }> = ({ step }) => (
+  <img
+    src={`/images/onboarding/ob-${step + 1}.svg`}
+    alt=""
+    aria-hidden="true"
+    style={{ width: '100%', height: 230, objectFit: 'contain', display: 'block' }}
+  />
+);
 
 const OnboardingPage: React.FC = () => {
   const history = useHistory();
@@ -72,20 +79,7 @@ const OnboardingPage: React.FC = () => {
           </div>
 
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 230 }}>
-            <div style={{
-              width: '100%', height: 230, borderRadius: 24, background: 'var(--rk-surface)',
-              border: '1px solid var(--rk-border)',
-              backgroundImage: 'repeating-linear-gradient(115deg, var(--rk-line) 0 1px, transparent 1px 12px)',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7,
-            }}>
-              <div style={{ fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 11, color: 'var(--rk-text3)' }}>
-                illustration {step + 1}/3
-              </div>
-              <div style={{
-                fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 10, color: 'var(--rk-text3)',
-                textAlign: 'center', maxWidth: '22ch', lineHeight: 1.6,
-              }}>{slide.caption}</div>
-            </div>
+            <OnboardingArt step={step} />
           </div>
         </div>
 

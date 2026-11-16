@@ -36,6 +36,13 @@ const ParentChrome: React.FC = () => {
   const { sheet, openSheet, closeSheet } = useRk();
   const [pendingCount, setPendingCount] = useState(0);
 
+  // Rechargé à chaque navigation, et dès qu'une validation est traitée (événement « rk:validations »).
+  const [validationsTick, setValidationsTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setValidationsTick((t) => t + 1);
+    window.addEventListener('rk:validations', bump);
+    return () => window.removeEventListener('rk:validations', bump);
+  }, []);
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -46,7 +53,7 @@ const ParentChrome: React.FC = () => {
       } catch { /* le badge reste à zéro */ }
     })();
     return () => { cancelled = true; };
-  }, [user?.id, history.location.pathname]);
+  }, [user?.id, history.location.pathname, validationsTick]);
 
   const go = (path: string) => { closeSheet(); history.push(path); };
 

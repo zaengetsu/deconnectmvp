@@ -14,7 +14,7 @@ const n = (over: Partial<AppNotification>): AppNotification => ({
   id: over.id ?? 'n1',
   recipient_type: 'parent',
   recipient_id: 'p1',
-  title: 't', body: 'b', icon: '🔔', route: null, data: {},
+  title: 't', body: 'b', icon: 'bell', route: null, data: {},
   is_read: false,
   created_at: new Date().toISOString(),
   ...over,
@@ -60,7 +60,7 @@ describe('centre de notifications (5.13)', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   const apiItem = (over: Record<string, unknown> = {}) => ({
-    id: 'n1', type: 'reward_requested', category: 'action', title: '🎁 Récompense demandée', body: 'Emma aimerait sa récompense', icon: '🎁',
+    id: 'n1', type: 'reward_requested', category: 'action', title: 'Récompense demandée', body: 'Emma aimerait sa récompense', icon: 'reward',
     route: '/parent/rewards', data: { rewardId: 'r1' }, priority: 'high', entityType: 'reward_request', entityId: 'rr1', isRead: false, readAt: null, sentAt: '2026-09-24T10:00:00Z', ...over,
   });
 
@@ -69,7 +69,7 @@ describe('centre de notifications (5.13)', () => {
     const [first, second] = await notificationService.getParentNotifications('p1', 30);
     expect(first).toMatchObject({ id: 'n1', recipient_type: 'parent', recipient_id: 'p1', is_read: false, created_at: '2026-09-24T10:00:00Z', entity_type: 'reward_request', entity_id: 'rr1', data: { rewardId: 'r1' } });
     expect(isActionRequired(first)).toBe(true);
-    expect(second).toMatchObject({ icon: '🔔', data: {}, is_read: true });
+    expect(second).toMatchObject({ icon: 'bell', data: {}, is_read: true });
     const kid = await notificationService.getChildNotifications('child-9', 500);
     expect(kid[0].recipient_type).toBe('child');
     expect(http.list()).toEqual(['GET /v1/notifications?limit=30', 'GET /v1/notifications?limit=100']);

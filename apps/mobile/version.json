@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "build": 4,
+  "build": 12,
   "ios": {
     "deploymentTarget": "15.0",
     "infoPlist": {
