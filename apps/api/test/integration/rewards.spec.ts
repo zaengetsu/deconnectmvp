@@ -59,7 +59,7 @@ describe('Récompenses : catalogue, demandes, relances', () => {
       ['reward_pending', 'scheduled', 'normal'],
       ['reward_pending', 'scheduled', 'low'],
     ]);
-    expect(parentNotifs[0].title).toBe('🎁 Emma a débloqué une récompense');
+    expect(parentNotifs[0].title).toBe('Emma a débloqué une récompense');
     expect(parentNotifs[0].route).toBe(`/parent/rewards/requests/${req.body.id}`);
 
     // 24 h plus tard, toujours en attente : relance.
@@ -74,7 +74,7 @@ describe('Récompenses : catalogue, demandes, relances', () => {
     expect((await h.prisma.child.findUniqueOrThrow({ where: { id: childId } })).totalPoints).toBe(10);
     const pending48 = await h.prisma.notification.findFirstOrThrow({ where: { dedupKey: `reward_pending48:${req.body.id}` } });
     expect(pending48.status).toBe('cancelled');
-    expect((await notificationsOf(h, childId, 'reward_approved'))[0].title).toBe('🎁 Ta récompense est validée !');
+    expect((await notificationsOf(h, childId, 'reward_approved'))[0].title).toBe('Ta récompense est validée !');
 
     await h.http.post(`/v1/reward-requests/${req.body.id}/deliver`).set(auth(parent.token)).expect(200);
     await h.http.post(`/v1/reward-requests/${req.body.id}/deliver`).set(auth(parent.token)).expect(409);

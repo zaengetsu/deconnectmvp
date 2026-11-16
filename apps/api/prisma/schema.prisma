@@ -661,7 +661,7 @@ model Notification {
   recipientId   String                 @map("recipient_id") @db.Uuid
   title         String
   body          String
-  icon          String?                @default("🔔")
+  icon          String?                @default("bell")
   route         String?
   data          Json?                  @default("{}")
   isRead        Boolean?               @default(false) @map("is_read")

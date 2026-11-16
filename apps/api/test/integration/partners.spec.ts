@@ -205,7 +205,7 @@ describe('Partenaires : réseau, lieux, ciblage, offres, modération, caisse, me
       expect((await h.http.get('/v1/offer-claims').set(auth(far.parent.token))).body).toHaveLength(0);
       expect((await h.http.get('/v1/offer-claims').set(auth(noConsent.parent.token))).body).toHaveLength(0);
       const [notif] = await notificationsOf(h, near.parent.userId, 'partner_offer_unlocked');
-      expect(notif).toMatchObject({ title: '🎟️ Bon Decathlon France débloqué', body: 'Grâce aux activités de Emma : −10 % rayon cycles.' });
+      expect(notif).toMatchObject({ title: 'Bon Decathlon France débloqué', body: 'Grâce aux activités de Emma : −10 % rayon cycles.' });
       expect((await h.http.get('/v1/offer-progress').set(auth(near.parent.token))).body).toHaveLength(0); // limite 1 par famille atteinte
 
       // En caisse : un agent d'accueil vérifie puis valide le bon.

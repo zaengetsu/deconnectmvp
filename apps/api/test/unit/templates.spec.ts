@@ -1,5 +1,5 @@
 import { NOTIFICATION_TYPES } from '@rekonect/contracts';
-import { type NotificationDraft, templates } from '../../src/modules/notifications/templates';
+import { type NotificationDraft, type NudgeCopyInput, nudgeCopy, templates } from '../../src/modules/notifications/templates';
 
 const child = (age: number, name = 'Emma') => ({ id: `c-${age}`, displayName: name, age, parentId: 'p1' });
 const at = new Date('2026-09-24T15:00:00Z');
@@ -71,8 +71,8 @@ describe('catalogue des messages', () => {
     const young = templates.activityReminder(child(6), act, 'x', at);
     const kid = templates.activityReminder(child(10), act, 'x', at);
     const teen = templates.activityReminder(child(15), act, 'x', at);
-    expect(young.title).toBe('🌟 C’est bientôt l’heure !');
-    expect(kid.title).toBe('🔔 Petit rappel');
+    expect(young.title).toBe('C’est bientôt l’heure !');
+    expect(kid.title).toBe('Petit rappel');
     expect(teen.title).toBe('Petit rappel');
     expect(teen.body).toBe('Tu avais prévu « Lire 20 pages » aujourd’hui.');
     for (const d of all(15).filter((x) => x.recipientType === 'child')) expect(d.body).not.toMatch(/on compte sur toi|Bravo !/);
@@ -87,8 +87,33 @@ describe('catalogue des messages', () => {
   });
 
   it('regroupement', () => {
-    expect(templates.groupSummary('activity_completed', 3)).toEqual({ title: '🎉 Belle journée', body: 'Vos enfants ont terminé 3 activités aujourd’hui.' });
-    expect(templates.groupSummary('activity_validation_required', 2).title).toBe('👀 2 activités à valider');
+    expect(templates.groupSummary('activity_completed', 3)).toEqual({ title: 'Belle journée', body: 'Vos enfants ont terminé 3 activités aujourd’hui.' });
+    expect(templates.groupSummary('activity_validation_required', 2).title).toBe('2 activités à valider');
     expect(templates.groupSummary('tip', 4).title).toBe('4 nouvelles notifications');
+  });
+});
+
+describe('sans émoji', () => {
+  /** Clés que l'app traduit en pictogrammes ; jamais d'émoji dans le titre, le corps ou l'icône. */
+  const ICONS = ['activity', 'review', 'reminder', 'validated', 'message', 'level', 'badge', 'reward', 'device', 'friend', 'challenge', 'family', 'streak', 'summary', 'screen', 'progress', 'voucher', 'payment'];
+  const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2705}\u{2728}\u{23F0}-\u{23FF}\u{25B6}\u{FE0F}\u{200D}]/u;
+  const nudges: NudgeCopyInput[] = [
+    { kind: 'nudge_resume', activityTitle: 'Vélo', childActivityId: 'ca1' },
+    { kind: 'nudge_streak', streak: 4 },
+    { kind: 'nudge_reward_close', rewardTitle: 'Cinéma', missing: 5 },
+    { kind: 'nudge_comeback', activityTitle: 'Vélo', days: 12, categoryIcon: 'sport', activityId: 'a1' },
+    { kind: 'nudge_idle', days: 3, suggestion: null },
+    { kind: 'nudge_goal', remaining: 1 },
+  ];
+
+  it('aucun gabarit ne contient d’émoji et chaque icône est une clé connue', () => {
+    for (const age of [6, 10, 15]) {
+      for (const n of [...all(age), ...nudges.map((x) => templates.nudge(child(age), x, '2026-09-24'))]) {
+        expect(`${n.type} ${n.title} ${n.body}`).not.toMatch(EMOJI);
+        expect(ICONS).toContain(n.icon);
+      }
+      for (const t of ['young', 'kid', 'teen'] as const) for (const x of nudges) expect(nudgeCopy(t, x).title).not.toMatch(/sport|\p{Extended_Pictographic}/u);
+    }
+    for (const type of ['activity_completed', 'activity_validation_required', 'tip']) expect(templates.groupSummary(type, 3).title).not.toMatch(EMOJI);
   });
 });

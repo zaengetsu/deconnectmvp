@@ -25,7 +25,7 @@ describe('Notifications : décision, centre, préférences, livraisons', () => {
     type: 'tip' as const,
     title: 'Conseil',
     body: 'Une idée de sortie ce week-end ?',
-    icon: '💡',
+    icon: 'activity',
     route: '/parent/dashboard',
     priority: 'low' as const,
     channels: ['in_app' as const, 'push' as const],
@@ -154,7 +154,7 @@ describe('Notifications : décision, centre, préférences, livraisons', () => {
       await h.drain();
       const completed = await notificationsOf(h, parent.userId, 'activity_completed');
       expect(completed).toHaveLength(1);
-      expect(completed[0]).toMatchObject({ title: '🎉 Belle journée', body: 'Vos enfants ont terminé 3 activités aujourd’hui.' });
+      expect(completed[0]).toMatchObject({ title: 'Belle journée', body: 'Vos enfants ont terminé 3 activités aujourd’hui.' });
       expect((completed[0].data as { group_count: number }).group_count).toBe(3);
 
       // Une fois lue, la suivante ouvre un nouveau groupe.
@@ -260,7 +260,7 @@ describe('Notifications : décision, centre, préférences, livraisons', () => {
       const d = await h.prisma.notificationDelivery.findFirstOrThrow({ where: { channel: 'email' } });
       expect(d.status).toBe('sent');
       await h.emails.processPending();
-      const mail = h.mailer.sent.find((m) => m.subject === '📊 Votre semaine avec Rekonect');
+      const mail = h.mailer.sent.find((m) => m.subject === 'Votre semaine avec Rekonect');
       expect(mail?.to).toBe(parent.email);
       expect(mail?.text).toContain('8 activités et passé 4h20 hors écran');
       expect(mail?.text).toContain('Ouvrir Rekonect : rekonect://parent/dashboard?view=week');
@@ -268,7 +268,7 @@ describe('Notifications : décision, centre, préférences, livraisons', () => {
       await h.prisma.notificationDelivery.update({ where: { id: d.id }, data: { status: 'pending', nextAttemptAt: h.clock.now() } });
       await h.deliveries.processPending();
       await h.emails.processPending();
-      expect(h.mailer.sent.filter((m) => m.subject === '📊 Votre semaine avec Rekonect')).toHaveLength(1);
+      expect(h.mailer.sent.filter((m) => m.subject === 'Votre semaine avec Rekonect')).toHaveLength(1);
     });
 
     it('aucun email pour un enfant ni pour une activité terminée', async () => {

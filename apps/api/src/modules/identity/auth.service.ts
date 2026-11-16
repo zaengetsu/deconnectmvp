@@ -5,6 +5,7 @@ import type {
   ChangePasswordInput,
   ChildLinkInput,
   ChildPinLoginInput,
+  DeleteAccountInput,
   LoginInput,
   RegisterInput,
   ResetPasswordInput,
@@ -193,6 +194,43 @@ export class AuthService {
     });
     await this.emails.sendNow('auth.password_changed', { to: user.email, toName: user.fullName, recipientId: user.id, data: {} });
     return { ...this.stripId(pair), user: this.publicUser(user) };
+  }
+
+  /**
+   * Suppression du compte par son titulaire (RGPD, App Store 5.1.1(v)), confirmée par le mot de passe.
+   * Même effacement que la suppression du back-office : le profil part en cascade avec les enfants,
+   * leur historique, appareils, sessions et jetons push. Un co-parent invité n'efface que son compte
+   * et ses rattachements : la famille dont il n'est pas titulaire reste intacte. Les notifications
+   * (sans clé étrangère) et l'abonnement Stripe sont traités par leurs modules via `user.account_deleted`.
+   */
+  async deleteAccount(p: UserPrincipal, input: DeleteAccountInput): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: p.userId } });
+    if (!user || user.role !== 'parent' || !(await verifySecret(user.passwordHash, input.password))) {
+      throw unauthorized('INVALID_CREDENTIALS', 'Mot de passe incorrect');
+    }
+    await this.prisma.tx(async (tx) => {
+      const children = await tx.child.findMany({ where: { parentId: user.id }, select: { id: true } });
+      const subscriptions = await tx.subscription.findMany({
+        where: { parentId: user.id, stripeSubscriptionId: { not: null } },
+        select: { stripeSubscriptionId: true },
+      });
+      await tx.passwordResetToken.deleteMany({ where: { userId: user.id } });
+      await tx.profile.deleteMany({ where: { id: user.id } });
+      await tx.user.delete({ where: { id: user.id } });
+      await this.events.publish(tx, 'user.account_deleted', {
+        aggregateType: 'user',
+        aggregateId: user.id,
+        payload: {
+          userId: user.id,
+          role: 'parent',
+          childIds: children.map((c) => c.id),
+          stripeSubscriptionIds: subscriptions.map((s) => s.stripeSubscriptionId!),
+        },
+        actor: { kind: 'parent', id: user.id },
+      });
+      // L'adresse n'est conservée que dans le journal d'envoi, sans lien vers la famille.
+      await this.emails.queue(tx, 'parent.account_deleted', { to: user.email, data: { name: user.fullName } });
+    });
   }
 
   /** Nouvelle adresse, confirmée par le mot de passe. L'ancienne adresse est prévenue. */

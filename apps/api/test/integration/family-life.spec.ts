@@ -77,7 +77,7 @@ describe('Vie de famille', () => {
       const duo = await h.http.post('/v1/duos').set(auth(a.child.token)).send({ activityId: act.id, partnerChildId: b.childId, startsAt: '2026-09-23T15:00:00.000Z' }).expect(201);
       await h.drain();
       const [inv] = await notificationsOf(h, b.childId, 'friend_activity_invited');
-      expect(inv.title).toBe('👋 Emma t’invite');
+      expect(inv.title).toBe('Emma t’invite');
       const soon = await notificationsOf(h, a.childId, 'friend_activity_started');
       expect(soon[0]).toMatchObject({ status: 'scheduled' });
       expect(soon[0].scheduledAt?.toISOString()).toBe('2026-09-23T14:50:00.000Z');
@@ -87,7 +87,7 @@ describe('Vie de famille', () => {
       await h.http.post(`/v1/duos/${duo.body.id}/accept`).set(auth(b.child.token)).expect(200);
       await h.http.post(`/v1/duos/${duo.body.id}/accept`).set(auth(b.child.token)).expect(409);
       await h.drain();
-      expect((await notificationsOf(h, a.childId, 'friend_activity_invited'))[0].title).toBe('🙌 Tom est partant !');
+      expect((await notificationsOf(h, a.childId, 'friend_activity_invited'))[0].title).toBe('Tom est partant !');
 
       const part = await h.http.post(`/v1/duos/${duo.body.id}/done`).set(auth(a.child.token)).expect(200);
       expect(part.body.status).toBe('active');
@@ -97,7 +97,7 @@ describe('Vie de famille', () => {
       expect((await h.prisma.child.findUniqueOrThrow({ where: { id: b.childId } })).totalPoints).toBe(before + done.body.bonusPoints);
       await h.drain();
       expect((await notificationsOf(h, a.childId, 'friend_activity_completed'))[0].body).toBe(`Vous avez tous les deux gagné ${done.body.bonusPoints} points.`);
-      expect((await notificationsOf(h, b.parent.userId, 'activity_completed')).map((n) => n.title)).toContain('🤝 Défi à deux réussi');
+      expect((await notificationsOf(h, b.parent.userId, 'activity_completed')).map((n) => n.title)).toContain('Défi à deux réussi');
       expect((await notificationsOf(h, a.childId, 'friend_activity_started'))[0].status).toBe('cancelled');
       expect((await h.http.get('/v1/duos').set(auth(b.child.token))).body[0]).toMatchObject({ id: duo.body.id, initiator: { displayName: 'Emma' } });
       await h.http.post(`/v1/duos/${duo.body.id}/cancel`).set(auth(a.child.token)).expect(409);
@@ -147,7 +147,7 @@ describe('Vie de famille', () => {
       await h.http.post(`/v1/ritual-occurrences/${first}/confirm`).set(auth(f.parent.token)).send({ attendees: [] }).expect(409);
       expect((await h.prisma.child.findUniqueOrThrow({ where: { id: f.childId } })).totalPoints).toBe(25);
       await h.drain();
-      expect((await notificationsOf(h, f.childId, 'family_activity')).find((n) => n.title === '💛 Merci d’y avoir été')?.body).toBe('+25 points pour « Dîner préparé ensemble ».');
+      expect((await notificationsOf(h, f.childId, 'family_activity')).find((n) => n.title === 'Merci d’y avoir été')?.body).toBe('+25 points pour « Dîner préparé ensemble ».');
       await h.http.post(`/v1/ritual-occurrences/${first}/cancel`).set(auth(f.parent.token)).expect(409);
 
       const other = await familyWithChild(h);
@@ -187,7 +187,7 @@ describe('Vie de famille', () => {
       expect(g.body).toMatchObject({ weekStart: '2026-09-21', targetActivities: 2, done: 0, achievedAt: null });
       await completeActivity(h, f.parent, f.child, act.id);
       await h.drain();
-      expect((await notificationsOf(h, f.parent.userId, 'goal_progress'))[0].title).toBe('🔥 Plus qu’une activité');
+      expect((await notificationsOf(h, f.parent.userId, 'goal_progress'))[0].title).toBe('Plus qu’une activité');
       await completeActivity(h, f.parent, f.child, act.id);
       await h.drain();
       expect((await notificationsOf(h, f.parent.userId, 'goal_completed'))[0].body).toBe('Votre famille a réalisé 2 activités hors écran cette semaine.');
@@ -235,7 +235,7 @@ describe('Vie de famille', () => {
       expect((await notificationsOf(h, f.parent.userId, 'daily_summary'))[0].body).toBe('Lucas : 1 activité terminée');
       expect(await notificationsOf(h, quiet.parent.userId, 'daily_summary')).toHaveLength(0);
       expect(await digests.weeklySummaries()).toBe(1);
-      expect((await notificationsOf(h, f.parent.userId, 'weekly_summary'))[0].title).toBe('📊 Votre semaine avec Rekonect');
+      expect((await notificationsOf(h, f.parent.userId, 'weekly_summary'))[0].title).toBe('Votre semaine avec Rekonect');
 
       h.clock.set('2026-09-24T07:00:00Z');
       const ca = await h.http.post('/v1/child-activities').set(auth(f.child.token)).send({ activityId: act.id, scheduledFor: '2026-09-24' }).expect(201);

@@ -37,7 +37,7 @@ describe('Moteur d’engagement : choix de la relance', () => {
       started: { activityTitle: 'Lire 20 pages', childActivityId: 'ca1' },
       closestReward: { title: 'Choisir le film', missing: 10, cost: 100 },
       familyGoalRemaining: 1,
-      favorite: { activityId: 'a1', title: 'Vélo', daysSince: 12, icon: '🚲' },
+      favorite: { activityId: 'a1', title: 'Vélo', daysSince: 12, icon: 'sport' },
       daysSinceLastActivity: 5,
       suggestion: { id: 'a2', title: 'Cabane', minutes: 20 },
     };
@@ -91,7 +91,7 @@ describe('Relances : textes selon l’âge et préférences', () => {
       { kind: 'nudge_streak', streak: 5 },
       { kind: 'nudge_resume', activityTitle: 'Lire', childActivityId: 'x' },
       { kind: 'nudge_reward_close', rewardTitle: 'Cinéma', missing: 20 },
-      { kind: 'nudge_comeback', activityTitle: 'Vélo', days: 12, categoryIcon: '🚲', activityId: 'a' },
+      { kind: 'nudge_comeback', activityTitle: 'Vélo', days: 12, categoryIcon: 'sport', activityId: 'a' },
       { kind: 'nudge_idle', days: 4, suggestion: { id: 'a', title: 'Cabane', minutes: 15 } },
       { kind: 'nudge_goal', remaining: 1 },
     ] as const;
@@ -112,7 +112,7 @@ describe('Relances : textes selon l’âge et préférences', () => {
     const d = templates.nudge(young, { kind: 'nudge_goal', remaining: 1 }, '2026-09-23');
     expect(d).toMatchObject({ recipientType: 'child', recipientId: 'c1', priority: 'low', entityType: 'child', entityId: 'c1', dedupKey: 'nudge:c1:2026-09-23' });
     expect(templates.nudge(teen, { kind: 'nudge_streak', streak: 3 }, '2026-09-23').dedupKey).toBe('nudge:c2:2026-09-23');
-    expect(templates.streakMilestone(teen, 7, '2026-09-23').title).toBe('🔥 7 jours d’affilée');
+    expect(templates.streakMilestone(teen, 7, '2026-09-23').title).toBe('7 jours d’affilée');
     expect(templates.streakMilestoneParent(teen, 7, '2026-09-23').channels).toEqual(['in_app']);
   });
 

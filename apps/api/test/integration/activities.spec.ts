@@ -55,7 +55,7 @@ describe('Activités : catalogue, cycle de vie, rappels', () => {
     expect(ca.body.status).toBe('available');
     await h.drain();
     const [assigned] = await notificationsOf(h, childId, 'activity_assigned');
-    expect(assigned.title).toBe('✨ Nouvelle activité');
+    expect(assigned.title).toBe('Nouvelle activité');
 
     const started = await h.http.post(`/v1/child-activities/${ca.body.id}/start`).set(auth(child.token)).send({}).expect(200);
     expect(started.body.status).toBe('selected');
@@ -101,7 +101,7 @@ describe('Activités : catalogue, cycle de vie, rappels', () => {
     const byEntity = Object.fromEntries(sent.map((n) => [n.entityId, n.status]));
     expect(byEntity[a1.body.id]).toBe('sent');
     expect(byEntity[a2.body.id]).toBe('cancelled');
-    expect(sent.find((n) => n.entityId === a1.body.id)!.title).toBe('🌟 C’est bientôt l’heure !'); // ton jeune enfant
+    expect(sent.find((n) => n.entityId === a1.body.id)!.title).toBe('C’est bientôt l’heure !'); // ton jeune enfant
   });
 
   it('pas de rappel pour une date passée ; replanifier le même jour ne duplique pas', async () => {

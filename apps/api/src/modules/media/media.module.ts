@@ -9,6 +9,7 @@ import { PROOF_MAX_BYTES, type ProofContentType } from '../../platform/http/body
 import { badRequest, conflict, notFound } from '../../platform/http/errors';
 import { zod } from '../../platform/http/zod.pipe';
 import { PrismaService } from '../../platform/prisma/prisma.service';
+import { MediaConsumers } from './consumers';
 
 export const MEDIA_MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED = ['image/png', 'image/jpeg', 'image/webp'] as const;
@@ -137,5 +138,9 @@ export class MediaController {
   }
 }
 
-@Module({ controllers: [MediaController], providers: [MediaService] })
+/** Consommateurs d'événements, chargés aussi par le worker (sans contrôleur HTTP). */
+@Module({ providers: [MediaConsumers] })
+export class MediaCoreModule {}
+
+@Module({ imports: [MediaCoreModule], controllers: [MediaController], providers: [MediaService] })
 export class MediaModule {}

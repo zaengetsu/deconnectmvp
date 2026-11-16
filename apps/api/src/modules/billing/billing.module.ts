@@ -7,6 +7,7 @@ import { Allow, CurrentPrincipal, type Principal, Public, type UserPrincipal } f
 import { zod } from '../../platform/http/zod.pipe';
 import { BillingAdminService } from './billing-admin.service';
 import { BillingService } from './billing.service';
+import { BillingConsumers } from './consumers';
 import { EntitlementsService } from './entitlements.service';
 import { BillingGateway } from './gateway';
 import { StripeGateway } from './stripe.gateway';
@@ -179,10 +180,17 @@ export class AdminBillingController {
 })
 export class EntitlementsModule {}
 
+/** Passerelle de paiement et consommateurs d'événements : chargés aussi par le worker. */
 @Module({
-  imports: [EntitlementsModule],
+  providers: [{ provide: BillingGateway, useClass: StripeGateway }, BillingConsumers],
+  exports: [BillingGateway],
+})
+export class BillingCoreModule {}
+
+@Module({
+  imports: [EntitlementsModule, BillingCoreModule],
   controllers: [BillingController, PartnerBillingController, AdminBillingController],
-  providers: [BillingService, BillingWebhookService, BillingAdminService, { provide: BillingGateway, useClass: StripeGateway }],
+  providers: [BillingService, BillingWebhookService, BillingAdminService],
   exports: [BillingService, BillingAdminService],
 })
 export class BillingModule {}

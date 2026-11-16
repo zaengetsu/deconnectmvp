@@ -32,7 +32,7 @@ export const SAMPLE_EMAIL_DATA: { [K in EmailTemplateId]: EmailData<K> } = {
   'parent.payment_recovered': { amountLabel: '7,99 €', planName: 'Famille+' },
   'parent.inactive_nudge': { childNames: ['Lucas', 'Emma'], days: 15, idea: 'Construire une cabane (20 min)' },
   'parent.account_deleted': { name: 'Camille Martin' },
-  'parent.notification': { title: '💳 Paiement refusé', body: 'Votre paiement de 7,99 € n’a pas abouti.', route: '/parent/subscription' },
+  'parent.notification': { title: 'Paiement refusé', body: 'Votre paiement de 7,99 € n’a pas abouti.', route: '/parent/subscription' },
 
   'partner.invitation': { partnerName: 'Decathlon Lyon', role: 'éditeur', url: 'https://partenaires.rekonect.app/invitation?token=abc', inviterName: 'Julie Bernard' },
   'partner.welcome': { name: 'Julie Bernard', partnerName: 'Decathlon Lyon', role: 'administrateur', hasOffer: false },

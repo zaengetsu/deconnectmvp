@@ -29,7 +29,7 @@ describe('Moteur d’engagement : relances enfant et parent', () => {
     expect(await h.engagement.nudgeChildren()).toBe(1);
     expect(await h.engagement.nudgeChildren()).toBe(0);
     const [n] = await nudgesOf(f.childId);
-    expect(n).toMatchObject({ type: 'nudge_streak', title: '🔥 Ta série de 4 jours t’attend', priority: 'low', route: '/child/activities' });
+    expect(n).toMatchObject({ type: 'nudge_streak', title: 'Ta série de 4 jours t’attend', priority: 'low', route: '/child/activities' });
   });
 
   it('aucune relance si l’enfant a déjà agi, si les encouragements sont coupés, ou pendant les heures silencieuses', async () => {
@@ -109,13 +109,13 @@ describe('Moteur d’engagement : relances enfant et parent', () => {
     h.clock.set('2026-09-23T16:00:00.000Z');
     expect(await h.engagement.nudgeParents()).toBe(1); // enfant « inactif » mais activité en attente : pas d'idée
     const [backlog] = await notificationsOf(h, f.parent.userId, 'validation_backlog');
-    expect(backlog).toMatchObject({ title: '👀 Emma attend votre validation', route: '/parent/validations' });
+    expect(backlog).toMatchObject({ title: 'Emma attend votre validation', route: '/parent/validations' });
 
     await h.prisma.childActivity.delete({ where: { id: ca.body.id } });
     h.clock.advance(DAY);
     expect(await h.engagement.nudgeParents()).toBe(1);
     const [idle] = await notificationsOf(h, f.parent.userId, 'parent_nudge_idle');
-    expect(idle.title).toBe('💡 Une idée pour Emma ?');
+    expect(idle.title).toBe('Une idée pour Emma ?');
     expect(idle.route).toBe(`/parent/children/${f.childId}/assign`);
     h.clock.advance(DAY);
     expect(await h.engagement.nudgeParents()).toBe(0); // une par enfant et par semaine
@@ -128,8 +128,8 @@ describe('Moteur d’engagement : relances enfant et parent', () => {
     await completeActivity(h, f.parent, f.child, activity.id);
     await h.drain();
     const [kid] = await notificationsOf(h, f.childId, 'streak_milestone');
-    expect(kid).toMatchObject({ title: '🔥 3 jours de suite !', channels: ['in_app', 'push'] });
+    expect(kid).toMatchObject({ title: '3 jours de suite !', channels: ['in_app', 'push'] });
     const [parent] = await notificationsOf(h, f.parent.userId, 'streak_milestone');
-    expect(parent).toMatchObject({ title: '🔥 Emma : 3 jours de suite', channels: ['in_app'] });
+    expect(parent).toMatchObject({ title: 'Emma : 3 jours de suite', channels: ['in_app'] });
   });
 });

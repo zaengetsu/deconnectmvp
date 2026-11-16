@@ -43,6 +43,12 @@ export class NotificationConsumers implements OnModuleInit {
   onModuleInit(): void {
     const n = this.notifications;
 
+    // ─── Compte supprimé (RGPD) : notifications du parent et de ses enfants, sans clé étrangère vers eux ───
+    // Hors du garde-fou de bascule : l'effacement vaut quel que soit le moteur d'envoi.
+    this.registry.on('user.account_deleted', 'notifications', async (e, tx) => {
+      await tx.notification.deleteMany({ where: { recipientId: { in: [e.payload.userId, ...e.payload.childIds] } } });
+    });
+
     // ─── Activités ───
     this.on('activity.assigned', async (e, tx) => {
       const [child, a] = await Promise.all([this.child(tx, e.payload.childId), tx.activity.findUniqueOrThrow({ where: { id: e.payload.activityId } })]);

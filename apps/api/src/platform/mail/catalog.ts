@@ -208,7 +208,7 @@ export const EMAILS = {
     audience: 'parent',
     category: 'family',
     render: (d, u) => ({
-      subject: `Première activité réussie pour ${d.childName} 🎉`,
+      subject: `Première activité réussie pour ${d.childName}`,
       preheader: `${q(d.activityTitle)} · +${d.points} points`,
       title: 'Le premier pas est fait',
       tone: 'success',
@@ -240,7 +240,7 @@ export const EMAILS = {
     audience: 'parent',
     category: 'reports',
     render: (d, u) => ({
-      subject: '📊 Votre semaine avec Rekonect',
+      subject: 'Votre semaine avec Rekonect',
       preheader: `${plural(d.activities, 'activité')} hors écran · ${d.minutesLabel}`,
       eyebrow: d.weekLabel,
       title: d.activities > 0 ? 'Une semaine bien remplie' : 'Une nouvelle semaine commence',
@@ -278,7 +278,7 @@ export const EMAILS = {
     audience: 'parent',
     category: 'offers',
     render: (d, u) => ({
-      subject: `🎟️ Nouveau bon ${d.partnerName} dans votre portefeuille`,
+      subject: `Nouveau bon ${d.partnerName} dans votre portefeuille`,
       preheader: d.childName ? `Débloqué grâce aux activités de ${d.childName}` : d.offerTitle,
       eyebrow: d.partnerName,
       title: d.offerTitle,
@@ -632,7 +632,7 @@ export const EMAILS = {
       subject: `Stock épuisé : ${d.offerTitle}`,
       preheader: `Les ${d.total} bons ont été obtenus.`,
       eyebrow: 'Offres',
-      title: 'Tous les bons sont partis 🎉',
+      title: 'Tous les bons sont partis',
       tone: 'success',
       blocks: [{ kind: 'p', text: `Les ${d.total} bons de ${q(d.offerTitle)} ont été obtenus : l’offre n’est plus proposée. Ajoutez du stock pour la relancer.` }],
       cta: { label: 'Ajouter du stock', url: web(u.partners, `/offers/${d.offerId}`) },
@@ -643,7 +643,7 @@ export const EMAILS = {
     audience: 'partner',
     category: 'offer_lifecycle',
     render: (d, u) => ({
-      subject: 'Premier bon utilisé en magasin 🎉',
+      subject: 'Premier bon utilisé en magasin',
       preheader: d.placeName ? `${d.offerTitle} · ${d.placeName}` : d.offerTitle,
       eyebrow: 'Premier passage',
       title: 'Une famille Rekonect est venue chez vous',
@@ -657,7 +657,7 @@ export const EMAILS = {
     audience: 'partner',
     category: 'reports',
     render: (d, u) => ({
-      subject: `${d.count} bons obtenus par les familles 🎉`,
+      subject: `${d.count} bons obtenus par les familles`,
       preheader: `Un cap franchi pour ${d.partnerName}`,
       eyebrow: 'Cap franchi',
       title: `${d.count} familles ont gagné un bon ${d.partnerName}`,

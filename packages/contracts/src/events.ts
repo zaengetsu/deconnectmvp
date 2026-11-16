@@ -8,6 +8,8 @@ export interface EventActor {
 
 export interface DomainEventMap {
   'user.registered': { userId: string; role: 'parent' | 'admin' | 'partner'; email: string };
+  /** Compte parent supprimé par son titulaire (RGPD, App Store 5.1.1(v)). Les données sont déjà effacées. */
+  'user.account_deleted': { userId: string; role: 'parent'; childIds: string[]; stripeSubscriptionIds: string[] };
   'child.created': { childId: string; parentId: string };
   'child.device_linked': { childId: string; parentId: string };
 

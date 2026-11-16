@@ -141,7 +141,7 @@ describe('Abonnements : plans, limites, Stripe, codes, métriques', () => {
 
     await h.drain();
     const [notif] = await notificationsOf(h, parent.userId, 'billing');
-    expect(notif).toMatchObject({ title: '💳 Paiement refusé', priority: 'high', route: '/parent/subscription' });
+    expect(notif).toMatchObject({ title: 'Paiement refusé', priority: 'high', route: '/parent/subscription' });
     expect(notif.channels).toEqual(['in_app', 'push']);
     // L'email détaillé part du catalogue, une seule fois même si l'événement est rejoué.
     const failed = h.mailer.sent.filter((m) => m.to === parent.email && m.subject === 'Paiement refusé');

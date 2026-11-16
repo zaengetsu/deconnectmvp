@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Headers, HttpCode, Module, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Module, Post } from '@nestjs/common';
 import {
   AcceptPartnerInvitationInput,
   ChangeEmailInput,
   ChangePasswordInput,
   ChildLinkInput,
   ChildPinLoginInput,
+  DeleteAccountInput,
   ForgotPasswordInput,
   LoginInput,
   RefreshInput,
@@ -80,6 +81,14 @@ export class AuthController {
   @HttpCode(200)
   changeEmail(@CurrentPrincipal() p: UserPrincipal, @Body(zod(ChangeEmailInput)) body: ChangeEmailInput) {
     return this.auth.changeEmail(p, body);
+  }
+
+  /** Suppression du compte parent par son titulaire, confirmée par le mot de passe. */
+  @Delete('account')
+  @Allow('parent')
+  @HttpCode(204)
+  deleteAccount(@CurrentPrincipal() p: UserPrincipal, @Body(zod(DeleteAccountInput)) body: DeleteAccountInput) {
+    return this.auth.deleteAccount(p, body);
   }
 
   @Public()

@@ -2,12 +2,15 @@
 import { generateKeyPairSync } from 'node:crypto';
 import Stripe from 'stripe';
 import { loadEnv, type Env } from '../../src/config/env';
+import { BillingConsumers } from '../../src/modules/billing/consumers';
+import { BillingGateway } from '../../src/modules/billing/gateway';
 import { mapStatus, normalizeEvent, normalizeInvoice, normalizeSubscription, StripeGateway } from '../../src/modules/billing/stripe.gateway';
 import { ProviderPushTransport, type PushMessage } from '../../src/modules/notifications/channels/push';
+import { EventRegistry } from '../../src/platform/events/event-registry';
 import { BrevoMailer } from '../../src/platform/mail/mailer';
 
 const baseEnv = (over: Record<string, string> = {}): Env => loadEnv({ DATABASE_URL: 'postgresql://x@localhost/db', JWT_ACCESS_SECRET: 'x'.repeat(32), ...over });
-const msg: PushMessage = { title: '🎁 Récompense', body: 'Emma attend sa récompense', badge: 3, data: { route: '/parent/rewards/1', notificationId: 'n1' } };
+const msg: PushMessage = { title: 'Récompense', body: 'Emma attend sa récompense', badge: 3, data: { route: '/parent/rewards/1', notificationId: 'n1' } };
 const response = (status: number, body: unknown) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
 
 describe('push : APNs', () => {
@@ -217,5 +220,30 @@ describe('Stripe', () => {
     const coupons = calls.filter((c) => c[0] === 'coupons.create').map((c) => c[1]);
     expect(coupons[0]).toMatchObject({ percent_off: 20, duration: 'repeating', duration_in_months: 3 });
     expect(coupons[1]).toMatchObject({ amount_off: 200, currency: 'eur', duration: 'once' });
+  });
+});
+
+describe('facturation : compte supprimé par son titulaire', () => {
+  const event = (ids: string[]) => ({ id: 'e1', type: 'user.account_deleted', version: 1, occurredAt: '', aggregateType: 'user', aggregateId: 'u1', payload: { userId: 'u1', role: 'parent', childIds: [], stripeSubscriptionIds: ids } }) as any;
+  const setup = (gateway: Partial<BillingGateway>) => {
+    const registry = new EventRegistry();
+    new BillingConsumers(registry, gateway as BillingGateway).onModuleInit();
+    return registry.handlersFor('user.account_deleted')[0].handler;
+  };
+
+  it('résilie chaque abonnement en fin de période, tolère un abonnement déjà supprimé, relance sur une vraie erreur', async () => {
+    const calls: string[] = [];
+    const ok = setup({ enabled: true, setCancelAtPeriodEnd: async (id: string) => (calls.push(id), {} as any) });
+    await ok(event(['sub_1', 'sub_2']), {} as any);
+    expect(calls).toEqual(['sub_1', 'sub_2']);
+
+    const gone = setup({ enabled: true, setCancelAtPeriodEnd: async () => { throw new Error('No such subscription: sub_x'); } });
+    await expect(gone(event(['sub_x']), {} as any)).resolves.toBeUndefined();
+
+    const down = setup({ enabled: true, setCancelAtPeriodEnd: async () => { throw new Error('Stripe indisponible'); } });
+    await expect(down(event(['sub_y']), {} as any)).rejects.toThrow('Stripe indisponible');
+
+    const off = setup({ enabled: false, setCancelAtPeriodEnd: async () => { throw new Error('ne doit pas être appelé'); } });
+    await expect(off(event(['sub_z']), {} as any)).resolves.toBeUndefined();
   });
 });

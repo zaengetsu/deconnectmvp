@@ -186,12 +186,12 @@ describe('Emails automatiques : catalogue, file, désinscription, déclencheurs'
       await h.drain();
       expect(subjectsTo(brand.email)).toEqual(expect.arrayContaining(['Plus que 1 bon pour « Bon de 10 € »', 'Stock épuisé : Bon de 10 €']));
       const fam0 = await h.prisma.profile.findUniqueOrThrow({ where: { id: families[0] } });
-      expect(subjectsTo(fam0.email)).toContain('🎟️ Nouveau bon Decathlon France dans votre portefeuille');
+      expect(subjectsTo(fam0.email)).toContain('Nouveau bon Decathlon France dans votre portefeuille');
 
       await engine.redeem(claims[0]);
       await engine.redeem(claims[1]);
       await h.drain();
-      expect(subjectsTo(brand.email).filter((s) => s === 'Premier bon utilisé en magasin 🎉')).toHaveLength(1);
+      expect(subjectsTo(brand.email).filter((s) => s === 'Premier bon utilisé en magasin')).toHaveLength(1);
 
       await h.prisma.partnerOffer.update({ where: { id: offer.id }, data: { status: 'published', endsAt: new Date(TEST_NOW.getTime() - 1000) } });
       await engine.expire();
@@ -210,7 +210,7 @@ describe('Emails automatiques : catalogue, file, désinscription, déclencheurs'
         await h.prisma.tx((tx) => h.app.get(OfferEngine).unlock(tx, row as never, { parentId: fam.parentId, childId: null, sourceKey: `cap:${i}` }));
       }
       await h.drain();
-      expect(subjectsTo(brand.email).filter((s) => s === '10 bons obtenus par les familles 🎉')).toHaveLength(1);
+      expect(subjectsTo(brand.email).filter((s) => s === '10 bons obtenus par les familles')).toHaveLength(1);
     });
 
     it('suspension puis réactivation du compte', async () => {
@@ -327,7 +327,7 @@ describe('Emails automatiques : catalogue, file, désinscription, déclencheurs'
       expect(await h.emailJobs.adminDigest()).toBe(1);
 
       await h.emails.processPending();
-      const weekly = h.mailer.sent.find((m) => m.subject === '📊 Votre semaine avec Rekonect');
+      const weekly = h.mailer.sent.find((m) => m.subject === 'Votre semaine avec Rekonect');
       expect(weekly?.text).toContain('activités : 2');
       expect(weekly?.text).toMatch(/Lucas : 2 activités/);
       const partner = h.mailer.sent.find((m) => m.subject === 'Decathlon France · votre semaine sur Rekonect');

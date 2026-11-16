@@ -651,7 +651,7 @@ export class AdminService {
   }
 
   async sendTest(input: { recipientType: 'parent' | 'child'; recipientId: string; title: string; body: string }) {
-    return this.prisma.tx((tx) => this.notifications.enqueue(tx, { ...input, type: 'tip', icon: '🔔', route: null, priority: 'normal', channels: ['in_app', 'push'], dedupKey: null }));
+    return this.prisma.tx((tx) => this.notifications.enqueue(tx, { ...input, type: 'tip', icon: 'message', route: null, priority: 'normal', channels: ['in_app', 'push'], dedupKey: null }));
   }
 
   async events(q: Page & { status?: string }) {

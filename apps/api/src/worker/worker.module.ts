@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ActivitiesModule } from '../modules/activities/activities.module';
+import { BillingCoreModule } from '../modules/billing/billing.module';
+import { MediaCoreModule } from '../modules/media/media.module';
 import { EmailsCoreModule } from '../modules/emails/emails.module';
 import { GamificationModule } from '../modules/gamification/gamification.module';
 import { IdentityModule } from '../modules/identity/identity.module';
@@ -26,6 +28,8 @@ import { JobsService } from './jobs.service';
     RitualsModule,
     PartnersModule,
     NotificationsCoreModule,
+    BillingCoreModule,
+    MediaCoreModule,
     EmailsCoreModule,
   ],
   providers: [JobsService],

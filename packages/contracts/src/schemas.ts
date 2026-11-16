@@ -53,6 +53,9 @@ export const ChangePasswordInput = z.object({ currentPassword: z.string().min(1)
 export type ChangePasswordInput = z.infer<typeof ChangePasswordInput>;
 export const ChangeEmailInput = z.object({ email, password: z.string().min(1) });
 export type ChangeEmailInput = z.infer<typeof ChangeEmailInput>;
+/** Suppression du compte par son titulaire : confirmée par le mot de passe. */
+export const DeleteAccountInput = z.object({ password: z.string().min(1) });
+export type DeleteAccountInput = z.infer<typeof DeleteAccountInput>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordInput>;
 
 export const ChildLinkInput = z.object({
