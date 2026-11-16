@@ -108,7 +108,7 @@ export class EntitlementsService {
   async assertCanAddChild(parentId: string, db: Db = this.prisma) {
     const [{ limits, planName }, usage] = await Promise.all([this.familyPlan(parentId, db), this.familyUsage(parentId, db)]);
     if (!withinLimit(limits.maxChildren, usage.children)) {
-      throw forbidden('PLAN_LIMIT_CHILDREN', `Votre plan ${planName} permet ${limits.maxChildren} profil${limits.maxChildren! > 1 ? 's' : ''} enfant. Passez au plan supérieur pour en ajouter.`);
+      throw forbidden('PLAN_LIMIT_CHILDREN', `Votre plan ${planName} permet ${limits.maxChildren} profil${limits.maxChildren! > 1 ? 's' : ''} enfant.`);
     }
   }
 

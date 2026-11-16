@@ -6,7 +6,7 @@ import {
   UpdateChildInput,
   UpdateProfileInput,
 } from '@rekonect/contracts';
-import { Allow, CurrentPrincipal, type UserPrincipal } from '../../platform/auth/principal';
+import { Allow, CurrentPrincipal, type Principal, type UserPrincipal } from '../../platform/auth/principal';
 import { zod } from '../../platform/http/zod.pipe';
 import { EntitlementsModule } from '../billing/billing.module';
 import { IdentityModule } from '../identity/identity.module';
@@ -37,8 +37,10 @@ export class FamiliesController {
     return this.families.createChild(p, body);
   }
 
+  /** Le parent lit chacun de ses enfants ; la session enfant, seulement sa propre fiche (points à jour). */
   @Get('children/:id')
-  get(@CurrentPrincipal() p: UserPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+  @Allow('parent', 'child')
+  get(@CurrentPrincipal() p: Principal, @Param('id', ParseUUIDPipe) id: string) {
     return this.families.getChild(p, id);
   }
 

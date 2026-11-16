@@ -55,6 +55,15 @@ describe('Familles : profil, enfants, co-parents', () => {
     await h.http.post(`/v1/children/${a.childId}/link-code`).set(auth(b.token)).expect(404);
   });
 
+  it('la session enfant lit sa propre fiche, jamais celle d’un autre enfant', async () => {
+    const a = await familyWithChild(h);
+    const other = await familyWithChild(h, { name: 'Lucas' });
+    const own = await h.http.get(`/v1/children/${a.childId}`).set(auth(a.child.token)).expect(200);
+    expect(own.body.id).toBe(a.childId);
+    await h.http.get(`/v1/children/${other.childId}`).set(auth(a.child.token)).expect(404);
+    await h.http.patch(`/v1/children/${a.childId}`).set(auth(a.child.token)).send({ age: 12 }).expect(403);
+  });
+
   it('co-parent : invitation, acceptation, liste et révocation', async () => {
     const owner = await registerParent(h, 'Camille');
     const other = await registerParent(h, 'Alex');

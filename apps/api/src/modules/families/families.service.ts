@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { CreateChildInput, CreateFamilyInvitationInput, UpdateChildInput, UpdateProfileInput } from '@rekonect/contracts';
 import { AccessService } from '../../platform/auth/access.service';
-import { actorOf, type UserPrincipal } from '../../platform/auth/principal';
+import { actorOf, type Principal, type UserPrincipal } from '../../platform/auth/principal';
 import { Clock } from '../../platform/clock';
 import { normalizeShortCode, randomHex, shortCode } from '../../platform/crypto';
 import { EventBus } from '../../platform/events/event-bus';
@@ -53,8 +53,8 @@ export class FamiliesService {
     });
   }
 
-  async getChild(p: UserPrincipal, childId: string) {
-    await this.access.assertParentOwnsChild(p.userId, childId);
+  async getChild(p: Principal, childId: string) {
+    await this.access.assertCanReadChild(p, childId);
     return this.prisma.child.findUniqueOrThrow({ where: { id: childId }, select: childSelect });
   }
 
