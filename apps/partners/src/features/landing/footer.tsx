@@ -13,7 +13,8 @@ export function LandingFooter() {
         <a href="/login" style={{ color: 'rgba(255,255,255,.6)' }}>Espace partenaire</a>
         <a href="#" style={{ color: 'rgba(255,255,255,.6)' }}>L'app pour les familles</a>
         <a href="#" style={{ color: 'rgba(255,255,255,.6)' }}>Mentions légales</a>
-        <a href="#" style={{ color: 'rgba(255,255,255,.6)' }}>Confidentialité</a>
+        <a href="/confidentialite" style={{ color: 'rgba(255,255,255,.6)' }}>Confidentialité</a>
+        <a href="/support" style={{ color: 'rgba(255,255,255,.6)' }}>Support</a>
         <span>© 2026 Rekonect</span>
       </Container>
     </footer>
