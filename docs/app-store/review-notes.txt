@@ -1,0 +1,28 @@
+1. SCREEN RECORDING
+A screen recording made on a physical iPhone (latest iOS) is attached to this submission. It starts at app launch and shows: parent registration, login, adding a child, linking the child's device, completing and validating an activity, rewards, the reporting flow, and account deletion ("Réglages" > "Mon compte" > "Supprimer mon compte").
+
+2. PURPOSE AND AUDIENCE
+Rekonect helps families reduce children's screen time in a positive way. Parents (adults) create an account and propose offline activities to their children (cooking, sport, reading, creativity, helping out). The child completes the activity, sends a short note or photo as proof, the parent validates it and the child earns points that unlock rewards chosen by the parents. Target audience: parents of children aged about 6 to 14. The parent account is always the account holder; a child can only use the app through a profile created by the parent and protected by a PIN.
+
+3. HOW TO ACCESS THE MAIN FEATURES
+Demo parent account: credentials are in the Sign-In Information fields (one child, "Leo", already linked; child PIN: 1234).
+- Parent space: home dashboard, children tab, "Validations" tab (one activity is waiting to be validated), "Récompenses" (rewards) tab, the "+" button to assign activities from the catalogue.
+- Child space on the same device: "Réglages" (avatar at top right) > "Basculer vers l'espace enfant" > select Leo > PIN 1234. The child sees assigned challenges, points, levels and rewards. To go back, log out and log in again with the parent account.
+- Account deletion: "Réglages" > "Mon compte" > "Supprimer mon compte", confirmed with the password. It permanently deletes the family's data.
+No purchase is possible in the iOS app: the "Mon abonnement" screen only displays the current plan and its limits.
+
+User-generated content: the child's notes and photos are private to the family and are only shown to the child's own parents; nothing is public and users cannot contact strangers. Parents can report any activity from the "Validations" screen ("Signaler cette activité"); reports are reviewed by the Rekonect team in our back office. Partner offers shown to parents are moderated by our team before publication and are never shown to children.
+
+4. EXTERNAL SERVICES
+- Scaleway (France): hosting of our API and back office.
+- Supabase (EU): managed PostgreSQL database.
+- Apple Push Notification service: notifications.
+- Brevo: transactional emails (password reset, confirmations).
+- Stripe: payments for business partners on our website only; not used in the iOS app.
+No AI service, no advertising SDK, no third-party analytics or tracking.
+
+5. REGIONAL DIFFERENCES
+The app is currently distributed in France and its interface is in French (on-screen labels are quoted in French above). Features and content are identical for all users.
+
+6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
+Rekonect does not operate in a regulated industry and does not include protected third-party material. Children's data is processed under the GDPR with the parent as account holder; there is no advertising aimed at children. The app is not listed in the Kids category.
