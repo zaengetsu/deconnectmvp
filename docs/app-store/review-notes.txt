@@ -9,6 +9,7 @@ Demo parent account: credentials are in the Sign-In Information fields (one chil
 - Parent space: home dashboard, children tab, "Validations" tab (one activity is waiting to be validated), "Récompenses" (rewards) tab, the "+" button to assign activities from the catalogue.
 - Child space on the same device: "Réglages" (avatar at top right) > "Basculer vers l'espace enfant" > select Leo > PIN 1234. The child sees assigned challenges, points, levels and rewards. To go back, log out and log in again with the parent account.
 - Account deletion: "Réglages" > "Mon compte" > "Supprimer mon compte", confirmed with the password. It permanently deletes the family's data.
+- Privacy policy and support: "Réglages" > "Confidentialité" and "Aide et support" (also linked on the sign-up screen).
 No purchase is possible in the iOS app: the "Mon abonnement" screen only displays the current plan and its limits.
 
 User-generated content: the child's notes and photos are private to the family and are only shown to the child's own parents; nothing is public and users cannot contact strangers. Parents can report any activity from the "Validations" screen ("Signaler cette activité"); reports are reviewed by the Rekonect team in our back office. Partner offers shown to parents are moderated by our team before publication and are never shown to children.
