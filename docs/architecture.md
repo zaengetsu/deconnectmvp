@@ -395,7 +395,7 @@ Rekonect a son propre **projet Scaleway, `rekonect`**, avec le registre `rekonec
 
 | Conteneur | Image | Processus | Échelle |
 |---|---|---|---|
-| `api` | `api` | `dist/main.js` : REST `/v1` + WebSocket `/realtime` | 0 → 2, délai de requête 15 min (WebSocket) |
+| `api` | `api` | `dist/main.js` : REST `/v1` + WebSocket `/realtime` | 1 → 2 (toujours allumée : le réveil depuis zéro dépasse le délai de 15 s de l’app), délai de requête 15 min (WebSocket) |
 | `worker` | `api` (même image, `REKONECT_PROCESS=worker`) | `dist/worker.js` : outbox, livraisons, emails, crons | **1 → 1, toujours allumé** |
 | `admin` | `admin` | Next.js standalone | 0 → 2 |
 | `partners` | `partners` | Next.js standalone (landing à `/`) | 0 → 2 |

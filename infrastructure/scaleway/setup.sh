@@ -9,7 +9,7 @@
 # de l'environnement et quatre conteneurs, d'abord sur une image alpine de remplacement :
 # le premier `deploy-local.sh` y pose les vraies images et les variables.
 #
-#   api       NestJS HTTP + WebSocket /realtime     0 → 2 instances (s'endort sans trafic)
+#   api       NestJS HTTP + WebSocket /realtime     1 → 2 instances, toujours allumée
 #   worker    outbox, notifications, emails, crons  1 instance, toujours allumée
 #   admin     back-office (Next.js)                 0 → 2
 #   partners  portail + landing partenaires         0 → 2
@@ -100,7 +100,9 @@ create_container() {
 step "Conteneurs"
 # API : 15 min de délai de requête, le maximum, pour que les WebSocket ne soient pas coupés à
 # chaque minute (socket.io se reconnecte de toute façon).
-create_container api      0 "$API_MAX_SCALE" 560 1024 900s /health
+# Au moins une instance : le réveil depuis zéro dépasse le délai de 15 s de l'app mobile, et la
+# première action après une période calme échouait (« Le serveur met trop de temps à répondre »).
+create_container api      1 "$API_MAX_SCALE" 560 1024 900s /health
 create_container worker   1 1                280 512  300s /health
 create_container admin    0 2                280 512  60s  /login
 create_container partners 0 2                280 512  60s  /login

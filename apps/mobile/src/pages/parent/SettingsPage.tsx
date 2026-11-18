@@ -1,4 +1,4 @@
-import { cardOutline, giftOutline, notificationsOutline, optionsOutline, timeOutline, peopleOutline, swapHorizontalOutline } from 'ionicons/icons';
+import { cardOutline, giftOutline, notificationsOutline, optionsOutline, timeOutline, peopleOutline, swapHorizontalOutline, helpCircleOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import RkTile from '../../components/rk/RkTile';
 import { useRkBack } from '../../hooks/useRkBack';
 import React, { useEffect, useState } from 'react';
@@ -10,6 +10,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useAppStore } from '../../stores/app.store';
 import { useRk, type RkTheme } from '../../components/rk/RkShell';
 import { RkHeader } from '../../components/rk/RkDecor';
+import { openLink, PRIVACY_URL, SUPPORT_URL } from '../../lib/links';
 import { BILLING_IN_APP } from '../../lib/billing-platform';
 
 /** Réglages — porté de la maquette Rekonect (écran pSettings). */
@@ -227,10 +228,28 @@ const SettingsPage: React.FC = () => {
                 <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
               </button>
 
-              <button onClick={() => history.push('/select-child')} style={row}>
+              <button onClick={() => history.push('/select-child')} style={{ ...row, borderBottom: '1px solid var(--rk-line)' }}>
                 <RkTile icon={swapHorizontalOutline} tint="var(--rk-accentsoft)" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Basculer vers l'espace enfant</div>
+                </div>
+                <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
+              </button>
+
+              <button onClick={() => openLink(SUPPORT_URL)} style={{ ...row, borderBottom: '1px solid var(--rk-line)' }}>
+                <RkTile icon={helpCircleOutline} tint="var(--rk-indigosoft)" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Aide et support</div>
+                  <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>Questions fréquentes, nous contacter</div>
+                </div>
+                <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
+              </button>
+
+              <button onClick={() => openLink(PRIVACY_URL)} style={row}>
+                <RkTile icon={shieldCheckmarkOutline} tint="var(--rk-sagesoft)" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--rk-text)' }}>Confidentialité</div>
+                  <div style={{ fontSize: 12, color: 'var(--rk-text3)', marginTop: 2 }}>Données de la famille et de vos enfants</div>
                 </div>
                 <div style={{ fontSize: 16, color: 'var(--rk-text3)', flexShrink: 0 }}>›</div>
               </button>

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Coquille Rekonect — reprend le contrat de la maquette :
@@ -77,7 +78,11 @@ export const RkSheet: React.FC<{
   children: React.ReactNode;
 }> = ({ open, onClose, title, subtitle, eyebrow, children }) => {
   if (!open) return null;
-  return (
+  // Rendue dans l'enveloppe RkShell, hors de la page Ionic : sinon le contexte d'empilement de
+  // la page la laisse sous la barre d'onglets et le bouton central, qui masquaient ses boutons.
+  // L'enveloppe porte les attributs de thème (espace, accent, mode sombre).
+  const host = typeof document !== 'undefined' ? document.querySelector('[data-rk-space]') : null;
+  const sheet = (
     <>
       <div className="rk-scrim rk-scrim-bg" onClick={onClose} />
       <div className="rk-sheet rk-sheet-panel" style={{ borderRadius: '28px 28px 0 0', padding: '12px 20px 30px' }}>
@@ -99,6 +104,7 @@ export const RkSheet: React.FC<{
       </div>
     </>
   );
+  return host ? createPortal(sheet, host) : sheet;
 };
 
 /** Entrée de feuille modale (icône + titre + sous-titre), format maquette. */

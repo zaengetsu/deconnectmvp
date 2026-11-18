@@ -2,6 +2,7 @@ import { useRkBack, useBackSwipe } from '../../hooks/useRkBack';
 import React, { useState } from 'react';
 import { IonContent, IonPage } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
+import { openLink, PRIVACY_URL, SUPPORT_URL } from '../../lib/links';
 import { useAuthStore } from '../../stores/auth.store';
 
 /** Créer un compte — porté de la maquette Rekonect (écran register). */
@@ -116,7 +117,10 @@ const RegisterPage: React.FC = () => {
               )}
             </div>
             <div style={{ fontSize: 12, color: 'var(--rk-text2)', lineHeight: 1.5 }}>
-              J'accepte les conditions d'utilisation et la politique de confidentialité.
+              J'accepte les{' '}
+              <a href={SUPPORT_URL} onClick={(e) => { e.preventDefault(); e.stopPropagation(); openLink(SUPPORT_URL); }} style={{ color: 'var(--rk-indigo)', fontWeight: 700 }}>conditions d'utilisation</a>
+              {' '}et la{' '}
+              <a href={PRIVACY_URL} onClick={(e) => { e.preventDefault(); e.stopPropagation(); openLink(PRIVACY_URL); }} style={{ color: 'var(--rk-indigo)', fontWeight: 700 }}>politique de confidentialité</a>.
             </div>
           </button>
 
